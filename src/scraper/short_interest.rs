@@ -1,12 +1,13 @@
 //! FINRA Developer API short sale volume fetcher.
 //!
-//! Endpoint: https://api.finra.org/data/group/consolidatedShortSaleVolume/name/consolidatedShortSaleVolumeDailyData
+//! Endpoint: https://api.finra.org/data/group/otcMarket/name/regShoDaily
 //! Auth: Bearer token in Authorization header.
 //!
-//! This is the consolidated (exchange + OTC) short sale volume dataset.
-//! Data comes back with multiple rows per ticker per day (one per reporting
-//! facility). We aggregate (sum) them, but also guard on the symbol field
-//! to ensure we only include records for the requested ticker.
+//! Note: regShoDaily covers OTC securities. Exchange-listed equities (AAPL, TSLA,
+//! etc.) are not in this dataset, so those tickers will return 0 rows. This is
+//! correct behaviour — better to show no data than the aggregate OTC market ratio.
+//! The consolidatedShortSaleVolume endpoint covers exchange stocks but requires a
+//! paid FINRA API subscription tier.
 //!
 //! Key field names from the API:
 //!   securitiesInformationProcessorSymbolIdentifier — ticker symbol
@@ -67,11 +68,8 @@ async fn fetch_finra_ticker(
     client: &reqwest::Client,
     api_key: &str,
 ) -> Result<u64> {
-    // FINRA consolidated short sale volume — covers exchange-listed equities.
-    // The otcMarket/regShoDaily endpoint only covers OTC securities.
     let url = format!(
-        "https://api.finra.org/data/group/consolidatedShortSaleVolume\
-         /name/consolidatedShortSaleVolumeDailyData\
+        "https://api.finra.org/data/group/otcMarket/name/regShoDaily\
          ?limit=500\
          &compareFilters=securitiesInformationProcessorSymbolIdentifier=={ticker}\
          &dateRangeFilters=tradeReportDate>={since_date}"
