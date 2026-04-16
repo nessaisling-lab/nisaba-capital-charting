@@ -3,11 +3,59 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v0.6.0
+**Current version:** v0.7.0
 
 ---
 
 ## Changelog
+
+### v0.7.0 — Lagrange History, Portfolio, CPI YoY%, Color-Coding *(completed 2026-04-16)*
+**Theme:** Daily Lagrange history accumulation, portfolio positions, display polish
+
+**Shared lib extraction:**
+- [x] `src/indicators.rs` moved to lib crate — shared between scraper and dashboard binaries
+- [x] `compute_lagrange_score` now returns `(f32, String, LagrangeComponents)` with component breakdown
+- [x] `LagrangeComponents { fin_score, astro_score, macro_score, short_score }` stored for debugging
+
+**New scraper module:**
+- [x] `src/scraper/lagrange.rs` — daily Lagrange Score computation for all 10 tickers
+- [x] Reads price/sentiment/astro/macro/short from DB, computes score, upserts to `lagrange_history`
+- [x] `ON CONFLICT (ticker, score_date) DO NOTHING` — safe to re-run
+- [x] Runs at end of `run_all_fetches` pipeline
+
+**Migration 0013:**
+- [x] `lagrange_history` table: one row per ticker per day, UNIQUE (ticker, score_date)
+- [x] `portfolio_positions` table: user-editable via SQL, UNIQUE on ticker
+
+**New models:**
+- [x] `LagrangeHistory { ticker, score_date, score, label, fin_score, astro_score, macro_score, short_score }`
+- [x] `PortfolioPosition { ticker, shares, avg_cost, notes }`
+
+**Dashboard — Lagrange sparkline:**
+- [x] `LagrangeSparkline` canvas widget: 90-day score history strip below price chart
+- [x] Zone color bands (red/orange/yellow/green) matching Lagrange label thresholds
+- [x] Grid lines at 25 / 45 / 55 / 75 zone boundaries
+- [x] Date labels at first and last data point, score label at latest point
+- [x] Falls back to "Not enough history yet" until ≥2 days of data
+
+**Dashboard — Portfolio panel:**
+- [x] Reads `portfolio_positions` table, shows ticker / shares / avg cost / total cost basis
+- [x] Notes column display; total cost basis footer
+- [x] Empty state message directing user to portfolio_seed.sql
+
+**Dashboard — display polish:**
+- [x] Watchlist ranking: zone-coded score column (e.g. `66 ■ Fav`)
+- [x] Macro strip: raw Decimal → f64 → `{:.2}` formatting (was 6 decimal places)
+- [x] CPI strip item: raw index value replaced with YoY% via SQL CTE window calculation
+- [x] `WatchlistRow.astro_score`: `i32` → `f64` (type mismatch was silently dropping all watchlist data)
+- [x] `fetch_macro_indicators`: fixed `observation_date` → `obs_date` (actual DB column name)
+
+**Data quality fixes:**
+- [x] FINRA short interest: added symbol guard in aggregation — previously summed all records regardless of ticker
+- [x] Deleted corrupt 43.5957% aggregate OTC short ratio rows from all 10 tickers
+- [x] Short interest data limitation documented: regShoDaily is OTC-only; exchange-listed stocks return 0 rows (correct)
+
+---
 
 ### v0.6.0 — Expanded Data Sources + Actionable Intelligence *(completed 2026-04-15)*
 **Theme:** FRED macro data, FINRA short interest, Lagrange Score, signal synthesis
