@@ -6,9 +6,9 @@ use std::time::Duration;
 use crate::db::{
     connect_db, fetch_8k_filings, fetch_all_earnings, fetch_analyst_rating,
     fetch_astro_active_aspects, fetch_astro_score, fetch_daily_transits, fetch_fear_greed,
-    fetch_holdings, fetch_insider_trades, fetch_macro_indicators, fetch_market_fear_greed,
-    fetch_natal_chart, fetch_news, fetch_prices, fetch_sentiment, fetch_short_interest,
-    fetch_watchlist_summaries, load_tickers,
+    fetch_holdings, fetch_insider_trades, fetch_lagrange_history, fetch_macro_indicators,
+    fetch_market_fear_greed, fetch_natal_chart, fetch_news, fetch_portfolio, fetch_prices,
+    fetch_sentiment, fetch_short_interest, fetch_watchlist_summaries, load_tickers,
 };
 use crate::indicators::Indicators;
 use crate::state::{Dashboard, Message};
@@ -73,6 +73,8 @@ impl Dashboard {
                         Task::perform(fetch_daily_transits(Arc::clone(pool)), Message::TransitsLoaded),
                         Task::perform(fetch_macro_indicators(Arc::clone(pool)), Message::MacroDataLoaded),
                         Task::perform(fetch_watchlist_summaries(Arc::clone(pool)), Message::WatchlistLoaded),
+                        Task::perform(fetch_lagrange_history(Arc::clone(pool), self.selected_ticker.clone()), Message::LagrangeHistoryLoaded),
+                        Task::perform(fetch_portfolio(Arc::clone(pool)), Message::PortfolioLoaded),
                     ])
                 } else {
                     Task::none()
@@ -97,9 +99,13 @@ impl Dashboard {
                 self.astro_aspects = vec![];
                 self.natal_positions = vec![];
                 self.short_interest = None;
+                self.lagrange_history = vec![];
                 self.status = format!("Loading {ticker}...");
                 if let Some(pool) = &self.pool {
-                    Self::fetch_all(pool, ticker)
+                    Task::batch([
+                        Self::fetch_all(pool, ticker.clone()),
+                        Task::perform(fetch_lagrange_history(Arc::clone(pool), ticker), Message::LagrangeHistoryLoaded),
+                    ])
                 } else {
                     Task::none()
                 }
@@ -164,6 +170,10 @@ impl Dashboard {
                 Task::none()
             }
             Message::WatchlistLoaded(Err(_)) => Task::none(),
+            Message::LagrangeHistoryLoaded(Ok(h))  => { self.lagrange_history = h; Task::none() }
+            Message::LagrangeHistoryLoaded(Err(_))  => Task::none(),
+            Message::PortfolioLoaded(Ok(p))         => { self.portfolio = p;        Task::none() }
+            Message::PortfolioLoaded(Err(_))         => Task::none(),
             Message::CopyText(s)  => iced::clipboard::write(s),
             Message::OpenUrl(url) => {
                 let _ = open::that_detached(&url);

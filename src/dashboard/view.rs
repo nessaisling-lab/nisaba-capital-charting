@@ -3,7 +3,7 @@ use iced::widget::{button, column, container, horizontal_rule, row, scrollable, 
 use iced::{Alignment, Element, Length, Theme};
 
 use crate::astrology::{build_transits_section, build_wheel_legend, NatalWheel};
-use crate::charts::PriceChart;
+use crate::charts::{LagrangeSparkline, PriceChart};
 use crate::gauges::FearGreedGauge;
 use crate::helpers::{describe_8k_items, format_market_value, format_market_value_i64, format_shares};
 use crate::indicators::{compute_lagrange_score, compute_ticker_score, Indicators};
@@ -39,6 +39,14 @@ impl Dashboard {
         })
         .width(Length::Fill)
         .height(Length::Fixed(220.0));
+
+        // Lagrange Score sparkline strip
+        let sparkline_strip = column![
+            text("Lagrange Score — 90-day history").size(11),
+            Canvas::new(LagrangeSparkline { history: self.lagrange_history.clone() })
+                .width(Length::Fill)
+                .height(Length::Fixed(60.0)),
+        ].spacing(2);
 
         // Indicator summary row
         let indicator_row = match &self.indicators {
@@ -351,7 +359,7 @@ impl Dashboard {
         // Lagrange Score gauge — blends all signals
         let lagrange_gauge = match &self.indicators {
             Some(ind) => {
-                let (score, label) = compute_lagrange_score(
+                let (score, label, _) = compute_lagrange_score(
                     ind, &self.rows, &self.sentiment,
                     &self.astro_score, &self.macro_data, &self.short_interest,
                 );
@@ -387,7 +395,7 @@ impl Dashboard {
                 text("Loading indicators...").size(11),
             ].spacing(4),
             Some(ind) => {
-                let (lagrange, lagrange_label) = compute_lagrange_score(
+                let (lagrange, lagrange_label, _) = compute_lagrange_score(
                     ind, &self.rows, &self.sentiment,
                     &self.astro_score, &self.macro_data, &self.short_interest,
                 );
@@ -428,7 +436,7 @@ impl Dashboard {
             let hdr = row![
                 text("#").size(11).width(Length::Fixed(24.0)),
                 text("Ticker").size(11).width(Length::Fixed(64.0)),
-                text("Score").size(11).width(Length::Fixed(50.0)),
+                text("Score").size(11).width(Length::Fixed(90.0)),
                 text("Astro").size(11).width(Length::Fixed(100.0)),
                 text("Sentiment").size(11).width(Length::Fixed(120.0)),
                 text("Short%").size(11).width(Length::Fill),
@@ -448,12 +456,19 @@ impl Dashboard {
                 let short_str = w.short_pct.as_ref()
                     .map(|p| format!("{p:.1}%"))
                     .unwrap_or_else(|| "—".into());
+                let score_zone = match score as u32 {
+                    0..=24  => "■ Mis",
+                    25..=44 => "■ Unf",
+                    45..=55 => "■ Neu",
+                    56..=75 => "■ Fav",
+                    _       => "■ Opt",
+                };
                 let ticker_btn = button(text(w.ticker.clone()).size(11))
                     .on_press(Message::TickerSelected(w.ticker.clone()));
                 row![
                     text(format!("{}", i + 1)).size(11).width(Length::Fixed(24.0)),
                     ticker_btn,
-                    text(format!("{score:.0}")).size(11).width(Length::Fixed(50.0)),
+                    text(format!("{score:.0} {score_zone}")).size(11).width(Length::Fixed(90.0)),
                     text(astro_str).size(11).width(Length::Fixed(100.0)),
                     text(sent_str).size(11).width(Length::Fixed(120.0)),
                     text(short_str).size(11).width(Length::Fill),
@@ -477,7 +492,7 @@ impl Dashboard {
         };
         let macro_strip = row![
             text(format!("Fed Funds: {}%",   macro_find("FEDFUNDS"))).size(11),
-            text(format!("CPI: {}",           macro_find("CPIAUCSL"))).size(11),
+            text(format!("CPI YoY: {}%",       macro_find("CPIAUCSL_YOY"))).size(11),
             text(format!("Unemploy: {}%",     macro_find("UNRATE"))).size(11),
             text(format!("10Y: {}%",          macro_find("GS10"))).size(11),
             text(format!("2Y: {}%",           macro_find("GS2"))).size(11),
@@ -519,6 +534,47 @@ impl Dashboard {
             column![news_section].width(Length::FillPortion(1)),
         ].spacing(20);
 
+        // Portfolio panel
+        let portfolio_section = if self.portfolio.is_empty() {
+            column![
+                text("Portfolio").size(14),
+                text("No positions — add rows to portfolio_positions table via portfolio_seed.sql").size(11),
+            ].spacing(4)
+        } else {
+            let hdr = row![
+                text("Ticker").size(11).width(Length::Fixed(64.0)),
+                text("Shares").size(11).width(Length::Fixed(72.0)),
+                text("Avg Cost").size(11).width(Length::Fixed(88.0)),
+                text("Cost Basis").size(11).width(Length::Fill),
+            ].spacing(8);
+
+            let pos_rows: Vec<Element<Message>> = self.portfolio.iter().map(|p| {
+                let cost_basis = p.shares * p.avg_cost;
+                let notes = p.notes.as_deref().unwrap_or("");
+                let label = if notes.is_empty() {
+                    format!("${cost_basis:.0}")
+                } else {
+                    format!("${cost_basis:.0}  —  {notes}")
+                };
+                row![
+                    text(&p.ticker).size(11).width(Length::Fixed(64.0)),
+                    text(format!("{:.2}", p.shares)).size(11).width(Length::Fixed(72.0)),
+                    text(format!("${:.2}", p.avg_cost)).size(11).width(Length::Fixed(88.0)),
+                    text(label).size(11).width(Length::Fill),
+                ].spacing(8).into()
+            }).collect();
+
+            let total_basis: f32 = self.portfolio.iter().map(|p| p.shares * p.avg_cost).sum();
+            column![
+                text("Portfolio").size(14),
+                horizontal_rule(1),
+                hdr,
+                Column::with_children(pos_rows).spacing(2),
+                horizontal_rule(1),
+                text(format!("Total cost basis: ${total_basis:.0}")).size(11),
+            ].spacing(4)
+        };
+
         let content = column![
             header,
             horizontal_rule(1),
@@ -528,6 +584,7 @@ impl Dashboard {
             text(&self.status).size(11),
             button(refresh_label).on_press(Message::RefreshNow),
             chart,
+            sparkline_strip,
             indicator_row,
             macro_strip,
             horizontal_rule(1),
@@ -540,6 +597,8 @@ impl Dashboard {
             earnings_section,
             horizontal_rule(1),
             holdings_section,
+            horizontal_rule(1),
+            container(portfolio_section).padding([10, 14]),
             horizontal_rule(1),
             news_filings_row,
             horizontal_rule(1),

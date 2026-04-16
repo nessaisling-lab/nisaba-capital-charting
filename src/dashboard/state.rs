@@ -1,8 +1,8 @@
 use iced::Theme;
 use pursuit_week4_automation::models::{
     AnalystRating, AstroScore, DailyTransit, EarningsDate, FilingRow, HoldingRow,
-    InsiderTradeRow, MacroIndicator, NatalPosition, NewsArticle, PriceRow,
-    SentimentScore, ShortInterest,
+    InsiderTradeRow, LagrangeHistory, MacroIndicator, NatalPosition, NewsArticle,
+    PortfolioPosition, PriceRow, SentimentScore, ShortInterest,
 };
 use crate::db::WatchlistRow;
 use sqlx::PgPool;
@@ -34,6 +34,8 @@ pub struct Dashboard {
     pub macro_data:        Vec<MacroIndicator>,
     pub short_interest:    Option<ShortInterest>,
     pub watchlist:         Vec<WatchlistRow>,
+    pub lagrange_history:  Vec<LagrangeHistory>,
+    pub portfolio:         Vec<PortfolioPosition>,
     pub status:            String,
     pub refreshing:        bool,
     pub theme:             Theme,
@@ -62,10 +64,12 @@ impl Default for Dashboard {
             astro_aspects:   vec![],
             natal_positions: vec![],
             daily_transits:  vec![],
-            macro_data:      vec![],
-            short_interest:  None,
-            watchlist:       vec![],
-            status:          String::new(),
+            macro_data:        vec![],
+            short_interest:    None,
+            watchlist:         vec![],
+            lagrange_history:  vec![],
+            portfolio:         vec![],
+            status:            String::new(),
             refreshing:      false,
             theme:           Theme::Dark,
         }
@@ -93,6 +97,8 @@ pub enum Message {
     MacroDataLoaded(Result<Vec<MacroIndicator>, String>),
     ShortInterestLoaded(Result<Option<ShortInterest>, String>),
     WatchlistLoaded(Result<Vec<WatchlistRow>, String>),
+    LagrangeHistoryLoaded(Result<Vec<LagrangeHistory>, String>),
+    PortfolioLoaded(Result<Vec<PortfolioPosition>, String>),
     CopyText(String),
     OpenUrl(String),
     TickerSelected(String),

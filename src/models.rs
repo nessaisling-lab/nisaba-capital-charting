@@ -173,3 +173,25 @@ pub struct OhlcvEntry {
     #[serde(rename = "5. volume")]
     pub volume: String,
 }
+
+/// One row from lagrange_history
+#[derive(Debug, Clone, FromRow)]
+pub struct LagrangeHistory {
+    pub ticker:      String,
+    pub score_date:  chrono::NaiveDate,
+    pub score:       f32,
+    pub label:       String,
+    pub fin_score:   Option<f32>,
+    pub astro_score: Option<f32>,
+    pub macro_score: Option<f32>,
+    pub short_score: Option<f32>,
+}
+
+/// One row from portfolio_positions
+#[derive(Debug, Clone, FromRow)]
+pub struct PortfolioPosition {
+    pub ticker:   String,
+    pub shares:   f32,
+    pub avg_cost: f32,
+    pub notes:    Option<String>,
+}

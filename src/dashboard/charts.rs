@@ -1,7 +1,7 @@
 use iced::widget::canvas::{self};
-use iced::{Color, Point, Rectangle};
+use iced::{Color, Point, Rectangle, Size};
 use iced::mouse;
-use pursuit_week4_automation::models::PriceRow;
+use pursuit_week4_automation::models::{LagrangeHistory, PriceRow};
 
 use crate::state::Message;
 use crate::helpers::format_shares;
@@ -287,3 +287,127 @@ impl canvas::Program<Message> for PriceChart {
         vec![frame.into_geometry()]
     }
 }
+
+// ---------------------------------------------------------------------------
+// Lagrange Score Sparkline — 90-day history strip below the price chart
+// ---------------------------------------------------------------------------
+
+pub struct LagrangeSparkline {
+    pub history: Vec<LagrangeHistory>,
+}
+
+impl<Message> canvas::Program<Message> for LagrangeSparkline {
+    type State = ();
+
+    fn draw(
+        &self,
+        _state: &Self::State,
+        renderer: &iced::Renderer,
+        _theme: &iced::Theme,
+        bounds: Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> Vec<canvas::Geometry> {
+        let mut frame = canvas::Frame::new(renderer, bounds.size());
+
+        if self.history.len() < 2 {
+            frame.fill_text(canvas::Text {
+                content: "Not enough Lagrange history yet — run the scraper".to_string(),
+                position: Point::new(8.0, bounds.height / 2.0 - 6.0),
+                color: Color::from_rgb(0.5, 0.5, 0.5),
+                size: iced::Pixels(10.0),
+                ..canvas::Text::default()
+            });
+            return vec![frame.into_geometry()];
+        }
+
+        let n = self.history.len();
+        let pad = 4.0f32;
+        let inner_w = bounds.width - pad * 2.0;
+        let inner_h = bounds.height - pad * 2.0;
+
+        // Score range 0-100; draw horizontal zone bands first
+        let zones: &[(f32, f32, Color)] = &[
+            (0.0,  24.0, Color::from_rgba(0.8, 0.1, 0.1, 0.18)),  // Misaligned  — red
+            (25.0, 44.0, Color::from_rgba(0.8, 0.4, 0.0, 0.18)),  // Unfavorable — orange
+            (45.0, 55.0, Color::from_rgba(0.8, 0.8, 0.0, 0.18)),  // Neutral     — yellow
+            (56.0, 75.0, Color::from_rgba(0.2, 0.7, 0.2, 0.18)),  // Favorable   — green
+            (76.0,100.0, Color::from_rgba(0.0, 0.9, 0.4, 0.18)),  // Optimal     — bright green
+        ];
+        for (lo, hi, color) in zones {
+            let y_hi = pad + inner_h - (hi / 100.0) * inner_h;
+            let y_lo = pad + inner_h - (lo / 100.0) * inner_h;
+            frame.fill_rectangle(
+                Point::new(pad, y_hi),
+                Size::new(inner_w, y_lo - y_hi),
+                *color,
+            );
+        }
+
+        // Grid lines at 25 / 45 / 55 / 75
+        for level in [25.0f32, 45.0, 55.0, 75.0] {
+            let y = pad + inner_h - (level / 100.0) * inner_h;
+            let line = canvas::Path::new(|b| {
+                b.move_to(Point::new(pad, y));
+                b.line_to(Point::new(pad + inner_w, y));
+            });
+            frame.stroke(&line, canvas::Stroke {
+                style: canvas::Style::Solid(Color::from_rgba(1.0, 1.0, 1.0, 0.12)),
+                width: 0.5,
+                ..Default::default()
+            });
+        }
+
+        // Score line
+        let pts: Vec<Point> = self.history.iter().enumerate().map(|(i, row)| {
+            let x = pad + (i as f32 / (n - 1) as f32) * inner_w;
+            let y = pad + inner_h - (row.score / 100.0) * inner_h;
+            Point::new(x, y.max(pad))
+        }).collect();
+
+        let line = canvas::Path::new(|b| {
+            for (i, &pt) in pts.iter().enumerate() {
+                if i == 0 { b.move_to(pt); } else { b.line_to(pt); }
+            }
+        });
+        frame.stroke(&line, canvas::Stroke {
+            style: canvas::Style::Solid(Color::from_rgb(0.4, 0.8, 1.0)),
+            width: 1.5,
+            ..Default::default()
+        });
+
+        // Dot + label at last point
+        if let Some(&last) = pts.last() {
+            frame.fill(&canvas::Path::circle(last, 3.0), Color::from_rgb(0.4, 0.8, 1.0));
+            if let Some(row) = self.history.last() {
+                frame.fill_text(canvas::Text {
+                    content: format!("{:.0}", row.score),
+                    position: Point::new(last.x + 4.0, last.y - 8.0),
+                    color: Color::from_rgb(0.4, 0.8, 1.0),
+                    size: iced::Pixels(9.0),
+                    ..canvas::Text::default()
+                });
+            }
+        }
+
+        // Date labels: first and last
+        if let (Some(first), Some(last_row)) = (self.history.first(), self.history.last()) {
+            frame.fill_text(canvas::Text {
+                content: first.score_date.to_string(),
+                position: Point::new(pad, bounds.height - 2.0),
+                color: Color::from_rgba(1.0, 1.0, 1.0, 0.4),
+                size: iced::Pixels(8.0),
+                ..canvas::Text::default()
+            });
+            frame.fill_text(canvas::Text {
+                content: last_row.score_date.to_string(),
+                position: Point::new(pad + inner_w - 60.0, bounds.height - 2.0),
+                color: Color::from_rgba(1.0, 1.0, 1.0, 0.4),
+                size: iced::Pixels(8.0),
+                ..canvas::Text::default()
+            });
+        }
+
+        vec![frame.into_geometry()]
+    }
+}
+

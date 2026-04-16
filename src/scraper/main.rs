@@ -2,6 +2,7 @@ mod astrology;
 mod edgar;
 mod finnhub;
 mod holdings;
+mod lagrange;
 mod macro_data;
 mod options;
 mod prices;
@@ -260,5 +261,8 @@ async fn run_all_fetches(
     println!("Computing daily planetary transits...");
     astrology::compute_daily_transits(Arc::clone(&pool)).await;
     println!("Computing astrological scores...");
-    astrology::compute_astro_scores(pool).await;
+    astrology::compute_astro_scores(Arc::clone(&pool)).await;
+
+    println!("Computing Lagrange scores...");
+    lagrange::compute_all_scores(pool).await;
 }

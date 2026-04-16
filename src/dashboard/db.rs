@@ -1,8 +1,8 @@
 use chrono::Utc;
 use pursuit_week4_automation::models::{
     AnalystRating, AstroScore, DailyTransit, EarningsDate, FilingRow, HoldingRow,
-    InsiderTradeRow, MacroIndicator, NatalPosition, NewsArticle, PriceRow,
-    SentimentScore, ShortInterest,
+    InsiderTradeRow, LagrangeHistory, MacroIndicator, NatalPosition, NewsArticle,
+    PortfolioPosition, PriceRow, SentimentScore, ShortInterest,
 };
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -175,10 +175,37 @@ pub async fn fetch_astro_active_aspects(pool: Arc<PgPool>, ticker: String) -> Re
 }
 
 pub async fn fetch_macro_indicators(pool: Arc<PgPool>) -> Result<Vec<MacroIndicator>, String> {
+    // Fetch latest per series, plus a synthetic CPI YoY% row.
+    // Column aliases match MacroIndicator struct field names (obs_date, not observation_date).
     sqlx::query_as::<_, MacroIndicator>(
-        "SELECT DISTINCT ON (series_id) series_id, series_name, obs_date, value \
-         FROM macro_indicators \
-         ORDER BY series_id, obs_date DESC",
+        "WITH latest AS (
+             SELECT DISTINCT ON (series_id)
+                 series_id, series_name,
+                 observation_date AS obs_date,
+                 value
+             FROM macro_indicators
+             ORDER BY series_id, observation_date DESC
+         ),
+         cpi_yoy AS (
+             SELECT
+                 'CPIAUCSL_YOY'::text AS series_id,
+                 'CPI YoY %'::text    AS series_name,
+                 cur.observation_date AS obs_date,
+                 CASE WHEN prev.value IS NOT NULL AND prev.value != 0
+                      THEN ROUND(((cur.value - prev.value) / prev.value * 100)::numeric, 2)
+                      ELSE NULL END AS value
+             FROM (SELECT DISTINCT ON (series_id) * FROM macro_indicators
+                   WHERE series_id = 'CPIAUCSL' ORDER BY series_id, observation_date DESC) cur
+             LEFT JOIN LATERAL (
+                 SELECT value FROM macro_indicators
+                 WHERE series_id = 'CPIAUCSL'
+                   AND observation_date <= cur.observation_date - INTERVAL '12 months'
+                 ORDER BY observation_date DESC LIMIT 1
+             ) prev ON true
+         )
+         SELECT series_id, series_name, obs_date, value FROM latest
+         UNION ALL
+         SELECT series_id, series_name, obs_date, value FROM cpi_yoy",
     )
     .fetch_all(pool.as_ref()).await.map_err(|e| e.to_string())
 }
@@ -327,4 +354,40 @@ pub async fn fetch_fear_greed() -> Result<(f32, String), String> {
         .to_string();
 
     Ok((score, label))
+}
+
+// ---------------------------------------------------------------------------
+// Lagrange score history (for sparkline)
+// ---------------------------------------------------------------------------
+
+pub async fn fetch_lagrange_history(
+    pool: Arc<PgPool>,
+    ticker: String,
+) -> Result<Vec<LagrangeHistory>, String> {
+    sqlx::query_as(
+        "SELECT ticker, score_date, score, label, fin_score, astro_score, macro_score, short_score
+         FROM lagrange_history
+         WHERE ticker = $1
+         ORDER BY score_date ASC
+         LIMIT 90"
+    )
+    .bind(&ticker)
+    .fetch_all(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())
+}
+
+// ---------------------------------------------------------------------------
+// Portfolio positions
+// ---------------------------------------------------------------------------
+
+pub async fn fetch_portfolio(pool: Arc<PgPool>) -> Result<Vec<PortfolioPosition>, String> {
+    sqlx::query_as(
+        "SELECT ticker, shares, avg_cost, notes
+         FROM portfolio_positions
+         ORDER BY ticker"
+    )
+    .fetch_all(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())
 }
