@@ -14,7 +14,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct WatchlistRow {
     pub ticker: String,
-    pub astro_score: Option<i32>,
+    pub astro_score: Option<f64>,
     pub astro_label: Option<String>,
     pub sentiment_score: Option<rust_decimal::Decimal>,
     pub sentiment_label: Option<String>,
@@ -24,7 +24,7 @@ pub struct WatchlistRow {
 impl WatchlistRow {
     /// Quick composite score from available non-price signals.
     pub fn quick_score(&self) -> f32 {
-        let astro = self.astro_score.map(|v| v as f32).unwrap_or(50.0);
+        let astro = self.astro_score.map(|v| v as f32).unwrap_or(50.0); // f64 → f32 ok
         let sent = self.sentiment_score.as_ref()
             .and_then(|v| v.to_string().parse::<f32>().ok())
             .map(|v| (v + 1.0) * 50.0)
@@ -176,31 +176,29 @@ pub async fn fetch_astro_active_aspects(pool: Arc<PgPool>, ticker: String) -> Re
 
 pub async fn fetch_macro_indicators(pool: Arc<PgPool>) -> Result<Vec<MacroIndicator>, String> {
     // Fetch latest per series, plus a synthetic CPI YoY% row.
-    // Column aliases match MacroIndicator struct field names (obs_date, not observation_date).
+    // The actual DB column is obs_date (see migration 0012).
     sqlx::query_as::<_, MacroIndicator>(
         "WITH latest AS (
              SELECT DISTINCT ON (series_id)
-                 series_id, series_name,
-                 observation_date AS obs_date,
-                 value
+                 series_id, series_name, obs_date, value
              FROM macro_indicators
-             ORDER BY series_id, observation_date DESC
+             ORDER BY series_id, obs_date DESC
          ),
          cpi_yoy AS (
              SELECT
                  'CPIAUCSL_YOY'::text AS series_id,
                  'CPI YoY %'::text    AS series_name,
-                 cur.observation_date AS obs_date,
+                 cur.obs_date,
                  CASE WHEN prev.value IS NOT NULL AND prev.value != 0
                       THEN ROUND(((cur.value - prev.value) / prev.value * 100)::numeric, 2)
                       ELSE NULL END AS value
              FROM (SELECT DISTINCT ON (series_id) * FROM macro_indicators
-                   WHERE series_id = 'CPIAUCSL' ORDER BY series_id, observation_date DESC) cur
+                   WHERE series_id = 'CPIAUCSL' ORDER BY series_id, obs_date DESC) cur
              LEFT JOIN LATERAL (
                  SELECT value FROM macro_indicators
                  WHERE series_id = 'CPIAUCSL'
-                   AND observation_date <= cur.observation_date - INTERVAL '12 months'
-                 ORDER BY observation_date DESC LIMIT 1
+                   AND obs_date <= cur.obs_date - INTERVAL '12 months'
+                 ORDER BY obs_date DESC LIMIT 1
              ) prev ON true
          )
          SELECT series_id, series_name, obs_date, value FROM latest

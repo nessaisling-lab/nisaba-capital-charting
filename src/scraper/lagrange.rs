@@ -14,13 +14,12 @@ pub async fn compute_all_scores(pool: Arc<sqlx::PgPool>) {
 
     // --- Macro data (shared across all tickers) ---
     // MacroIndicator fields: series_id, series_name, obs_date, value
+    // DB column is obs_date (see migration 0012).
     let macro_data: Vec<MacroIndicator> = sqlx::query_as(
         "SELECT DISTINCT ON (series_id)
-             series_id, series_name,
-             observation_date AS obs_date,
-             value
+             series_id, series_name, obs_date, value
          FROM macro_indicators
-         ORDER BY series_id, observation_date DESC"
+         ORDER BY series_id, obs_date DESC"
     )
     .fetch_all(pool.as_ref())
     .await
