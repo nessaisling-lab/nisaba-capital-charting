@@ -483,11 +483,13 @@ impl Dashboard {
             ].spacing(5)
         };
 
-        // Macro strip — latest value for key FRED series
+        // Macro strip — latest value for key FRED series, formatted to 2 decimal places
         let macro_find = |id: &str| -> String {
             self.macro_data.iter()
                 .find(|m| m.series_id == id)
-                .and_then(|m| m.value.as_ref().map(|v| v.to_string()))
+                .and_then(|m| m.value.as_ref())
+                .and_then(|v| v.to_string().parse::<f64>().ok())
+                .map(|v| format!("{v:.2}"))
                 .unwrap_or_else(|| "—".into())
         };
         let macro_strip = row![

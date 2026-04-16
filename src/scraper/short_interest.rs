@@ -1,10 +1,12 @@
 //! FINRA Developer API short sale volume fetcher.
 //!
-//! Endpoint: https://api.finra.org/data/group/otcMarket/name/regShoDaily
+//! Endpoint: https://api.finra.org/data/group/consolidatedShortSaleVolume/name/consolidatedShortSaleVolumeDailyData
 //! Auth: Bearer token in Authorization header.
 //!
+//! This is the consolidated (exchange + OTC) short sale volume dataset.
 //! Data comes back with multiple rows per ticker per day (one per reporting
-//! facility: NCTRF, NQTRF, NYTRF). We aggregate (sum) them before storing.
+//! facility). We aggregate (sum) them, but also guard on the symbol field
+//! to ensure we only include records for the requested ticker.
 //!
 //! Key field names from the API:
 //!   securitiesInformationProcessorSymbolIdentifier — ticker symbol
@@ -25,7 +27,6 @@ use std::sync::Arc;
 #[derive(Debug, Deserialize)]
 struct FinraShortRecord {
     #[serde(rename = "securitiesInformationProcessorSymbolIdentifier")]
-    #[allow(dead_code)]
     symbol: Option<String>,
     #[serde(rename = "tradeReportDate")]
     trade_date: Option<String>,
@@ -66,9 +67,11 @@ async fn fetch_finra_ticker(
     client: &reqwest::Client,
     api_key: &str,
 ) -> Result<u64> {
-    // FINRA API: filter by exact symbol and date range
+    // FINRA consolidated short sale volume — covers exchange-listed equities.
+    // The otcMarket/regShoDaily endpoint only covers OTC securities.
     let url = format!(
-        "https://api.finra.org/data/group/otcMarket/name/regShoDaily\
+        "https://api.finra.org/data/group/consolidatedShortSaleVolume\
+         /name/consolidatedShortSaleVolumeDailyData\
          ?limit=500\
          &compareFilters=securitiesInformationProcessorSymbolIdentifier=={ticker}\
          &dateRangeFilters=tradeReportDate>={since_date}"
@@ -95,6 +98,13 @@ async fn fetch_finra_ticker(
     let mut by_date: HashMap<NaiveDate, (i64, i64)> = HashMap::new();
 
     for rec in &records {
+        // Guard: only include records that match this ticker
+        match rec.symbol.as_deref() {
+            Some(s) if s.eq_ignore_ascii_case(ticker) => {}
+            Some(_) => continue,
+            None => continue,
+        }
+
         let date_str = match rec.trade_date.as_deref() {
             Some(d) => d,
             None => continue,
