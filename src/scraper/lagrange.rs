@@ -13,8 +13,12 @@ pub async fn compute_all_scores(pool: Arc<sqlx::PgPool>) {
     println!("Computing Lagrange scores for all tickers...");
 
     // --- Macro data (shared across all tickers) ---
+    // MacroIndicator fields: series_id, series_name, obs_date, value
     let macro_data: Vec<MacroIndicator> = sqlx::query_as(
-        "SELECT DISTINCT ON (series_id) series_id, series_name, value, observation_date, fetched_at
+        "SELECT DISTINCT ON (series_id)
+             series_id, series_name,
+             observation_date AS obs_date,
+             value
          FROM macro_indicators
          ORDER BY series_id, observation_date DESC"
     )
@@ -63,21 +67,24 @@ async fn score_one_ticker(
 
     let indicators = Indicators::compute(&prices);
 
-    // Sentiment (most recent)
+    // Sentiment — SentimentScore fields: ticker, fetch_date, sentiment_score, sentiment_label
     let sentiment: Option<SentimentScore> = sqlx::query_as(
-        "SELECT ticker, sentiment_label, sentiment_score, fetched_at
+        "SELECT ticker, fetch_date, sentiment_score, sentiment_label
          FROM sentiment_scores
          WHERE ticker = $1
-         ORDER BY fetched_at DESC
+         ORDER BY fetch_date DESC
          LIMIT 1"
     )
     .bind(ticker)
     .fetch_optional(pool)
     .await?;
 
-    // Astro score for today (or most recent)
+    // Astro score — AstroScore fields: ticker, score_date, astro_score, astro_label,
+    //                                   moon_phase, moon_phase_deg, mercury_rx
+    // (no computed_at column in the model)
     let astro_score: Option<AstroScore> = sqlx::query_as(
-        "SELECT ticker, score_date, astro_score, astro_label, mercury_rx, moon_phase, computed_at
+        "SELECT ticker, score_date, astro_score, astro_label,
+                moon_phase, moon_phase_deg, mercury_rx
          FROM astro_scores
          WHERE ticker = $1
          ORDER BY score_date DESC
@@ -87,12 +94,13 @@ async fn score_one_ticker(
     .fetch_optional(pool)
     .await?;
 
-    // Short interest (most recent)
+    // Short interest — ShortInterest fields: ticker, settlement_date, short_volume,
+    //                                         total_volume, short_pct
     let short_interest: Option<ShortInterest> = sqlx::query_as(
-        "SELECT ticker, report_date, short_volume, total_volume, short_pct, fetched_at
+        "SELECT ticker, settlement_date, short_volume, total_volume, short_pct
          FROM short_interest
          WHERE ticker = $1
-         ORDER BY report_date DESC
+         ORDER BY settlement_date DESC
          LIMIT 1"
     )
     .bind(ticker)
