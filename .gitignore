@@ -1,2 +1,18 @@
-/target
+# Rust build artifacts
+/target/
+
+# Environment variables — never commit secrets
 .env
+
+# IDE / editor
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+InstallationLog.txt

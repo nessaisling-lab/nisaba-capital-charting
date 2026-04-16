@@ -1,0 +1,102 @@
+use iced::Theme;
+use pursuit_week4_automation::models::{
+    AnalystRating, AstroScore, DailyTransit, EarningsDate, FilingRow, HoldingRow,
+    InsiderTradeRow, MacroIndicator, NatalPosition, NewsArticle, PriceRow,
+    SentimentScore, ShortInterest,
+};
+use crate::db::WatchlistRow;
+use sqlx::PgPool;
+use std::sync::Arc;
+
+use crate::indicators::Indicators;
+
+pub struct Dashboard {
+    pub pool:              Option<Arc<PgPool>>,
+    pub tickers:           Vec<String>,
+    pub selected_ticker:   String,
+    pub rows:              Vec<PriceRow>,
+    pub indicators:        Option<Indicators>,
+    pub insider_trades:    Vec<InsiderTradeRow>,
+    pub filings_8k:        Vec<FilingRow>,
+    pub holdings:          Vec<HoldingRow>,
+    pub news:              Vec<NewsArticle>,
+    pub earnings:          Vec<EarningsDate>,
+    pub analyst_rating:    Option<AnalystRating>,
+    pub sentiment:         Option<SentimentScore>,
+    pub fear_greed:        Option<(f32, String)>,
+    pub fear_greed_err:    Option<String>,
+    pub market_fg:         Option<(f32, String)>,
+    pub market_fg_err:     Option<String>,
+    pub astro_score:       Option<AstroScore>,
+    pub astro_aspects:     Vec<serde_json::Value>, // decoded from active_aspects JSONB
+    pub natal_positions:   Vec<NatalPosition>,
+    pub daily_transits:    Vec<DailyTransit>,
+    pub macro_data:        Vec<MacroIndicator>,
+    pub short_interest:    Option<ShortInterest>,
+    pub watchlist:         Vec<WatchlistRow>,
+    pub status:            String,
+    pub refreshing:        bool,
+    pub theme:             Theme,
+}
+
+impl Default for Dashboard {
+    fn default() -> Self {
+        Self {
+            pool:            None,
+            tickers:         vec![],
+            selected_ticker: "AAPL".to_string(),
+            rows:            vec![],
+            indicators:      None,
+            insider_trades:  vec![],
+            filings_8k:      vec![],
+            holdings:        vec![],
+            news:            vec![],
+            earnings:        vec![],
+            analyst_rating:  None,
+            sentiment:       None,
+            fear_greed:      None,
+            fear_greed_err:  None,
+            market_fg:       None,
+            market_fg_err:   None,
+            astro_score:     None,
+            astro_aspects:   vec![],
+            natal_positions: vec![],
+            daily_transits:  vec![],
+            macro_data:      vec![],
+            short_interest:  None,
+            watchlist:       vec![],
+            status:          String::new(),
+            refreshing:      false,
+            theme:           Theme::Dark,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Message {
+    PoolReady(Result<Arc<PgPool>, String>),
+    TickersLoaded(Result<Vec<String>, String>),
+    DataLoaded(Result<Vec<PriceRow>, String>),
+    InsiderTradesLoaded(Result<Vec<InsiderTradeRow>, String>),
+    FilingsLoaded(Result<Vec<FilingRow>, String>),
+    HoldingsLoaded(Result<Vec<HoldingRow>, String>),
+    NewsLoaded(Result<Vec<NewsArticle>, String>),
+    EarningsLoaded(Result<Vec<EarningsDate>, String>),
+    AnalystRatingLoaded(Result<Option<AnalystRating>, String>),
+    SentimentLoaded(Result<Option<SentimentScore>, String>),
+    FearGreedLoaded(Result<(f32, String), String>),
+    MarketFGLoaded(Result<(f32, String), String>),
+    AstroScoreLoaded(Result<Option<AstroScore>, String>),
+    NatalChartLoaded(Result<Vec<NatalPosition>, String>),
+    TransitsLoaded(Result<Vec<DailyTransit>, String>),
+    AstroAspectsLoaded(Result<serde_json::Value, String>),
+    MacroDataLoaded(Result<Vec<MacroIndicator>, String>),
+    ShortInterestLoaded(Result<Option<ShortInterest>, String>),
+    WatchlistLoaded(Result<Vec<WatchlistRow>, String>),
+    CopyText(String),
+    OpenUrl(String),
+    TickerSelected(String),
+    ToggleTheme,
+    RefreshNow,
+    Tick,
+}

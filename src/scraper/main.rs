@@ -1,40 +1,94 @@
+mod astrology;
+mod edgar;
+mod finnhub;
+mod holdings;
+mod macro_data;
+mod options;
+mod prices;
+mod sentiment;
+mod short_interest;
+
 use anyhow::{Context, Result};
-use chrono::NaiveDate;
 use governor::{Quota, RateLimiter};
-use pursuit_week4_automation::models::AlphaVantageResponse;
-use rust_decimal::Decimal;
 use sqlx::postgres::PgPoolOptions;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use tokio_cron_scheduler::{Job, JobScheduler};
 
 // ---------------------------------------------------------------------------
-// Data flow:
-//
-//  tokio-cron-scheduler (daily at 6am UTC)
-//       │
-//       ▼
-//  governor rate limiter (5 req/min for Alpha Vantage)
-//       │
-//       ▼
-//  reqwest::Client → GET alphavantage.co/TIME_SERIES_DAILY
-//       │
-//       ▼
-//  serde_json parse → AlphaVantageResponse
-//       │
-//       ▼
-//  sqlx INSERT INTO price_data
-//  ON CONFLICT (ticker, date) DO NOTHING   ← handles re-runs safely
-//       │
-//       ▼
-//  PostgreSQL
+// Watchlist + reference data — shared across all scraper modules via crate::
 // ---------------------------------------------------------------------------
 
-const WATCHLIST: &[&str] = &["AAPL"];
+pub(crate) const WATCHLIST: &[&str] = &[
+    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA",
+    "META", "TSLA", "JPM", "V", "UNH",
+];
+
+pub(crate) const INSTITUTION_MAP: &[(&str, &str)] = &[
+    ("0000102909", "Vanguard Group Inc."),
+    ("0001364742", "BlackRock Inc."),
+    ("0000093751", "State Street Corporation"),
+    ("0000315066", "Fidelity Management & Research"),
+    ("0001113169", "T. Rowe Price Associates"),
+];
+
+pub(crate) const CUSIP_MAP: &[(&str, &str)] = &[
+    ("037833100", "AAPL"),
+    ("594918104", "MSFT"),
+    ("02079K305", "GOOGL"),
+    ("023135106", "AMZN"),
+    ("67066G104", "NVDA"),
+    ("30303M102", "META"),
+    ("88160R101", "TSLA"),
+    ("46625H100", "JPM"),
+    ("92826C839", "V"),
+    ("91324P102", "UNH"),
+];
+
+pub(crate) const CIK_MAP: &[(&str, &str)] = &[
+    ("AAPL",  "0000320193"),
+    ("MSFT",  "0000789019"),
+    ("GOOGL", "0001652044"),
+    ("AMZN",  "0001018724"),
+    ("NVDA",  "0001045810"),
+    ("META",  "0001326801"),
+    ("TSLA",  "0001318605"),
+    ("JPM",   "0000019617"),
+    ("V",     "0001403161"),
+    ("UNH",   "0000731766"),
+];
+
+// ---------------------------------------------------------------------------
+// Shared fetch audit log — fire-and-forget, never crashes the scraper
+// ---------------------------------------------------------------------------
+
+pub(crate) async fn log_fetch(
+    pool: &sqlx::PgPool,
+    source: &str,
+    ticker: Option<&str>,
+    fetch_type: &str,
+    status: &str,
+    error_message: Option<&str>,
+) {
+    let _ = sqlx::query(
+        "INSERT INTO fetch_log (source, ticker, fetch_type, status, error_message) \
+         VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(source)
+    .bind(ticker)
+    .bind(fetch_type)
+    .bind(status)
+    .bind(error_message)
+    .execute(pool)
+    .await;
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Load .env file if present
     dotenvy::dotenv().ok();
 
     let api_key = std::env::var("ALPHA_VANTAGE_API_KEY")
@@ -56,149 +110,155 @@ async fn main() -> Result<()> {
         .context("Failed to run migrations")?;
     println!("Migrations OK.");
 
-    // HTTP client — EDGAR requires a descriptive User-Agent on every request
     let user_agent = std::env::var("EDGAR_USER_AGENT")
         .unwrap_or_else(|_| "FinancialDashboard/1.0 student@pursuit.org".to_string());
+
+    let finnhub_key: Option<Arc<String>> = match std::env::var("FINNHUB_API_KEY") {
+        Ok(k) if !k.is_empty() => {
+            println!("Finnhub API key found.");
+            Some(Arc::new(k))
+        }
+        _ => {
+            eprintln!("Warning: FINNHUB_API_KEY not set — Finnhub fetches will be skipped.");
+            None
+        }
+    };
+
+    let fred_key: Option<Arc<String>> = match std::env::var("FRED_API_KEY") {
+        Ok(k) if !k.is_empty() => { println!("FRED API key found."); Some(Arc::new(k)) }
+        _ => { eprintln!("Warning: FRED_API_KEY not set — macro data will be skipped."); None }
+    };
+
+    let finra_key: Option<Arc<String>> = match std::env::var("FINRA_API_KEY") {
+        Ok(k) if !k.is_empty() => { println!("FINRA API key found."); Some(Arc::new(k)) }
+        _ => { eprintln!("Warning: FINRA_API_KEY not set — short interest will be skipped."); None }
+    };
+
+    let polygon_key: Option<Arc<String>> = match std::env::var("POLYGON_API_KEY") {
+        Ok(k) if !k.is_empty() => { println!("Polygon.io key found."); Some(Arc::new(k)) }
+        _ => { eprintln!("Warning: POLYGON_API_KEY not set — options flow will be skipped."); None }
+    };
 
     let http_client = reqwest::Client::builder()
         .user_agent(&user_agent)
         .build()
         .context("Failed to build HTTP client")?;
 
-    // Rate limiter: Alpha Vantage free tier = 5 req/min
-    let quota = Quota::per_minute(NonZeroU32::new(5).unwrap());
-    let limiter = Arc::new(RateLimiter::direct(quota));
+    // Rate limiters
+    let av_quota      = Quota::per_minute(NonZeroU32::new(5).unwrap());
+    let av_limiter    = Arc::new(RateLimiter::direct(av_quota));
+    let fh_quota      = Quota::per_minute(NonZeroU32::new(60).unwrap());
+    let fh_limiter    = Arc::new(RateLimiter::direct(fh_quota));
 
-    let pool = Arc::new(pool);
+    let pool        = Arc::new(pool);
     let http_client = Arc::new(http_client);
-    let api_key = Arc::new(api_key);
+    let api_key     = Arc::new(api_key);
 
-    // Run once immediately on startup so you can test without waiting 24 hours
-    println!("Running immediate fetch...");
-    fetch_all_tickers(
+    // ---- Startup run -------------------------------------------------------
+    run_all_fetches(
         Arc::clone(&pool),
         Arc::clone(&http_client),
         Arc::clone(&api_key),
-        Arc::clone(&limiter),
-    )
-    .await;
+        Arc::clone(&av_limiter),
+        finnhub_key.clone(),
+        Arc::clone(&fh_limiter),
+        fred_key.clone(),
+        finra_key.clone(),
+        polygon_key.clone(),
+    ).await;
 
-    // Schedule daily at 6:00 UTC (school requirement: automated system)
+    // ---- Daily scheduler at 06:00 UTC -------------------------------------
     println!("Starting scheduler. Daily fetch at 06:00 UTC.");
     let sched = JobScheduler::new().await?;
 
-    let pool_job = Arc::clone(&pool);
-    let client_job = Arc::clone(&http_client);
-    let key_job = Arc::clone(&api_key);
-    let limiter_job = Arc::clone(&limiter);
+    let pool2        = Arc::clone(&pool);
+    let client2      = Arc::clone(&http_client);
+    let key2         = Arc::clone(&api_key);
+    let av_lim2      = Arc::clone(&av_limiter);
+    let fh_key2      = finnhub_key.clone();
+    let fh_lim2      = Arc::clone(&fh_limiter);
+    let fred_key2    = fred_key.clone();
+    let finra_key2   = finra_key.clone();
+    let polygon_key2 = polygon_key.clone();
 
-    sched
-        .add(Job::new_async("0 0 6 * * *", move |_, _| {
-            let pool = Arc::clone(&pool_job);
-            let client = Arc::clone(&client_job);
-            let key = Arc::clone(&key_job);
-            let lim = Arc::clone(&limiter_job);
-            Box::pin(async move {
-                fetch_all_tickers(pool, client, key, lim).await;
-            })
-        })?)
-        .await?;
+    sched.add(Job::new_async("0 0 6 * * *", move |_, _| {
+        let pool        = Arc::clone(&pool2);
+        let client      = Arc::clone(&client2);
+        let key         = Arc::clone(&key2);
+        let av_lim      = Arc::clone(&av_lim2);
+        let fh_key      = fh_key2.clone();
+        let fh_lim      = Arc::clone(&fh_lim2);
+        let fred_key    = fred_key2.clone();
+        let finra_key   = finra_key2.clone();
+        let polygon_key = polygon_key2.clone();
+        Box::pin(async move {
+            run_all_fetches(pool, client, key, av_lim, fh_key, fh_lim,
+                            fred_key, finra_key, polygon_key).await;
+        })
+    })?).await?;
 
     sched.start().await?;
-
     println!("Scheduler running. Press Ctrl+C to stop.");
     tokio::signal::ctrl_c().await?;
     println!("Shutting down.");
     Ok(())
 }
 
-async fn fetch_all_tickers(
+// ---------------------------------------------------------------------------
+// Full fetch pipeline — called at startup and by the daily cron job
+// ---------------------------------------------------------------------------
+
+async fn run_all_fetches(
     pool: Arc<sqlx::PgPool>,
     client: Arc<reqwest::Client>,
     api_key: Arc<String>,
-    limiter: Arc<governor::DefaultDirectRateLimiter>,
+    av_limiter: Arc<governor::DefaultDirectRateLimiter>,
+    finnhub_key: Option<Arc<String>>,
+    fh_limiter: Arc<governor::DefaultDirectRateLimiter>,
+    fred_key: Option<Arc<String>>,
+    finra_key: Option<Arc<String>>,
+    polygon_key: Option<Arc<String>>,
 ) {
-    for ticker in WATCHLIST {
-        // Block until we have a rate-limit slot
-        limiter.until_ready().await;
+    println!("Running price fetch...");
+    prices::fetch_all_tickers(
+        Arc::clone(&pool), Arc::clone(&client), Arc::clone(&api_key), Arc::clone(&av_limiter),
+    ).await;
 
-        match fetch_and_store(ticker, &pool, &client, &api_key).await {
-            Ok(inserted) => println!("[{ticker}] Inserted {inserted} new rows"),
-            Err(e) => eprintln!("[{ticker}] Error (skipping): {e:#}"),
-        }
-    }
-}
+    println!("Fetching EDGAR insider trades and 8-K filings...");
+    edgar::fetch_all_edgar(Arc::clone(&pool), Arc::clone(&client)).await;
 
-async fn fetch_and_store(
-    ticker: &str,
-    pool: &sqlx::PgPool,
-    client: &reqwest::Client,
-    api_key: &str,
-) -> Result<u64> {
-    let url = format!(
-        "https://www.alphavantage.co/query\
-         ?function=TIME_SERIES_DAILY\
-         &symbol={ticker}\
-         &apikey={api_key}\
-         &outputsize=compact"
-    );
+    println!("Fetching 13F institutional holdings...");
+    holdings::fetch_all_13f(Arc::clone(&pool), Arc::clone(&client)).await;
 
-    let response = client
-        .get(&url)
-        .send()
-        .await
-        .context("HTTP request to Alpha Vantage failed")?;
-
-    if !response.status().is_success() {
-        anyhow::bail!("Alpha Vantage returned HTTP {}", response.status());
+    if let Some(fh_key) = finnhub_key {
+        println!("Fetching Finnhub data (news, earnings, analyst ratings)...");
+        finnhub::fetch_all_finnhub(
+            Arc::clone(&pool), Arc::clone(&client), fh_key, fh_limiter,
+        ).await;
     }
 
-    let body: serde_json::Value = response
-        .json()
-        .await
-        .context("Failed to parse Alpha Vantage response")?;
+    println!("Fetching Alpha Vantage sentiment (budget-aware)...");
+    sentiment::fetch_av_sentiment_all(Arc::clone(&pool), Arc::clone(&client), Arc::clone(&api_key)).await;
 
-    // Alpha Vantage signals rate limits via JSON fields, not HTTP status codes
-    if let Some(note) = body.get("Note") {
-        anyhow::bail!("Rate limit message: {note}");
-    }
-    if let Some(msg) = body.get("Information") {
-        anyhow::bail!("Alpha Vantage info: {msg}");
+    if let Some(fred_k) = fred_key {
+        println!("Fetching FRED macroeconomic data...");
+        macro_data::fetch_all_macro(Arc::clone(&pool), Arc::clone(&client), fred_k).await;
     }
 
-    let parsed: AlphaVantageResponse =
-        serde_json::from_value(body).context("Failed to parse time series")?;
-
-    let mut inserted = 0u64;
-    for (date_str, entry) in &parsed.time_series {
-        let date = NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
-            .context(format!("Invalid date: {date_str}"))?;
-
-        let open: Decimal = entry.open.parse().context("parse open")?;
-        let high: Decimal = entry.high.parse().context("parse high")?;
-        let low: Decimal = entry.low.parse().context("parse low")?;
-        let close: Decimal = entry.close.parse().context("parse close")?;
-        let volume: i64 = entry.volume.parse().context("parse volume")?;
-
-        // ON CONFLICT DO NOTHING: safe to re-run, handles duplicate days cleanly
-        let result = sqlx::query(
-            "INSERT INTO price_data (ticker, date, open, high, low, close, volume) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7) \
-             ON CONFLICT (ticker, date) DO NOTHING",
-        )
-        .bind(ticker)
-        .bind(date)
-        .bind(open)
-        .bind(high)
-        .bind(low)
-        .bind(close)
-        .bind(volume)
-        .execute(pool)
-        .await
-        .context("DB insert failed")?;
-
-        inserted += result.rows_affected();
+    if let Some(finra_k) = finra_key {
+        println!("Fetching short interest (FINRA API)...");
+        short_interest::fetch_all_short_interest(Arc::clone(&pool), Arc::clone(&client), finra_k).await;
     }
 
-    Ok(inserted)
+    if let Some(polygon_k) = polygon_key {
+        println!("Fetching options flow (Polygon.io)...");
+        options::fetch_all_options_flow(Arc::clone(&pool), Arc::clone(&client), polygon_k).await;
+    }
+
+    println!("Seeding natal charts (any missing companies)...");
+    astrology::seed_natal_charts(Arc::clone(&pool)).await;
+    println!("Computing daily planetary transits...");
+    astrology::compute_daily_transits(Arc::clone(&pool)).await;
+    println!("Computing astrological scores...");
+    astrology::compute_astro_scores(pool).await;
 }
