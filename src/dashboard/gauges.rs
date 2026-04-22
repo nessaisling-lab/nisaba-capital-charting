@@ -3,6 +3,7 @@ use iced::{Color, Point, Rectangle};
 use iced::mouse;
 
 use crate::state::Message;
+use crate::theme;
 
 // ---------------------------------------------------------------------------
 // Fear & Greed gauge — semicircular canvas widget
@@ -26,11 +27,10 @@ impl canvas::Program<Message> for FearGreedGauge {
     ) -> Vec<canvas::Geometry> {
         let mut frame = canvas::Frame::new(renderer, bounds.size());
 
-        let is_dark = *theme != iced::Theme::Light;
-        let bg        = if is_dark { Color::from_rgb(0.06, 0.06, 0.10) } else { Color::from_rgb(0.91, 0.92, 0.94) };
-        let fg        = if is_dark { Color::WHITE }                       else { Color::from_rgb(0.08, 0.08, 0.08) };
-        let fg_dim    = if is_dark { Color::from_rgba(1.0,1.0,1.0,0.40)} else { Color::from_rgba(0.0,0.0,0.0,0.45) };
-        let label_col = if is_dark { Color::from_rgba(1.0,1.0,1.0,0.65)} else { Color::from_rgba(0.0,0.0,0.0,0.60) };
+        let bg        = theme::canvas_bg(theme);
+        let fg        = theme::fg(theme);
+        let fg_dim    = theme::fg_dim(theme);
+        let label_col = theme::label_color(theme);
 
         frame.fill_rectangle(Point::ORIGIN, bounds.size(), bg);
 
@@ -47,11 +47,11 @@ impl canvas::Program<Message> for FearGreedGauge {
 
         // Five color zones
         const ZONES: &[(f32, f32, (f32, f32, f32))] = &[
-            (0.0,  20.0, (0.85, 0.12, 0.12)), // Extreme Fear — red
-            (20.0, 40.0, (0.95, 0.48, 0.08)), // Fear — orange
-            (40.0, 60.0, (0.90, 0.86, 0.08)), // Neutral — yellow
-            (60.0, 80.0, (0.52, 0.86, 0.10)), // Greed — yellow-green
-            (80.0, 100.0,(0.10, 0.76, 0.10)), // Extreme Greed — green
+            (0.0,  20.0, theme::GAUGE_EXTREME_FEAR),
+            (20.0, 40.0, theme::GAUGE_FEAR),
+            (40.0, 60.0, theme::GAUGE_NEUTRAL),
+            (60.0, 80.0, theme::GAUGE_GREED),
+            (80.0, 100.0, theme::GAUGE_EXTREME_GREED),
         ];
 
         for &(s0, s1, (r_c, g_c, b_c)) in ZONES {

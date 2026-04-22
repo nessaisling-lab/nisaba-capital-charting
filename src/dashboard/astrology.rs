@@ -13,6 +13,7 @@ use iced::mouse;
 
 use pursuit_week4_automation::models::{DailyTransit, NatalPosition};
 use crate::state::Message;
+use crate::theme;
 
 // ---------------------------------------------------------------------------
 // Planet glyph abbreviations
@@ -72,11 +73,9 @@ impl canvas::Program<Message> for NatalWheel {
     ) -> Vec<canvas::Geometry> {
         let mut frame = canvas::Frame::new(renderer, bounds.size());
 
-        let is_dark = *theme != iced::Theme::Light;
-        let bg        = if is_dark { Color::from_rgb(0.06, 0.06, 0.10) } else { Color::from_rgb(0.93, 0.93, 0.96) };
-        let _fg       = if is_dark { Color::WHITE }                       else { Color::from_rgb(0.08, 0.08, 0.08) };
-        let dim       = if is_dark { Color::from_rgba(1.0,1.0,1.0,0.20)} else { Color::from_rgba(0.0,0.0,0.0,0.15) };
-        let sign_col  = if is_dark { Color::from_rgba(1.0,1.0,1.0,0.30)} else { Color::from_rgba(0.0,0.0,0.0,0.35) };
+        let bg        = theme::canvas_bg(theme);
+        let dim       = theme::ring_dim(theme);
+        let sign_col  = theme::sign_color(theme);
 
         frame.fill_rectangle(Point::ORIGIN, bounds.size(), bg);
 
@@ -154,13 +153,13 @@ impl canvas::Program<Message> for NatalWheel {
 
                 // Only draw aspects within orb
                 let (color, draw) = if diff < 8.0 || diff > 172.0 {
-                    (Color::from_rgba(1.0, 0.9, 0.3, 0.18), true)   // conjunction/opposition
+                    (theme::ASPECT_CONJUNCTION, true)
                 } else if (diff - 60.0).abs() < 6.0 {
-                    (Color::from_rgba(0.3, 1.0, 0.5, 0.15), true)   // sextile
+                    (theme::ASPECT_SEXTILE, true)
                 } else if (diff - 90.0).abs() < 8.0 {
-                    (Color::from_rgba(1.0, 0.3, 0.3, 0.15), true)   // square
+                    (theme::ASPECT_SQUARE, true)
                 } else if (diff - 120.0).abs() < 8.0 {
-                    (Color::from_rgba(0.3, 0.7, 1.0, 0.18), true)   // trine
+                    (theme::ASPECT_TRINE, true)
                 } else {
                     (Color::TRANSPARENT, false)
                 };
@@ -188,12 +187,12 @@ impl canvas::Program<Message> for NatalWheel {
             let py = cy + r_natal * angle.sin();
 
             let dot = canvas::Path::circle(Point::new(px, py), 2.5);
-            frame.fill(&dot, Color::from_rgb(0.95, 0.80, 0.20));
+            frame.fill(&dot, theme::NATAL_GOLD);
 
             frame.fill_text(canvas::Text {
                 content: planet_abbrev(&pos.planet).to_string(),
                 position: Point::new(px, py - 7.0),
-                color: Color::from_rgba(0.95, 0.80, 0.20, 0.90),
+                color: theme::NATAL_GOLD_DIM,
                 size: iced::Pixels(7.0),
                 horizontal_alignment: iced::alignment::Horizontal::Center,
                 vertical_alignment: iced::alignment::Vertical::Center,
@@ -208,9 +207,9 @@ impl canvas::Program<Message> for NatalWheel {
             let py = cy + r_transit * angle.sin();
 
             let transit_color = if transit.retrograde {
-                Color::from_rgba(1.0, 0.5, 0.5, 0.90)  // red-ish when retrograde
+                theme::RETROGRADE_RED
             } else {
-                Color::from_rgba(0.35, 0.70, 1.0, 0.90) // blue normally
+                theme::TRANSIT_BLUE
             };
 
             let dot = canvas::Path::circle(Point::new(px, py), 2.5);
@@ -232,7 +231,7 @@ impl canvas::Program<Message> for NatalWheel {
         frame.fill_text(canvas::Text {
             content: "Natal".to_string(),
             position: Point::new(cx, cy + 6.0),
-            color: Color::from_rgba(0.95, 0.80, 0.20, 0.50),
+            color: theme::NATAL_GOLD_LABEL,
             size: iced::Pixels(8.0),
             horizontal_alignment: iced::alignment::Horizontal::Center,
             ..canvas::Text::default()
@@ -240,7 +239,7 @@ impl canvas::Program<Message> for NatalWheel {
         frame.fill_text(canvas::Text {
             content: "Transit".to_string(),
             position: Point::new(cx, cy - 4.0),
-            color: Color::from_rgba(0.35, 0.70, 1.0, 0.50),
+            color: theme::TRANSIT_BLUE_LABEL,
             size: iced::Pixels(8.0),
             horizontal_alignment: iced::alignment::Horizontal::Center,
             ..canvas::Text::default()
@@ -338,13 +337,13 @@ pub fn build_transits_section<'a>(
 
 pub fn build_wheel_legend<'a>() -> Element<'a, Message> {
     row![
-        text("●").size(11).color(Color::from_rgb(0.95, 0.80, 0.20)),
+        text("●").size(11).color(theme::NATAL_GOLD),
         text("Natal (IPO)").size(10),
         iced::widget::Space::with_width(Length::Fixed(12.0)),
-        text("●").size(11).color(Color::from_rgb(0.35, 0.70, 1.0)),
+        text("●").size(11).color(theme::TRANSIT_BLUE),
         text("Today's transits").size(10),
         iced::widget::Space::with_width(Length::Fixed(12.0)),
-        text("●").size(11).color(Color::from_rgb(1.0, 0.5, 0.5)),
+        text("●").size(11).color(theme::RETROGRADE_RED),
         text("Retrograde").size(10),
     ]
     .spacing(4)

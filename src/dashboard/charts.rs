@@ -5,6 +5,7 @@ use pursuit_week4_automation::models::{LagrangeHistory, PriceRow};
 
 use crate::state::Message;
 use crate::helpers::format_shares;
+use crate::theme;
 
 // ---------------------------------------------------------------------------
 // Price chart — Iced canvas widget with indicator overlays and hover tooltip
@@ -89,7 +90,7 @@ impl canvas::Program<Message> for PriceChart {
         _cursor: mouse::Cursor,
     ) -> Vec<canvas::Geometry> {
         let mut frame = canvas::Frame::new(renderer, bounds.size());
-        frame.fill_rectangle(Point::ORIGIN, bounds.size(), Color::from_rgb(0.05, 0.05, 0.10));
+        frame.fill_rectangle(Point::ORIGIN, bounds.size(), theme::canvas_bg(_theme));
 
         if self.data.len() < 2 {
             return vec![frame.into_geometry()];
@@ -124,14 +125,14 @@ impl canvas::Program<Message> for PriceChart {
                 b.line_to(Point::new(pad_left + w, y));
             });
             frame.stroke(&grid, canvas::Stroke {
-                style: canvas::Style::Solid(Color::from_rgba(1.0, 1.0, 1.0, 0.08)),
+                style: canvas::Style::Solid(theme::grid_line(_theme)),
                 width: 1.0,
                 ..canvas::Stroke::default()
             });
             frame.fill_text(canvas::Text {
                 content: format!("{pr:.0}"),
                 position: Point::new(pad_left - 5.0, y),
-                color: Color::from_rgba(1.0, 1.0, 1.0, 0.5),
+                color: theme::fg_muted(_theme),
                 size: iced::Pixels(10.0),
                 horizontal_alignment: iced::alignment::Horizontal::Right,
                 vertical_alignment: iced::alignment::Vertical::Center,
@@ -145,23 +146,22 @@ impl canvas::Program<Message> for PriceChart {
                 .map(|(i, &v)| v.map(|p| Point::new(x_of(i), y_of(p)))).collect();
             let lower_pts: Vec<Option<Point>> = self.bb_lower.iter().enumerate()
                 .map(|(i, &v)| v.map(|p| Point::new(x_of(i), y_of(p)))).collect();
-            let bb_color = Color::from_rgba(0.4, 0.7, 1.0, 0.35);
-            Self::draw_series(&mut frame, &upper_pts, bb_color, 1.0);
-            Self::draw_series(&mut frame, &lower_pts, bb_color, 1.0);
+            Self::draw_series(&mut frame, &upper_pts, theme::BB_BLUE, 1.0);
+            Self::draw_series(&mut frame, &lower_pts, theme::BB_BLUE, 1.0);
         }
 
         // SMA 50 (yellow)
         if self.sma50.len() == n {
             let pts: Vec<Option<Point>> = self.sma50.iter().enumerate()
                 .map(|(i, &v)| v.map(|p| Point::new(x_of(i), y_of(p)))).collect();
-            Self::draw_series(&mut frame, &pts, Color::from_rgba(1.0, 0.85, 0.2, 0.7), 1.2);
+            Self::draw_series(&mut frame, &pts, theme::SMA50_YELLOW, 1.2);
         }
 
         // SMA 20 (orange)
         if self.sma20.len() == n {
             let pts: Vec<Option<Point>> = self.sma20.iter().enumerate()
                 .map(|(i, &v)| v.map(|p| Point::new(x_of(i), y_of(p)))).collect();
-            Self::draw_series(&mut frame, &pts, Color::from_rgba(1.0, 0.55, 0.1, 0.85), 1.2);
+            Self::draw_series(&mut frame, &pts, theme::SMA20_ORANGE, 1.2);
         }
 
         // Price area fill
@@ -173,7 +173,7 @@ impl canvas::Program<Message> for PriceChart {
             b.line_to(Point::new(pad_left + w, pad_top + h));
             b.close();
         });
-        frame.fill(&fill, Color::from_rgba(0.2, 0.65, 1.0, 0.15));
+        frame.fill(&fill, theme::ACCENT_BLUE_FILL);
 
         // Price line
         let line = canvas::Path::new(|b| {
@@ -181,7 +181,7 @@ impl canvas::Program<Message> for PriceChart {
             for &p in &price_pts[1..] { b.line_to(p); }
         });
         frame.stroke(&line, canvas::Stroke {
-            style: canvas::Style::Solid(Color::from_rgb(0.2, 0.65, 1.0)),
+            style: canvas::Style::Solid(theme::ACCENT_BLUE),
             width: 2.0,
             ..canvas::Stroke::default()
         });
@@ -190,16 +190,16 @@ impl canvas::Program<Message> for PriceChart {
         frame.fill_text(canvas::Text {
             content: self.ticker.clone(),
             position: Point::new(pad_left + 6.0, pad_top + 4.0),
-            color: Color::from_rgba(1.0, 1.0, 1.0, 0.4),
+            color: theme::fg_dim(_theme),
             size: iced::Pixels(11.0),
             ..canvas::Text::default()
         });
 
         // Legend
         let legend = [
-            ("— SMA20", Color::from_rgba(1.0, 0.55, 0.1, 0.85)),
-            ("— SMA50", Color::from_rgba(1.0, 0.85, 0.2, 0.7)),
-            ("— BB",    Color::from_rgba(0.4, 0.7,  1.0, 0.5)),
+            ("— SMA20", theme::SMA20_ORANGE),
+            ("— SMA50", theme::SMA50_YELLOW),
+            ("— BB",    theme::BB_BLUE),
         ];
         for (i, (label, color)) in legend.iter().enumerate() {
             frame.fill_text(canvas::Text {
@@ -221,7 +221,7 @@ impl canvas::Program<Message> for PriceChart {
             frame.fill_text(canvas::Text {
                 content: format!("{:.2}", self.data[idx]),
                 position: Point::new(p.x, p.y - 10.0),
-                color: Color::from_rgba(1.0, 1.0, 1.0, 0.6),
+                color: theme::label_color(_theme),
                 size: iced::Pixels(9.0),
                 horizontal_alignment: iced::alignment::Horizontal::Center,
                 ..canvas::Text::default()
@@ -242,7 +242,7 @@ impl canvas::Program<Message> for PriceChart {
                     b.line_to(Point::new(bar_x, pad_top + h));
                 });
                 frame.stroke(&vline, canvas::Stroke {
-                    style: canvas::Style::Solid(Color::from_rgba(1.0, 1.0, 1.0, 0.35)),
+                    style: canvas::Style::Solid(theme::fg_dim(_theme)),
                     width: 1.0,
                     ..canvas::Stroke::default()
                 });
@@ -253,7 +253,7 @@ impl canvas::Program<Message> for PriceChart {
                     b.line_to(Point::new(pad_left + w, bar_y));
                 });
                 frame.stroke(&hline, canvas::Stroke {
-                    style: canvas::Style::Solid(Color::from_rgba(1.0, 1.0, 1.0, 0.2)),
+                    style: canvas::Style::Solid(theme::ring_dim(_theme)),
                     width: 1.0,
                     ..canvas::Stroke::default()
                 });
@@ -268,10 +268,15 @@ impl canvas::Program<Message> for PriceChart {
                     );
                     let tip_x = if bar_x < pad_left + w / 2.0 { bar_x + 8.0 } else { bar_x - 96.0 };
                     let tip_y = pad_top + 4.0;
+                    let tip_bg = if theme::is_dark(_theme) {
+                        Color::from_rgba(0.0, 0.0, 0.0, 0.78)
+                    } else {
+                        Color::from_rgba(0.15, 0.15, 0.20, 0.88)
+                    };
                     frame.fill_rectangle(
                         Point::new(tip_x, tip_y),
                         iced::Size::new(90.0, 58.0),
-                        Color::from_rgba(0.0, 0.0, 0.0, 0.78),
+                        tip_bg,
                     );
                     frame.fill_text(canvas::Text {
                         content: label,
@@ -309,11 +314,13 @@ impl<Message> canvas::Program<Message> for LagrangeSparkline {
     ) -> Vec<canvas::Geometry> {
         let mut frame = canvas::Frame::new(renderer, bounds.size());
 
+        frame.fill_rectangle(Point::ORIGIN, bounds.size(), theme::canvas_bg(_theme));
+
         if self.history.len() < 2 {
             frame.fill_text(canvas::Text {
                 content: "Not enough Lagrange history yet — run the scraper".to_string(),
                 position: Point::new(8.0, bounds.height / 2.0 - 6.0),
-                color: Color::from_rgb(0.5, 0.5, 0.5),
+                color: theme::fg_muted(_theme),
                 size: iced::Pixels(10.0),
                 ..canvas::Text::default()
             });
@@ -327,11 +334,11 @@ impl<Message> canvas::Program<Message> for LagrangeSparkline {
 
         // Score range 0-100; draw horizontal zone bands first
         let zones: &[(f32, f32, Color)] = &[
-            (0.0,  24.0, Color::from_rgba(0.8, 0.1, 0.1, 0.18)),  // Misaligned  — red
-            (25.0, 44.0, Color::from_rgba(0.8, 0.4, 0.0, 0.18)),  // Unfavorable — orange
-            (45.0, 55.0, Color::from_rgba(0.8, 0.8, 0.0, 0.18)),  // Neutral     — yellow
-            (56.0, 75.0, Color::from_rgba(0.2, 0.7, 0.2, 0.18)),  // Favorable   — green
-            (76.0,100.0, Color::from_rgba(0.0, 0.9, 0.4, 0.18)),  // Optimal     — bright green
+            (0.0,  24.0, theme::SPARK_ZONE_MIS),
+            (25.0, 44.0, theme::SPARK_ZONE_UNF),
+            (45.0, 55.0, theme::SPARK_ZONE_NEU),
+            (56.0, 75.0, theme::SPARK_ZONE_FAV),
+            (76.0,100.0, theme::SPARK_ZONE_OPT),
         ];
         for (lo, hi, color) in zones {
             let y_hi = pad + inner_h - (hi / 100.0) * inner_h;
@@ -351,7 +358,7 @@ impl<Message> canvas::Program<Message> for LagrangeSparkline {
                 b.line_to(Point::new(pad + inner_w, y));
             });
             frame.stroke(&line, canvas::Stroke {
-                style: canvas::Style::Solid(Color::from_rgba(1.0, 1.0, 1.0, 0.12)),
+                style: canvas::Style::Solid(theme::grid_line(_theme)),
                 width: 0.5,
                 ..Default::default()
             });
@@ -370,19 +377,19 @@ impl<Message> canvas::Program<Message> for LagrangeSparkline {
             }
         });
         frame.stroke(&line, canvas::Stroke {
-            style: canvas::Style::Solid(Color::from_rgb(0.4, 0.8, 1.0)),
+            style: canvas::Style::Solid(theme::SPARKLINE_BLUE),
             width: 1.5,
             ..Default::default()
         });
 
         // Dot + label at last point
         if let Some(&last) = pts.last() {
-            frame.fill(&canvas::Path::circle(last, 3.0), Color::from_rgb(0.4, 0.8, 1.0));
+            frame.fill(&canvas::Path::circle(last, 3.0), theme::SPARKLINE_BLUE);
             if let Some(row) = self.history.last() {
                 frame.fill_text(canvas::Text {
                     content: format!("{:.0}", row.score),
                     position: Point::new(last.x + 4.0, last.y - 8.0),
-                    color: Color::from_rgb(0.4, 0.8, 1.0),
+                    color: theme::SPARKLINE_BLUE,
                     size: iced::Pixels(9.0),
                     ..canvas::Text::default()
                 });
@@ -394,14 +401,14 @@ impl<Message> canvas::Program<Message> for LagrangeSparkline {
             frame.fill_text(canvas::Text {
                 content: first.score_date.to_string(),
                 position: Point::new(pad, bounds.height - 2.0),
-                color: Color::from_rgba(1.0, 1.0, 1.0, 0.4),
+                color: theme::fg_dim(_theme),
                 size: iced::Pixels(8.0),
                 ..canvas::Text::default()
             });
             frame.fill_text(canvas::Text {
                 content: last_row.score_date.to_string(),
                 position: Point::new(pad + inner_w - 60.0, bounds.height - 2.0),
-                color: Color::from_rgba(1.0, 1.0, 1.0, 0.4),
+                color: theme::fg_dim(_theme),
                 size: iced::Pixels(8.0),
                 ..canvas::Text::default()
             });

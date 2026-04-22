@@ -1,6 +1,6 @@
 use iced::widget::canvas::Canvas;
 use iced::widget::{button, column, container, horizontal_rule, row, scrollable, text, text_input, Column, Row};
-use iced::{Alignment, Color, Element, Length, Theme};
+use iced::{Alignment, Element, Length, Theme};
 
 use crate::astrology::{build_transits_section, build_wheel_legend, NatalWheel};
 use crate::charts::{LagrangeSparkline, PriceChart};
@@ -9,6 +9,7 @@ use crate::helpers::{describe_8k_items, format_market_value, format_market_value
 use crate::indicators::{compute_lagrange_score, compute_ticker_score, Indicators};
 use crate::signals::generate_signal_bullets;
 use crate::state::{Dashboard, Message};
+use crate::theme;
 
 impl Dashboard {
     pub fn view(&self) -> Element<'_, Message> {
@@ -535,11 +536,11 @@ impl Dashboard {
                     .map(|p| format!("{p:.1}%"))
                     .unwrap_or_else(|| "—".into());
                 let (zone_color, score_zone) = match score as u32 {
-                    0..=24  => (Color::from_rgb(0.9, 0.2, 0.2), "Mis"),
-                    25..=44 => (Color::from_rgb(0.85, 0.45, 0.1), "Unf"),
-                    45..=55 => (Color::from_rgb(0.6, 0.6, 0.6), "Neu"),
-                    56..=75 => (Color::from_rgb(0.2, 0.65, 0.9), "Fav"),
-                    _       => (Color::from_rgb(0.0, 0.78, 0.35), "Opt"),
+                    0..=24  => (theme::ZONE_MISALIGNED, "Mis"),
+                    25..=44 => (theme::ZONE_UNFAVORABLE, "Unf"),
+                    45..=55 => (theme::ZONE_NEUTRAL, "Neu"),
+                    56..=75 => (theme::ZONE_FAVORABLE, "Fav"),
+                    _       => (theme::ZONE_OPTIMAL, "Opt"),
                 };
                 let ticker_btn = button(text(w.ticker.clone()).size(11))
                     .on_press(Message::TickerSelected(w.ticker.clone()));
@@ -693,9 +694,9 @@ impl Dashboard {
                 ].spacing(8);
                 let alert_rows: Vec<Element<Message>> = self.alerts.iter().map(|a| {
                     let zone_color = if a.label == "Optimal" {
-                        Color::from_rgb(0.0, 0.78, 0.35)
+                        theme::ZONE_OPTIMAL
                     } else {
-                        Color::from_rgb(0.9, 0.2, 0.2)
+                        theme::ZONE_MISALIGNED
                     };
                     let prev = a.prev_label.as_deref().unwrap_or("—");
                     let read_btn: Element<Message> = if a.is_read {

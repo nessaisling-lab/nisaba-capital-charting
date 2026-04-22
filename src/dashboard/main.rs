@@ -6,6 +6,7 @@ mod helpers;
 mod indicators;
 mod signals;
 mod state;
+mod theme;
 mod update;
 mod view;
 
