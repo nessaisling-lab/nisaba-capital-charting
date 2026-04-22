@@ -216,7 +216,7 @@ impl Dashboard {
             column![
                 text("Earnings Calendar").size(14),
                 hdr,
-                scrollable(Column::with_children(items).spacing(3)).height(Length::Fixed(110.0)),
+                scrollable(Column::with_children(items).spacing(4)).height(Length::Fixed(110.0)),
             ].spacing(4)
         };
 
@@ -244,7 +244,7 @@ impl Dashboard {
             column![
                 text("Top Institutional Holders").size(14),
                 hdr,
-                scrollable(Column::with_children(holding_rows).spacing(3)).height(Length::Fixed(100.0)),
+                scrollable(Column::with_children(holding_rows).spacing(4)).height(Length::Fixed(100.0)),
             ].spacing(4)
         };
 
@@ -267,7 +267,7 @@ impl Dashboard {
             }).collect();
             column![
                 text("Recent 8-K Filings").size(14),
-                scrollable(Column::with_children(filing_rows).spacing(3)).height(Length::Fixed(100.0)),
+                scrollable(Column::with_children(filing_rows).spacing(4)).height(Length::Fixed(100.0)),
             ].spacing(4)
         };
 
@@ -325,7 +325,7 @@ impl Dashboard {
             column![
                 text("Recent Insider Trades").size(14),
                 hdr,
-                scrollable(Column::with_children(trade_rows).spacing(3)).height(Length::Fixed(130.0)),
+                scrollable(Column::with_children(trade_rows).spacing(4)).height(Length::Fixed(130.0)),
             ].spacing(4)
         };
 
@@ -349,7 +349,7 @@ impl Dashboard {
                     text(format!("{:.2}", r.high)).width(Length::FillPortion(2)),
                     text(format!("{:.2}", r.low)).width(Length::FillPortion(2)),
                     text(format!("{:.2}", r.close)).width(Length::FillPortion(2)),
-                    text(r.volume.to_string()).width(Length::FillPortion(3)),
+                    text(format_shares(r.volume)).width(Length::FillPortion(3)),
                 ].spacing(10).into()
             }).collect();
             Column::with_children(price_rows).spacing(4)
@@ -559,7 +559,7 @@ impl Dashboard {
                 horizontal_rule(1),
                 hdr,
                 horizontal_rule(1),
-                scrollable(Column::with_children(rank_rows).spacing(5))
+                scrollable(Column::with_children(rank_rows).spacing(4))
                     .height(Length::Fixed(200.0)),
             ].spacing(5)
         };
@@ -720,7 +720,7 @@ impl Dashboard {
                     horizontal_rule(1),
                     hdr,
                     horizontal_rule(1),
-                    scrollable(Column::with_children(alert_rows).spacing(3))
+                    scrollable(Column::with_children(alert_rows).spacing(4))
                         .height(Length::Fixed(140.0)),
                 ].spacing(4)
             }
