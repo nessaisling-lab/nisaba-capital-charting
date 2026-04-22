@@ -3,7 +3,7 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v1.0.0
+**Current version:** v1.1.0
 
 ---
 
@@ -89,6 +89,45 @@
 | `price_data` | ~2,500 (10 watchlist × ~250 AV rows) |
 | `astro_scores` | ~1,200+ (tickers with ipo_date) |
 | `lagrange_history` | 7 tickers (price_data FK limit — resolved in v1.1.0) |
+
+---
+
+### v1.1.0-design — Design System + Visual Polish *(completed 2026-04-22)*
+**Theme:** Centralized color token architecture, systematic type scale, theme-aware canvas widgets, Apple-grade empty states. Source-code design audit: 10 findings, all resolved.
+
+**New module — `src/dashboard/theme.rs`:**
+- [x] Central color token module (single source of truth for all UI colors)
+- [x] Theme-aware functions: `canvas_bg()`, `fg()`, `fg_dim()`, `fg_muted()`, `label_color()`, `grid_line()`, `sign_color()`, `ring_dim()`
+- [x] Type scale constants (1.2x minor third): `TEXT_XS=8`, `TEXT_SM=10`, `TEXT_BASE=12`, `TEXT_MD=14`, `TEXT_LG=17`, `TEXT_XL=20`, `TEXT_2XL=24`
+- [x] Chart accents: `ACCENT_BLUE`, `SMA20_ORANGE`, `SMA50_YELLOW`, `BB_BLUE`, `SPARKLINE_BLUE`
+- [x] Natal wheel: `NATAL_GOLD`, `TRANSIT_BLUE`, `RETROGRADE_RED`, aspect colors
+- [x] Score zones: `ZONE_MISALIGNED` through `ZONE_OPTIMAL`
+- [x] Gauge zones: `GAUGE_EXTREME_FEAR` through `GAUGE_EXTREME_GREED`
+- [x] Sparkline zone bands: `SPARK_ZONE_MIS` through `SPARK_ZONE_OPT`
+
+**Charts/canvas theme awareness (FINDING-001 through FINDING-004):**
+- [x] `charts.rs` — PriceChart: replaced hardcoded dark background with `theme::canvas_bg()`, all grid/label/crosshair colors theme-aware
+- [x] `charts.rs` — LagrangeSparkline: added background fill, zone bands/lines/text use theme tokens
+- [x] `gauges.rs` — FearGreedGauge: replaced inline `is_dark` checks with theme functions
+- [x] `astrology.rs` — NatalWheel: replaced inline theme checks with `theme::canvas_bg()`, `theme::ring_dim()`, `theme::sign_color()`
+
+**Table & layout normalization (FINDING-005 through FINDING-008):**
+- [x] `view.rs` — all `.spacing()` on table rows normalized to 4px
+- [x] `view.rs` — volume column uses `format_shares()` with comma formatting
+- [x] `view.rs` — all numeric `.size()` calls replaced with `theme::TEXT_*` constants
+- [x] `view.rs` — section heading hierarchy: primary sections at `TEXT_LG` (17px), secondary at `TEXT_MD` (14px)
+
+**Empty states & scrollable heights (FINDING-009 through FINDING-010):**
+- [x] `view.rs` — 10 empty state sections restructured: heading + explanation + data source hint
+- [x] `view.rs` — scrollable heights increased: Universe 200->240, Alerts 140->160, Earnings 110->130, Holdings 100->120
+- [x] `view.rs` — removed direct `Color` import (all colors via `theme::` module)
+
+**Commits:**
+- `d2dcd58` — theme.rs color tokens + chart/sparkline theme awareness
+- `b502273` — table spacing + volume formatting
+- `717abbd` — type scale + section hierarchy
+- `d827415` — warm empty states
+- `19c322e` — scrollable heights
 
 ---
 
@@ -260,6 +299,7 @@ pursuit_week4_automation/
 │       ├── db.rs                     async DB + API fetch functions
 │       ├── gauges.rs                 FearGreedGauge canvas widget
 │       ├── charts.rs                 PriceChart canvas widget with hover
+│       ├── theme.rs                  color tokens, type scale, theme-aware helpers  ← NEW v1.1.0-design
 │       ├── update.rs                 update() + new() + subscription()
 │       ├── view.rs                   view() layout
 │       └── astrology.rs              natal wheel canvas + transits table
@@ -280,7 +320,10 @@ pursuit_week4_automation/
 │   ├── 0014_company_metadata_source.sql
 │   ├── 0015_recently_viewed.sql
 │   ├── 0016_lagrange_alerts.sql
-│   └── 0017_nullable_ipo_date.sql
+│   ├── 0017_nullable_ipo_date.sql
+│   ├── 0018_drop_price_data_fk.sql
+│   ├── 0019_scoring_active.sql
+│   └── 0020_sector_industry.sql
 ├── Cargo.toml
 ├── .env                              secrets (never committed)
 ├── .gitignore
