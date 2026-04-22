@@ -77,11 +77,11 @@ impl Dashboard {
 
         let chart: Element<Message> = if self.rows.is_empty() {
             container(
-                text(format!(
-                    "{} — no price data yet.  Run the scraper to fetch OHLCV history.",
-                    self.selected_ticker
-                ))
-                .size(theme::TEXT_BASE),
+                column![
+                    text(format!("{} — Awaiting Data", self.selected_ticker)).size(theme::TEXT_LG),
+                    text("No price history loaded for this ticker yet.").size(theme::TEXT_BASE),
+                    text("Run the scraper to fetch OHLCV data, then refresh.").size(theme::TEXT_SM),
+                ].spacing(6).align_x(Alignment::Center),
             )
             .center_x(Length::Fill)
             .padding([40, 20])
@@ -181,7 +181,8 @@ impl Dashboard {
         let earnings_section = if self.earnings.is_empty() {
             column![
                 text("Earnings Calendar").size(theme::TEXT_MD),
-                text("No earnings data — run the scraper to fetch from Finnhub").size(theme::TEXT_BASE),
+                text("No upcoming earnings loaded yet.").size(theme::TEXT_BASE),
+                text("The scraper fetches earnings dates from Finnhub.").size(theme::TEXT_SM),
             ].spacing(4)
         } else {
             let today = chrono::Utc::now().date_naive();
@@ -224,7 +225,8 @@ impl Dashboard {
         let holdings_section = if self.holdings.is_empty() {
             column![
                 text("Top Institutional Holders").size(theme::TEXT_MD),
-                text("No 13F data — run the scraper to fetch from EDGAR").size(theme::TEXT_BASE),
+                text("No institutional holdings loaded yet.").size(theme::TEXT_BASE),
+                text("The scraper fetches 13F filings from SEC EDGAR.").size(theme::TEXT_SM),
             ].spacing(4)
         } else {
             let hdr = row![
@@ -252,7 +254,8 @@ impl Dashboard {
         let filings_section = if self.filings_8k.is_empty() {
             column![
                 text("Recent 8-K Filings").size(theme::TEXT_MD),
-                text("No 8-K data — run the scraper to fetch from EDGAR").size(theme::TEXT_BASE),
+                text("No recent filings loaded yet.").size(theme::TEXT_BASE),
+                text("Material events (earnings, M&A, leadership changes) appear here.").size(theme::TEXT_SM),
             ].spacing(4)
         } else {
             let filing_rows: Vec<Element<Message>> = self.filings_8k.iter().map(|f| {
@@ -275,7 +278,8 @@ impl Dashboard {
         let news_section = if self.news.is_empty() {
             column![
                 text("Recent News").size(theme::TEXT_MD),
-                text("No news — run the scraper to fetch from Finnhub").size(theme::TEXT_BASE),
+                text("No headlines loaded yet.").size(theme::TEXT_BASE),
+                text("News articles are fetched from Finnhub during scraper runs.").size(theme::TEXT_SM),
             ].spacing(4)
         } else {
             let news_items: Vec<Element<Message>> = self.news.iter().map(|n| {
@@ -301,7 +305,8 @@ impl Dashboard {
         let insider_section = if self.insider_trades.is_empty() {
             column![
                 text("Recent Insider Trades").size(theme::TEXT_MD),
-                text("No insider trade data — run the scraper to fetch from EDGAR").size(theme::TEXT_BASE),
+                text("No Form 4 insider transactions loaded yet.").size(theme::TEXT_BASE),
+                text("Insider buys and sells are fetched from SEC EDGAR.").size(theme::TEXT_SM),
             ].spacing(4)
         } else {
             let hdr = row![
@@ -594,8 +599,8 @@ impl Dashboard {
                 text(format!("{} Astrology", self.selected_ticker)).size(theme::TEXT_LG),
                 horizontal_rule(1),
                 text("No birth chart yet for this ticker.").size(theme::TEXT_BASE),
-                text("The scraper enriches ~50 new tickers per day via SEC EDGAR.").size(theme::TEXT_BASE),
-                text("Run the scraper again tomorrow — once an IPO date is found the natal chart is computed automatically.").size(theme::TEXT_BASE),
+                text("The scraper enriches ~50 tickers per day via SEC EDGAR.").size(theme::TEXT_SM),
+                text("Once an IPO date is found, the natal chart is computed automatically.").size(theme::TEXT_SM),
             ]
             .spacing(6)
             .into()
@@ -633,7 +638,8 @@ impl Dashboard {
         let portfolio_section = if self.portfolio.is_empty() {
             column![
                 text("Portfolio").size(theme::TEXT_MD),
-                text("No positions — add rows to portfolio_positions table via portfolio_seed.sql").size(theme::TEXT_BASE),
+                text("No positions tracked yet.").size(theme::TEXT_BASE),
+                text("Add rows to portfolio_positions via portfolio_seed.sql.").size(theme::TEXT_SM),
             ].spacing(4)
         } else {
             let hdr = row![
