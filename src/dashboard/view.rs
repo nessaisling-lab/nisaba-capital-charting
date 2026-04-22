@@ -1,6 +1,6 @@
 use iced::widget::canvas::Canvas;
-use iced::widget::{button, column, container, horizontal_rule, row, scrollable, text, Column, Row};
-use iced::{Alignment, Element, Length, Theme};
+use iced::widget::{button, column, container, horizontal_rule, row, scrollable, text, text_input, Column, Row};
+use iced::{Alignment, Color, Element, Length, Theme};
 
 use crate::astrology::{build_transits_section, build_wheel_legend, NatalWheel};
 use crate::charts::{LagrangeSparkline, PriceChart};
@@ -12,11 +12,57 @@ use crate::state::{Dashboard, Message};
 
 impl Dashboard {
     pub fn view(&self) -> Element<'_, Message> {
-        // Ticker selector buttons
+        // Ticker selector buttons (pinned watchlist)
         let ticker_buttons: Row<Message> = self.tickers.iter().fold(row![].spacing(6), |r, ticker| {
             let btn = button(text(ticker).size(13)).on_press(Message::TickerSelected(ticker.clone()));
             r.push(btn)
         });
+
+        // Search bar — type any ticker symbol and press Enter or Search
+        let search_bar = row![
+            text_input("Search any ticker…", &self.ticker_search_input)
+                .on_input(Message::TickerSearchInput)
+                .on_submit(Message::TickerSearchSubmit)
+                .width(iced::Length::Fixed(200.0))
+                .size(13),
+            button(text("Go").size(13))
+                .on_press(Message::TickerSearchSubmit),
+        ]
+        .spacing(6)
+        .align_y(iced::Alignment::Center);
+
+        // Autocomplete suggestion dropdown — shown when suggestions exist
+        let autocomplete: Element<Message> = if self.autocomplete_suggestions.is_empty() {
+            // Zero-height placeholder so layout doesn't jump
+            row![].into()
+        } else {
+            let items: Vec<Element<Message>> = self.autocomplete_suggestions.iter()
+                .map(|(ticker, name)| {
+                    button(
+                        text(format!("{ticker}  —  {name}")).size(12)
+                    )
+                    .on_press(Message::AutocompleteSelected(ticker.clone()))
+                    .width(Length::Fixed(340.0))
+                    .into()
+                })
+                .collect();
+            column(items).spacing(2).into()
+        };
+
+        // Recently viewed — last 10 tickers as quick-click buttons
+        let recently_viewed_row: Row<Message> = if self.recently_viewed.is_empty() {
+            row![text("Recently viewed: —").size(11)].spacing(4)
+        } else {
+            let label = text("Recently:").size(11);
+            let buttons = self.recently_viewed.iter().fold(
+                row![label].spacing(6),
+                |r, t| r.push(
+                    button(text(t).size(11))
+                        .on_press(Message::TickerSelected(t.clone()))
+                ),
+            );
+            buttons
+        };
 
         // Close prices in chronological order for chart
         let chart_data: Vec<f32> = self.rows.iter().rev()
@@ -28,17 +74,31 @@ impl Dashboard {
             None => (vec![], vec![], vec![], vec![]),
         };
 
-        let chart = Canvas::new(PriceChart {
-            data: chart_data,
-            ticker: self.selected_ticker.clone(),
-            sma20,
-            sma50,
-            bb_upper,
-            bb_lower,
-            rows_chrono: self.rows.iter().rev().cloned().collect(),
-        })
-        .width(Length::Fill)
-        .height(Length::Fixed(220.0));
+        let chart: Element<Message> = if self.rows.is_empty() {
+            container(
+                text(format!(
+                    "{} — no price data yet.  Run the scraper to fetch OHLCV history.",
+                    self.selected_ticker
+                ))
+                .size(13),
+            )
+            .center_x(Length::Fill)
+            .padding([40, 20])
+            .into()
+        } else {
+            Canvas::new(PriceChart {
+                data: chart_data,
+                ticker: self.selected_ticker.clone(),
+                sma20,
+                sma50,
+                bb_upper,
+                bb_lower,
+                rows_chrono: self.rows.iter().rev().cloned().collect(),
+            })
+            .width(Length::Fill)
+            .height(Length::Fixed(220.0))
+            .into()
+        };
 
         // Lagrange Score sparkline strip
         let sparkline_strip = column![
@@ -50,7 +110,9 @@ impl Dashboard {
 
         // Indicator summary row
         let indicator_row = match &self.indicators {
-            None => row![text("Indicators: loading...").size(11)].spacing(20),
+            None => row![
+                text(if self.rows.is_empty() { "Indicators: —" } else { "Indicators: loading..." }).size(11)
+            ].spacing(20),
             Some(ind) => {
                 let rsi_val  = Indicators::last(&ind.rsi_vals);
                 let sma20_val = Indicators::last(&ind.sma20);
@@ -341,7 +403,7 @@ impl Dashboard {
             None => make_gauge(
                 format!("{} Score", self.selected_ticker),
                 None,
-                "loading...".to_string(),
+                if self.rows.is_empty() { "no data".to_string() } else { "loading...".to_string() },
             ),
         };
 
@@ -372,7 +434,7 @@ impl Dashboard {
             None => make_gauge(
                 format!("{} Lagrange Score", self.selected_ticker),
                 None,
-                "loading...".to_string(),
+                if self.rows.is_empty() { "no data".to_string() } else { "loading...".to_string() },
             ),
         };
 
@@ -389,8 +451,13 @@ impl Dashboard {
         ].align_y(Alignment::Center);
 
         // Signal Intelligence panel
-        let signal_section = match &self.indicators {
-            None => column![
+        let signal_section = if self.rows.is_empty() {
+            column![
+                text("Signal Intelligence").size(14),
+                text("No price data yet — run the scraper to fetch OHLCV history for this ticker.").size(11),
+            ].spacing(4)
+        } else {
+            match &self.indicators { None => column![
                 text("Signal Intelligence").size(14),
                 text("Loading indicators...").size(11),
             ].spacing(4),
@@ -424,15 +491,25 @@ impl Dashboard {
                     verdict,
                 ].spacing(6)
             }
+        } // close else { match ...
         };
 
-        // Watchlist Ranking panel
+        // Scored Universe / Ranking panel
         let watchlist_section = if self.watchlist.is_empty() {
             column![
-                text("Watchlist Ranking").size(14),
+                text("Scored Universe").size(14),
                 text("Loading...").size(11),
             ].spacing(4)
         } else {
+            let sort_label = if self.sort_watchlist_by_score { "Sort: Score ▼" } else { "Sort: Ticker A–Z" };
+            let panel_header = row![
+                text(format!("Scored Universe — {} tickers", self.watchlist.len()))
+                    .size(14)
+                    .width(Length::Fill),
+                button(text(sort_label).size(11))
+                    .on_press(Message::ToggleWatchlistSort),
+            ].spacing(8).align_y(Alignment::Center);
+
             let hdr = row![
                 text("#").size(11).width(Length::Fixed(24.0)),
                 text("Ticker").size(11).width(Length::Fixed(64.0)),
@@ -441,6 +518,7 @@ impl Dashboard {
                 text("Sentiment").size(11).width(Length::Fixed(120.0)),
                 text("Short%").size(11).width(Length::Fill),
             ].spacing(8);
+
             let rank_rows: Vec<Element<Message>> = self.watchlist.iter().enumerate().map(|(i, w)| {
                 let score = w.quick_score();
                 let astro_str = match (w.astro_score, w.astro_label.as_deref()) {
@@ -456,30 +534,32 @@ impl Dashboard {
                 let short_str = w.short_pct.as_ref()
                     .map(|p| format!("{p:.1}%"))
                     .unwrap_or_else(|| "—".into());
-                let score_zone = match score as u32 {
-                    0..=24  => "■ Mis",
-                    25..=44 => "■ Unf",
-                    45..=55 => "■ Neu",
-                    56..=75 => "■ Fav",
-                    _       => "■ Opt",
+                let (zone_color, score_zone) = match score as u32 {
+                    0..=24  => (Color::from_rgb(0.9, 0.2, 0.2), "Mis"),
+                    25..=44 => (Color::from_rgb(0.85, 0.45, 0.1), "Unf"),
+                    45..=55 => (Color::from_rgb(0.6, 0.6, 0.6), "Neu"),
+                    56..=75 => (Color::from_rgb(0.2, 0.65, 0.9), "Fav"),
+                    _       => (Color::from_rgb(0.0, 0.78, 0.35), "Opt"),
                 };
                 let ticker_btn = button(text(w.ticker.clone()).size(11))
                     .on_press(Message::TickerSelected(w.ticker.clone()));
                 row![
                     text(format!("{}", i + 1)).size(11).width(Length::Fixed(24.0)),
                     ticker_btn,
-                    text(format!("{score:.0} {score_zone}")).size(11).width(Length::Fixed(90.0)),
+                    text(format!("{score:.0} {score_zone}")).size(11).color(zone_color).width(Length::Fixed(90.0)),
                     text(astro_str).size(11).width(Length::Fixed(100.0)),
                     text(sent_str).size(11).width(Length::Fixed(120.0)),
                     text(short_str).size(11).width(Length::Fill),
                 ].spacing(8).align_y(Alignment::Center).into()
             }).collect();
+
             column![
-                text("Watchlist Ranking").size(14),
+                panel_header,
                 horizontal_rule(1),
                 hdr,
                 horizontal_rule(1),
-                Column::with_children(rank_rows).spacing(5),
+                scrollable(Column::with_children(rank_rows).spacing(5))
+                    .height(Length::Fixed(200.0)),
             ].spacing(5)
         };
 
@@ -508,27 +588,39 @@ impl Dashboard {
         let moon_deg    = self.astro_score.as_ref().and_then(|s| s.moon_phase_deg);
         let mercury_rx  = self.astro_score.as_ref().and_then(|s| s.mercury_rx).unwrap_or(false);
 
-        let natal_wheel = Canvas::new(NatalWheel {
-            natal:    self.natal_positions.clone(),
-            transits: self.daily_transits.clone(),
-        })
-        .width(Length::Fixed(240.0))
-        .height(Length::Fixed(240.0));
+        let astrology_section: Element<Message> = if self.natal_positions.is_empty() {
+            column![
+                text(format!("{} Astrology", self.selected_ticker)).size(14),
+                horizontal_rule(1),
+                text("No birth chart yet for this ticker.").size(12),
+                text("The scraper enriches ~50 new tickers per day via SEC EDGAR.").size(11),
+                text("Run the scraper again tomorrow — once an IPO date is found the natal chart is computed automatically.").size(11),
+            ]
+            .spacing(6)
+            .into()
+        } else {
+            let natal_wheel = Canvas::new(NatalWheel {
+                natal:    self.natal_positions.clone(),
+                transits: self.daily_transits.clone(),
+            })
+            .width(Length::Fixed(240.0))
+            .height(Length::Fixed(240.0));
 
-        let wheel_col = column![
-            text(format!("{} Birth Chart", self.selected_ticker)).size(14),
-            natal_wheel,
-            build_wheel_legend(),
-        ].spacing(4).align_x(Alignment::Center);
+            let wheel_col = column![
+                text(format!("{} Birth Chart", self.selected_ticker)).size(14),
+                natal_wheel,
+                build_wheel_legend(),
+            ].spacing(4).align_x(Alignment::Center);
 
-        let transits_col = column![
-            build_transits_section(&self.astro_aspects, moon_phase, moon_deg, mercury_rx),
-        ].width(Length::Fill);
+            let transits_col = column![
+                build_transits_section(&self.astro_aspects, moon_phase, moon_deg, mercury_rx),
+            ].width(Length::Fill);
 
-        let astrology_section = row![
-            wheel_col,
-            transits_col,
-        ].spacing(20).align_y(Alignment::Start);
+            row![wheel_col, transits_col]
+                .spacing(20)
+                .align_y(Alignment::Start)
+                .into()
+        };
 
         // News and 8-K side by side
         let news_filings_row = row![
@@ -577,12 +669,71 @@ impl Dashboard {
             ].spacing(4)
         };
 
+        // Alerts panel
+        let alerts_section = {
+            let unread = self.unread_alert_count;
+            let heading = if unread > 0 {
+                format!("Lagrange Alerts  [{unread} new]")
+            } else {
+                "Lagrange Alerts".to_string()
+            };
+            if self.alerts.is_empty() {
+                column![
+                    text(heading).size(14),
+                    text("No alerts yet — fires when a ticker enters Optimal or Misaligned zone").size(11),
+                ].spacing(4)
+            } else {
+                let hdr = row![
+                    text("Date").size(11).width(Length::Fixed(90.0)),
+                    text("Ticker").size(11).width(Length::Fixed(64.0)),
+                    text("Score").size(11).width(Length::Fixed(56.0)),
+                    text("Zone").size(11).width(Length::Fixed(110.0)),
+                    text("Was").size(11).width(Length::Fill),
+                    text("").size(11).width(Length::Fixed(80.0)),
+                ].spacing(8);
+                let alert_rows: Vec<Element<Message>> = self.alerts.iter().map(|a| {
+                    let zone_color = if a.label == "Optimal" {
+                        Color::from_rgb(0.0, 0.78, 0.35)
+                    } else {
+                        Color::from_rgb(0.9, 0.2, 0.2)
+                    };
+                    let prev = a.prev_label.as_deref().unwrap_or("—");
+                    let read_btn: Element<Message> = if a.is_read {
+                        text("✓ read").size(10).width(Length::Fixed(80.0)).into()
+                    } else {
+                        button(text("Mark Read").size(10))
+                            .on_press(Message::MarkAlertRead(a.id))
+                            .into()
+                    };
+                    row![
+                        text(a.alert_date.to_string()).size(11).width(Length::Fixed(90.0)),
+                        text(&a.ticker).size(11).width(Length::Fixed(64.0)),
+                        text(format!("{:.1}", a.score)).size(11).width(Length::Fixed(56.0)),
+                        text(&a.label).size(11).color(zone_color).width(Length::Fixed(110.0)),
+                        text(prev.to_string()).size(11).width(Length::Fill),
+                        read_btn,
+                    ].spacing(8).align_y(Alignment::Center).into()
+                }).collect();
+                column![
+                    text(heading).size(14),
+                    horizontal_rule(1),
+                    hdr,
+                    horizontal_rule(1),
+                    scrollable(Column::with_children(alert_rows).spacing(3))
+                        .height(Length::Fixed(140.0)),
+                ].spacing(4)
+            }
+        };
+
         let content = column![
             header,
             horizontal_rule(1),
             gauges_row,
             horizontal_rule(1),
             ticker_buttons,
+            row![search_bar].spacing(16),
+            autocomplete,
+            recently_viewed_row,
             text(&self.status).size(11),
             button(refresh_label).on_press(Message::RefreshNow),
             chart,
@@ -593,6 +744,8 @@ impl Dashboard {
             container(signal_section).padding([10, 14]),
             horizontal_rule(1),
             container(watchlist_section).padding([10, 14]),
+            horizontal_rule(1),
+            container(alerts_section).padding([10, 14]),
             horizontal_rule(1),
             astrology_section,
             horizontal_rule(1),

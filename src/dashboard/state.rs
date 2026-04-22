@@ -1,7 +1,7 @@
 use iced::Theme;
 use pursuit_week4_automation::models::{
     AnalystRating, AstroScore, DailyTransit, EarningsDate, FilingRow, HoldingRow,
-    InsiderTradeRow, LagrangeHistory, MacroIndicator, NatalPosition, NewsArticle,
+    InsiderTradeRow, LagrangeAlert, LagrangeHistory, MacroIndicator, NatalPosition, NewsArticle,
     PortfolioPosition, PriceRow, SentimentScore, ShortInterest,
 };
 use crate::db::WatchlistRow;
@@ -36,9 +36,19 @@ pub struct Dashboard {
     pub watchlist:         Vec<WatchlistRow>,
     pub lagrange_history:  Vec<LagrangeHistory>,
     pub portfolio:         Vec<PortfolioPosition>,
-    pub status:            String,
-    pub refreshing:        bool,
-    pub theme:             Theme,
+    pub alerts:              Vec<LagrangeAlert>,
+    pub unread_alert_count:  usize,
+    pub notifications_fired: bool,
+    pub ticker_search_input:      String,
+    pub autocomplete_suggestions: Vec<(String, String)>,  // (ticker, company_name)
+    pub sort_watchlist_by_score:  bool,
+    pub recently_viewed:          Vec<String>,
+    pub status:                   String,
+    pub refreshing:               bool,
+    pub theme:                    Theme,
+    // v1.2.0 Universe Explorer stubs (unused until Explorer panel is built)
+    pub universe_page:            usize,
+    pub universe_filter_zone:     Option<String>,
 }
 
 impl Default for Dashboard {
@@ -69,9 +79,18 @@ impl Default for Dashboard {
             watchlist:         vec![],
             lagrange_history:  vec![],
             portfolio:         vec![],
-            status:            String::new(),
-            refreshing:      false,
-            theme:           Theme::Dark,
+            alerts:              vec![],
+            unread_alert_count:  0,
+            notifications_fired: false,
+            ticker_search_input:      String::new(),
+            autocomplete_suggestions: vec![],
+            sort_watchlist_by_score:  true,
+            recently_viewed:          vec![],
+            status:                   String::new(),
+            refreshing:               false,
+            theme:                    Theme::Dark,
+            universe_page:            0,
+            universe_filter_zone:     None,
         }
     }
 }
@@ -102,7 +121,16 @@ pub enum Message {
     CopyText(String),
     OpenUrl(String),
     TickerSelected(String),
+    AlertsLoaded(Result<Vec<LagrangeAlert>, String>),
+    MarkAlertRead(i32),
+    NotifyAlerts,
+    TickerSearchInput(String),
+    TickerSearchSubmit,
+    AutocompleteResults(Vec<(String, String)>),
+    AutocompleteSelected(String),
+    RecentlyViewedLoaded(Result<Vec<String>, String>),
     ToggleTheme,
+    ToggleWatchlistSort,
     RefreshNow,
     Tick,
 }

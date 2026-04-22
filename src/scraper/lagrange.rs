@@ -7,8 +7,6 @@ use std::sync::Arc;
 use pursuit_week4_automation::indicators::{compute_lagrange_score, Indicators};
 use pursuit_week4_automation::models::{AstroScore, MacroIndicator, PriceRow, SentimentScore, ShortInterest};
 
-use crate::WATCHLIST;
-
 pub async fn compute_all_scores(pool: Arc<sqlx::PgPool>) {
     println!("Computing Lagrange scores for all tickers...");
 
@@ -27,7 +25,30 @@ pub async fn compute_all_scores(pool: Arc<sqlx::PgPool>) {
 
     let today = chrono::Utc::now().date_naive();
 
-    for ticker in WATCHLIST {
+    // DB-driven universe: all tickers with scoring_active=true that have
+    // at least 26 price rows.  Replaces the hardcoded WATCHLIST constant so
+    // Lagrange scoring automatically expands as Tiingo fills in history.
+    let scoreable: Vec<String> = sqlx::query_scalar(
+        "SELECT pd.ticker
+         FROM price_data pd
+         JOIN tickers t ON t.ticker = pd.ticker
+         WHERE t.scoring_active = true
+         GROUP BY pd.ticker
+         HAVING COUNT(*) >= 26
+         ORDER BY pd.ticker"
+    )
+    .fetch_all(pool.as_ref())
+    .await
+    .unwrap_or_default();
+
+    if scoreable.is_empty() {
+        println!("[Lagrange] No tickers with scoring_active=true and 26+ price rows. Skipping.");
+        return;
+    }
+
+    println!("[Lagrange] Scoring {} ticker(s)...", scoreable.len());
+
+    for ticker in &scoreable {
         if let Err(e) = score_one_ticker(pool.as_ref(), ticker, &macro_data, today).await {
             eprintln!("Lagrange [{ticker}] error: {e}");
         }
@@ -132,6 +153,64 @@ async fn score_one_ticker(
     .execute(pool)
     .await?;
 
+    // Crossing detection — compare today's label to the most recent prior day.
+    // Uses ORDER BY score_date DESC LIMIT 1 (not = today - 1) so weekends/holidays
+    // don't create spurious null gaps.
+    check_alert_crossing(pool, ticker, today, score, &label).await;
+
     println!("  {ticker}: {score:.1} ({label})");
     Ok(())
+}
+
+async fn check_alert_crossing(
+    pool: &sqlx::PgPool,
+    ticker: &str,
+    today: chrono::NaiveDate,
+    score: f32,
+    label: &str,
+) {
+    // Look up the most recent prior label (skip if this is the ticker's first ever score)
+    let prev_label: Option<String> = sqlx::query_scalar(
+        "SELECT label FROM lagrange_history
+         WHERE ticker = $1 AND score_date < $2
+         ORDER BY score_date DESC LIMIT 1"
+    )
+    .bind(ticker)
+    .bind(today)
+    .fetch_optional(pool)
+    .await
+    .unwrap_or(None);
+
+    let prev = match &prev_label {
+        Some(p) => p.as_str(),
+        None => return, // First ever score — no crossing to detect
+    };
+
+    let alert_type = match label {
+        "Optimal"    if prev != "Optimal"    => "entered_optimal",
+        "Misaligned" if prev != "Misaligned" => "entered_misaligned",
+        _ => return, // No crossing into an extreme zone
+    };
+
+    let result = sqlx::query(
+        "INSERT INTO lagrange_alerts
+             (ticker, alert_date, score, label, prev_label, alert_type)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (ticker, alert_date, alert_type) DO NOTHING"
+    )
+    .bind(ticker)
+    .bind(today)
+    .bind(score)
+    .bind(label)
+    .bind(&prev_label)
+    .bind(alert_type)
+    .execute(pool)
+    .await;
+
+    match result {
+        Ok(r) if r.rows_affected() > 0 =>
+            println!("  [ALERT] {ticker}: entered {label} (was {prev}) — score {score:.1}"),
+        Ok(_)  => {} // Already recorded
+        Err(e) => eprintln!("  [ALERT] Failed to store alert for {ticker}: {e}"),
+    }
 }

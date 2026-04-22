@@ -187,6 +187,20 @@ pub struct LagrangeHistory {
     pub short_score: Option<f32>,
 }
 
+/// One row from lagrange_alerts
+/// SQLx maps DATE → NaiveDate, BOOLEAN → bool automatically.
+#[derive(Debug, Clone, FromRow)]
+pub struct LagrangeAlert {
+    pub id:         i32,
+    pub ticker:     String,
+    pub alert_date: NaiveDate,
+    pub score:      f32,
+    pub label:      String,
+    pub prev_label: Option<String>,
+    pub alert_type: String,
+    pub is_read:    bool,
+}
+
 /// One row from portfolio_positions
 #[derive(Debug, Clone, FromRow)]
 pub struct PortfolioPosition {

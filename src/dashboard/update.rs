@@ -2,13 +2,17 @@ use iced::{Subscription, Task, Theme};
 use sqlx::PgPool;
 use std::sync::Arc;
 use std::time::Duration;
+use notify_rust;
+
+use pursuit_week4_automation::models::LagrangeAlert;
 
 use crate::db::{
-    connect_db, fetch_8k_filings, fetch_all_earnings, fetch_analyst_rating,
+    connect_db, fetch_8k_filings, fetch_alerts, fetch_all_earnings, fetch_analyst_rating,
     fetch_astro_active_aspects, fetch_astro_score, fetch_daily_transits, fetch_fear_greed,
     fetch_holdings, fetch_insider_trades, fetch_lagrange_history, fetch_macro_indicators,
     fetch_market_fear_greed, fetch_natal_chart, fetch_news, fetch_portfolio, fetch_prices,
-    fetch_sentiment, fetch_short_interest, fetch_watchlist_summaries, load_tickers,
+    fetch_recently_viewed, fetch_sentiment, fetch_short_interest, fetch_watchlist_summaries,
+    load_tickers, mark_alert_read, search_tickers, upsert_recently_viewed,
 };
 use crate::indicators::Indicators;
 use crate::state::{Dashboard, Message};
@@ -75,6 +79,8 @@ impl Dashboard {
                         Task::perform(fetch_watchlist_summaries(Arc::clone(pool)), Message::WatchlistLoaded),
                         Task::perform(fetch_lagrange_history(Arc::clone(pool), self.selected_ticker.clone()), Message::LagrangeHistoryLoaded),
                         Task::perform(fetch_portfolio(Arc::clone(pool)), Message::PortfolioLoaded),
+                        Task::perform(fetch_recently_viewed(Arc::clone(pool)), Message::RecentlyViewedLoaded),
+                        Task::perform(fetch_alerts(Arc::clone(pool)), Message::AlertsLoaded),
                     ])
                 } else {
                     Task::none()
@@ -102,14 +108,59 @@ impl Dashboard {
                 self.lagrange_history = vec![];
                 self.status = format!("Loading {ticker}...");
                 if let Some(pool) = &self.pool {
+                    let rv_pool    = Arc::clone(pool);
+                    let rv_ticker  = ticker.clone();
                     Task::batch([
                         Self::fetch_all(pool, ticker.clone()),
                         Task::perform(fetch_lagrange_history(Arc::clone(pool), ticker), Message::LagrangeHistoryLoaded),
+                        Task::perform(
+                            async move {
+                                upsert_recently_viewed(Arc::clone(&rv_pool), rv_ticker).await;
+                                fetch_recently_viewed(rv_pool).await
+                            },
+                            Message::RecentlyViewedLoaded,
+                        ),
                     ])
                 } else {
                     Task::none()
                 }
             }
+            Message::TickerSearchInput(s) => {
+                self.ticker_search_input = s.clone();
+                if s.trim().is_empty() {
+                    self.autocomplete_suggestions = vec![];
+                    return Task::none();
+                }
+                if let Some(pool) = &self.pool {
+                    Task::perform(
+                        search_tickers(Arc::clone(pool), s),
+                        |res| Message::AutocompleteResults(res.unwrap_or_default()),
+                    )
+                } else {
+                    Task::none()
+                }
+            }
+            Message::AutocompleteResults(suggestions) => {
+                self.autocomplete_suggestions = suggestions;
+                Task::none()
+            }
+            Message::AutocompleteSelected(ticker) => {
+                self.ticker_search_input = String::new();
+                self.autocomplete_suggestions = vec![];
+                self.update(Message::TickerSelected(ticker))
+            }
+            Message::TickerSearchSubmit => {
+                let ticker = self.ticker_search_input.trim().to_uppercase();
+                if ticker.is_empty() { return Task::none(); }
+                self.ticker_search_input = String::new();
+                self.autocomplete_suggestions = vec![];
+                self.update(Message::TickerSelected(ticker))
+            }
+            Message::RecentlyViewedLoaded(Ok(tickers)) => {
+                self.recently_viewed = tickers;
+                Task::none()
+            }
+            Message::RecentlyViewedLoaded(Err(_)) => Task::none(),
             Message::DataLoaded(Ok(rows)) => {
                 self.refreshing = false;
                 self.status = if rows.is_empty() {
@@ -165,11 +216,16 @@ impl Dashboard {
             Message::ShortInterestLoaded(Ok(si))  => { self.short_interest = si;   Task::none() }
             Message::ShortInterestLoaded(Err(_))   => Task::none(),
             Message::WatchlistLoaded(Ok(mut rows)) => {
-                rows.sort_by(|a, b| b.quick_score().partial_cmp(&a.quick_score()).unwrap_or(std::cmp::Ordering::Equal));
+                sort_watchlist(&mut rows, self.sort_watchlist_by_score);
                 self.watchlist = rows;
                 Task::none()
             }
             Message::WatchlistLoaded(Err(_)) => Task::none(),
+            Message::ToggleWatchlistSort => {
+                self.sort_watchlist_by_score = !self.sort_watchlist_by_score;
+                sort_watchlist(&mut self.watchlist, self.sort_watchlist_by_score);
+                Task::none()
+            }
             Message::LagrangeHistoryLoaded(Ok(h))  => { self.lagrange_history = h; Task::none() }
             Message::LagrangeHistoryLoaded(Err(_))  => Task::none(),
             Message::PortfolioLoaded(Ok(p))         => { self.portfolio = p;        Task::none() }
@@ -187,22 +243,89 @@ impl Dashboard {
                 if let Some(pool) = &self.pool {
                     self.refreshing = true;
                     self.status = "Refreshing...".to_string();
-                    Self::fetch_all(pool, self.selected_ticker.clone())
+                    Task::batch([
+                        Self::fetch_all(pool, self.selected_ticker.clone()),
+                        Task::perform(fetch_lagrange_history(Arc::clone(pool), self.selected_ticker.clone()), Message::LagrangeHistoryLoaded),
+                        Task::perform(fetch_market_fear_greed(Arc::clone(pool)), Message::MarketFGLoaded),
+                        Task::perform(fetch_watchlist_summaries(Arc::clone(pool)), Message::WatchlistLoaded),
+                        Task::perform(fetch_macro_indicators(Arc::clone(pool)), Message::MacroDataLoaded),
+                        Task::perform(fetch_alerts(Arc::clone(pool)), Message::AlertsLoaded),
+                    ])
                 } else {
                     Task::none()
                 }
             }
             Message::Tick => {
                 if let Some(pool) = &self.pool {
-                    Self::fetch_all(pool, self.selected_ticker.clone())
+                    Task::batch([
+                        Self::fetch_all(pool, self.selected_ticker.clone()),
+                        Task::perform(fetch_alerts(Arc::clone(pool)), Message::AlertsLoaded),
+                    ])
                 } else {
                     Task::none()
                 }
             }
+            Message::AlertsLoaded(Ok(alerts)) => {
+                let unread_count = alerts.iter().filter(|a| !a.is_read).count();
+                self.unread_alert_count = unread_count;
+                if unread_count > 0 && !self.notifications_fired {
+                    self.notifications_fired = true;
+                    let unread: Vec<LagrangeAlert> = alerts.iter().filter(|a| !a.is_read).cloned().collect();
+                    self.alerts = alerts;
+                    Task::perform(
+                        async move { fire_toast(unread).await },
+                        |_| Message::NotifyAlerts,
+                    )
+                } else {
+                    self.alerts = alerts;
+                    Task::none()
+                }
+            }
+            Message::AlertsLoaded(Err(_)) => Task::none(),
+            Message::MarkAlertRead(id) => {
+                // Optimistic in-memory flip — no waiting for DB round-trip
+                if let Some(a) = self.alerts.iter_mut().find(|a| a.id == id) {
+                    if !a.is_read {
+                        a.is_read = true;
+                        self.unread_alert_count = self.unread_alert_count.saturating_sub(1);
+                    }
+                }
+                if let Some(pool) = &self.pool {
+                    let p = Arc::clone(pool);
+                    Task::perform(async move { mark_alert_read(p, id).await }, |_| Message::NotifyAlerts)
+                } else {
+                    Task::none()
+                }
+            }
+            Message::NotifyAlerts => Task::none(),
         }
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
         iced::time::every(Duration::from_secs(30)).map(|_| Message::Tick)
     }
+}
+
+fn sort_watchlist(rows: &mut Vec<crate::db::WatchlistRow>, by_score: bool) {
+    if by_score {
+        rows.sort_by(|a, b| b.quick_score().partial_cmp(&a.quick_score()).unwrap_or(std::cmp::Ordering::Equal));
+    } else {
+        rows.sort_by(|a, b| a.ticker.cmp(&b.ticker));
+    }
+}
+
+async fn fire_toast(alerts: Vec<LagrangeAlert>) {
+    let entries: Vec<String> = alerts.iter().take(3)
+        .map(|a| format!("{} → {}", a.ticker, a.label))
+        .collect();
+    let mut body = entries.join(", ");
+    if alerts.len() > 3 {
+        body = format!("{} (+{} more)", body, alerts.len() - 3);
+    }
+    let summary = format!("Lagrange: {} alert{}", alerts.len(), if alerts.len() == 1 { "" } else { "s" });
+    notify_rust::Notification::new()
+        .summary(&summary)
+        .body(&body)
+        .show()
+        .ok();
 }

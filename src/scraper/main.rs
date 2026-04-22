@@ -1,5 +1,9 @@
 mod astrology;
+mod company_enrich;
 mod edgar;
+mod edgar_enrich;
+mod enrich_common;
+mod fmp_enrich;
 mod finnhub;
 mod holdings;
 mod lagrange;
@@ -8,6 +12,9 @@ mod options;
 mod prices;
 mod sentiment;
 mod short_interest;
+mod ticker_seed;
+mod tiingo;
+mod wikidata_enrich;
 
 use anyhow::{Context, Result};
 use governor::{Quota, RateLimiter};
@@ -30,7 +37,8 @@ pub(crate) const INSTITUTION_MAP: &[(&str, &str)] = &[
     ("0001364742", "BlackRock Inc."),
     ("0000093751", "State Street Corporation"),
     ("0000315066", "Fidelity Management & Research"),
-    ("0001113169", "T. Rowe Price Associates"),
+    // T. Rowe Price files 13F under subsidiary CIKs, not this top-level entity
+    // ("0001113169", "T. Rowe Price Associates"),
 ];
 
 pub(crate) const CUSIP_MAP: &[(&str, &str)] = &[
@@ -140,6 +148,16 @@ async fn main() -> Result<()> {
         _ => { eprintln!("Warning: POLYGON_API_KEY not set — options flow will be skipped."); None }
     };
 
+    let fmp_key: Option<Arc<String>> = match std::env::var("FMP_API_KEY") {
+        Ok(k) if !k.is_empty() => { println!("FMP key found."); Some(Arc::new(k)) }
+        _ => { eprintln!("Warning: FMP_API_KEY not set — FMP ticker seed and IPO enrichment will be skipped."); None }
+    };
+
+    let tiingo_key: Option<Arc<String>> = match std::env::var("TIINGO_API_KEY") {
+        Ok(k) if !k.is_empty() => { println!("Tiingo key found."); Some(Arc::new(k)) }
+        _ => { eprintln!("Warning: TIINGO_API_KEY not set — bulk price history will be skipped."); None }
+    };
+
     let http_client = reqwest::Client::builder()
         .user_agent(&user_agent)
         .build()
@@ -154,6 +172,7 @@ async fn main() -> Result<()> {
     let pool        = Arc::new(pool);
     let http_client = Arc::new(http_client);
     let api_key     = Arc::new(api_key);
+    let user_agent  = Arc::new(user_agent);
 
     // ---- Startup run -------------------------------------------------------
     run_all_fetches(
@@ -166,6 +185,9 @@ async fn main() -> Result<()> {
         fred_key.clone(),
         finra_key.clone(),
         polygon_key.clone(),
+        fmp_key.clone(),
+        tiingo_key.clone(),
+        Arc::clone(&user_agent),
     ).await;
 
     // ---- Daily scheduler at 06:00 UTC -------------------------------------
@@ -181,6 +203,9 @@ async fn main() -> Result<()> {
     let fred_key2    = fred_key.clone();
     let finra_key2   = finra_key.clone();
     let polygon_key2 = polygon_key.clone();
+    let fmp_key2     = fmp_key.clone();
+    let tiingo_key2  = tiingo_key.clone();
+    let user_agent2  = Arc::clone(&user_agent);
 
     sched.add(Job::new_async("0 0 6 * * *", move |_, _| {
         let pool        = Arc::clone(&pool2);
@@ -192,9 +217,12 @@ async fn main() -> Result<()> {
         let fred_key    = fred_key2.clone();
         let finra_key   = finra_key2.clone();
         let polygon_key = polygon_key2.clone();
+        let fmp_key     = fmp_key2.clone();
+        let tiingo_key  = tiingo_key2.clone();
+        let user_agent  = Arc::clone(&user_agent2);
         Box::pin(async move {
             run_all_fetches(pool, client, key, av_lim, fh_key, fh_lim,
-                            fred_key, finra_key, polygon_key).await;
+                            fred_key, finra_key, polygon_key, fmp_key, tiingo_key, user_agent).await;
         })
     })?).await?;
 
@@ -219,11 +247,29 @@ async fn run_all_fetches(
     fred_key: Option<Arc<String>>,
     finra_key: Option<Arc<String>>,
     polygon_key: Option<Arc<String>>,
+    fmp_key: Option<Arc<String>>,
+    tiingo_key: Option<Arc<String>>,
+    user_agent: Arc<String>,
 ) {
+    // --- Ticker universe seeding -------------------------------------------
+    // Polygon: paginated US CS universe (list_date when available)
+    if let Some(ref polygon_k) = polygon_key {
+        ticker_seed::run(Arc::clone(&pool), Arc::clone(&client), Arc::clone(polygon_k)).await;
+    }
+    // FMP: full Robinhood / Bloomberg tradeable universe (one call, all stocks)
+    if let Some(ref fmp_k) = fmp_key {
+        fmp_enrich::seed_ticker_universe(Arc::clone(&pool), Arc::clone(&client), Arc::clone(fmp_k)).await;
+    }
+
     println!("Running price fetch...");
     prices::fetch_all_tickers(
         Arc::clone(&pool), Arc::clone(&client), Arc::clone(&api_key), Arc::clone(&av_limiter),
     ).await;
+
+    if let Some(ref tiingo_k) = tiingo_key {
+        println!("Fetching bulk price history via Tiingo...");
+        tiingo::fetch_all_prices_tiingo(Arc::clone(&pool), Arc::clone(&client), Arc::clone(tiingo_k)).await;
+    }
 
     println!("Fetching EDGAR insider trades and 8-K filings...");
     edgar::fetch_all_edgar(Arc::clone(&pool), Arc::clone(&client)).await;
@@ -255,6 +301,27 @@ async fn run_all_fetches(
         println!("Fetching options flow (Polygon.io)...");
         options::fetch_all_options_flow(Arc::clone(&pool), Arc::clone(&client), polygon_k).await;
     }
+
+    // Enrich missing IPO dates — AV OVERVIEW first (watchlist priority), then FMP bulk
+    println!("Enriching missing IPO dates via AV OVERVIEW...");
+    company_enrich::enrich_missing_ipo_dates(
+        Arc::clone(&pool), Arc::clone(&client), Arc::clone(&api_key),
+    ).await;
+
+    if let Some(ref fmp_k) = fmp_key {
+        println!("Enriching missing IPO dates via FMP profile...");
+        fmp_enrich::enrich_ipo_dates(Arc::clone(&pool), Arc::clone(&client), Arc::clone(fmp_k)).await;
+    }
+
+    println!("Enriching founding dates via Wikidata SPARQL...");
+    wikidata_enrich::enrich_founding_dates(
+        Arc::clone(&pool), Arc::clone(&client), Arc::clone(&user_agent),
+    ).await;
+
+    println!("Enriching first-filing dates via SEC EDGAR...");
+    edgar_enrich::enrich_first_filing_dates(
+        Arc::clone(&pool), Arc::clone(&client), Arc::clone(&user_agent),
+    ).await;
 
     println!("Seeding natal charts (any missing companies)...");
     astrology::seed_natal_charts(Arc::clone(&pool)).await;

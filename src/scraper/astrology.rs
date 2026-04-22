@@ -11,9 +11,10 @@ pub async fn seed_natal_charts(pool: Arc<sqlx::PgPool>) {
     let rows: Vec<(String, NaiveDate)> = match sqlx::query_as(
         "SELECT cm.ticker, cm.ipo_date \
          FROM company_metadata cm \
-         WHERE NOT EXISTS ( \
-             SELECT 1 FROM natal_positions np WHERE np.ticker = cm.ticker \
-         ) \
+         WHERE cm.ipo_date IS NOT NULL \
+           AND NOT EXISTS ( \
+               SELECT 1 FROM natal_positions np WHERE np.ticker = cm.ticker \
+           ) \
          ORDER BY cm.ticker",
     )
     .fetch_all(pool.as_ref())
@@ -115,7 +116,8 @@ pub async fn compute_daily_transits(pool: Arc<sqlx::PgPool>) {
 pub async fn compute_astro_scores(pool: Arc<sqlx::PgPool>) {
     let today = Utc::now().date_naive();
 
-    let rows: Vec<(String, NaiveDate)> = match sqlx::query_as(
+    // Use Option<NaiveDate> — ipo_date is nullable since migration 0017
+    let all_rows: Vec<(String, Option<NaiveDate>)> = match sqlx::query_as(
         "SELECT ticker, ipo_date FROM company_metadata ORDER BY ticker",
     )
     .fetch_all(pool.as_ref())
@@ -124,6 +126,12 @@ pub async fn compute_astro_scores(pool: Arc<sqlx::PgPool>) {
         Ok(r) => r,
         Err(e) => { eprintln!("Failed to load company_metadata for scoring: {e}"); return; }
     };
+
+    // Only score tickers with a known IPO date — can't build a birth chart without one
+    let rows: Vec<(String, NaiveDate)> = all_rows
+        .into_iter()
+        .filter_map(|(t, d)| d.map(|date| (t, date)))
+        .collect();
 
     println!("Computing astrological scores for {} tickers...", rows.len());
 

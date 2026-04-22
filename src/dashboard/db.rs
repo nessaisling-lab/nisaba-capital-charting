@@ -1,7 +1,7 @@
 use chrono::Utc;
 use pursuit_week4_automation::models::{
     AnalystRating, AstroScore, DailyTransit, EarningsDate, FilingRow, HoldingRow,
-    InsiderTradeRow, LagrangeHistory, MacroIndicator, NatalPosition, NewsArticle,
+    InsiderTradeRow, LagrangeAlert, LagrangeHistory, MacroIndicator, NatalPosition, NewsArticle,
     PortfolioPosition, PriceRow, SentimentScore, ShortInterest,
 };
 use sqlx::PgPool;
@@ -388,4 +388,91 @@ pub async fn fetch_portfolio(pool: Arc<PgPool>) -> Result<Vec<PortfolioPosition>
     .fetch_all(pool.as_ref())
     .await
     .map_err(|e| e.to_string())
+}
+
+// ---------------------------------------------------------------------------
+// Recently viewed tickers
+// ---------------------------------------------------------------------------
+
+pub async fn fetch_recently_viewed(pool: Arc<PgPool>) -> Result<Vec<String>, String> {
+    sqlx::query_scalar::<_, String>(
+        "SELECT ticker FROM recently_viewed ORDER BY viewed_at DESC LIMIT 10",
+    )
+    .fetch_all(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())
+}
+
+// ---------------------------------------------------------------------------
+// Alert threshold crossings
+// ---------------------------------------------------------------------------
+
+pub async fn fetch_alerts(pool: Arc<PgPool>) -> Result<Vec<LagrangeAlert>, String> {
+    sqlx::query_as(
+        "SELECT id, ticker, alert_date, score, label, prev_label, alert_type, is_read
+         FROM lagrange_alerts
+         ORDER BY alert_date DESC, ticker ASC
+         LIMIT 50"
+    )
+    .fetch_all(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Fire-and-forget — marks one alert as read in the DB.
+/// Called via Task::perform so it never blocks the UI thread.
+pub async fn mark_alert_read(pool: Arc<PgPool>, id: i32) {
+    if let Err(e) = sqlx::query("UPDATE lagrange_alerts SET is_read = true WHERE id = $1")
+        .bind(id)
+        .execute(pool.as_ref())
+        .await
+    {
+        eprintln!("[Alerts] mark_alert_read({id}) failed: {e}");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Ticker autocomplete — prefix + fuzzy company name search
+// ---------------------------------------------------------------------------
+
+pub async fn search_tickers(
+    pool: Arc<PgPool>,
+    prefix: String,
+) -> Result<Vec<(String, String)>, String> {
+    sqlx::query_as::<_, (String, String)>(
+        "SELECT ticker, COALESCE(company_name, ticker)
+         FROM company_metadata
+         WHERE ticker ILIKE $1 OR company_name ILIKE $2
+         ORDER BY
+           CASE WHEN ticker ILIKE $1 THEN 0 ELSE 1 END,
+           ticker
+         LIMIT 8",
+    )
+    .bind(format!("{}%", prefix.to_uppercase()))
+    .bind(format!("%{}%", prefix))
+    .fetch_all(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Upserts a ticker into recently_viewed and prunes to the 10 most recent.
+/// Fire-and-forget — errors are logged, not propagated.
+pub async fn upsert_recently_viewed(pool: Arc<PgPool>, ticker: String) {
+    let _ = sqlx::query(
+        "INSERT INTO recently_viewed (ticker, viewed_at) VALUES ($1, NOW())
+         ON CONFLICT (ticker) DO UPDATE SET viewed_at = NOW()",
+    )
+    .bind(&ticker)
+    .execute(pool.as_ref())
+    .await;
+
+    // Keep only the 10 most recent
+    let _ = sqlx::query(
+        "DELETE FROM recently_viewed
+         WHERE ticker NOT IN (
+             SELECT ticker FROM recently_viewed ORDER BY viewed_at DESC LIMIT 10
+         )",
+    )
+    .execute(pool.as_ref())
+    .await;
 }
