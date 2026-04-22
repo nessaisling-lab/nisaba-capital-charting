@@ -6,6 +6,19 @@ pub fn is_dark(theme: &iced::Theme) -> bool {
 }
 
 // ---------------------------------------------------------------------------
+// Type scale — 1.2x (minor third) based on 12px body
+// 8 → 10 → 12 → 14 → 17 → 20 → 24
+// ---------------------------------------------------------------------------
+
+pub const TEXT_XS: f32 = 8.0;      // sparkline dates, legend labels
+pub const TEXT_SM: f32 = 10.0;     // table headers, gauge labels, captions
+pub const TEXT_BASE: f32 = 12.0;   // body text, data values
+pub const TEXT_MD: f32 = 14.0;     // secondary section headings
+pub const TEXT_LG: f32 = 17.0;     // primary section headings
+pub const TEXT_XL: f32 = 20.0;     // panel titles
+pub const TEXT_2XL: f32 = 24.0;    // page title
+
+// ---------------------------------------------------------------------------
 // Semantic background colors
 // ---------------------------------------------------------------------------
 
