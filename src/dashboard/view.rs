@@ -217,7 +217,7 @@ impl Dashboard {
             column![
                 text("Earnings Calendar").size(theme::TEXT_MD),
                 hdr,
-                scrollable(Column::with_children(items).spacing(4)).height(Length::Fixed(110.0)),
+                scrollable(Column::with_children(items).spacing(4)).height(Length::Fixed(130.0)),
             ].spacing(4)
         };
 
@@ -246,7 +246,7 @@ impl Dashboard {
             column![
                 text("Top Institutional Holders").size(theme::TEXT_MD),
                 hdr,
-                scrollable(Column::with_children(holding_rows).spacing(4)).height(Length::Fixed(100.0)),
+                scrollable(Column::with_children(holding_rows).spacing(4)).height(Length::Fixed(120.0)),
             ].spacing(4)
         };
 
@@ -565,7 +565,7 @@ impl Dashboard {
                 hdr,
                 horizontal_rule(1),
                 scrollable(Column::with_children(rank_rows).spacing(4))
-                    .height(Length::Fixed(200.0)),
+                    .height(Length::Fixed(240.0)),
             ].spacing(5)
         };
 
@@ -727,7 +727,7 @@ impl Dashboard {
                     hdr,
                     horizontal_rule(1),
                     scrollable(Column::with_children(alert_rows).spacing(4))
-                        .height(Length::Fixed(140.0)),
+                        .height(Length::Fixed(160.0)),
                 ].spacing(4)
             }
         };
