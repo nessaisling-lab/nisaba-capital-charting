@@ -67,7 +67,7 @@ pub async fn fetch_all_finnhub(
     extra_tickers: &[String],
 ) {
     // Combine watchlist + astro-priority tickers (deduplicated)
-    let mut all_tickers: Vec<String> = crate::WATCHLIST.iter().map(|s| s.to_string()).collect();
+    let mut all_tickers: Vec<String> = crate::watchlist().iter().map(|s| s.to_string()).collect();
     for t in extra_tickers {
         if !all_tickers.iter().any(|existing| existing == t) {
             all_tickers.push(t.clone());
@@ -343,7 +343,7 @@ async fn fetch_finnhub_earnings(
     let data: FinnhubEarningsResponse = resp.json().await
         .context("Failed to parse Finnhub earnings response")?;
 
-    let watchlist_set: std::collections::HashSet<&str> = crate::WATCHLIST.iter().copied().collect();
+    let watchlist_set: std::collections::HashSet<&str> = crate::watchlist().iter().copied().collect();
     let mut inserted = 0u64;
 
     for item in data.earnings_calendar {

@@ -24,28 +24,35 @@ use anyhow::{Context, Result};
 use governor::{Quota, RateLimiter};
 use sqlx::postgres::PgPoolOptions;
 use std::num::NonZeroU32;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use tokio_cron_scheduler::{Job, JobScheduler};
 
 // ---------------------------------------------------------------------------
-// Watchlist + reference data — shared across all scraper modules via crate::
+// Watchlist + reference data — DB-backed with compile-time defaults.
+//
+// At startup, `init_config()` loads from `scraper_watchlist` and
+// `scraper_institutions` tables. If the tables are empty or the query fails,
+// the DEFAULT_* consts are used as fallback. Accessor functions (`watchlist()`,
+// `cik_map()`, etc.) return `&'static [&'static str]` for zero-cost
+// compatibility with all existing call sites.
+//
+// The `Box::leak` pattern is intentional: these strings live for the entire
+// process lifetime, so leaking them is equivalent to a static allocation.
 // ---------------------------------------------------------------------------
 
-pub(crate) const WATCHLIST: &[&str] = &[
+const DEFAULT_WATCHLIST: &[&str] = &[
     "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA",
     "META", "TSLA", "JPM", "V", "UNH",
 ];
 
-pub(crate) const INSTITUTION_MAP: &[(&str, &str)] = &[
+const DEFAULT_INSTITUTION_MAP: &[(&str, &str)] = &[
     ("0000102909", "Vanguard Group Inc."),
     ("0001364742", "BlackRock Inc."),
     ("0000093751", "State Street Corporation"),
     ("0000315066", "Fidelity Management & Research"),
-    // T. Rowe Price files 13F under subsidiary CIKs, not this top-level entity
-    // ("0001113169", "T. Rowe Price Associates"),
 ];
 
-pub(crate) const CUSIP_MAP: &[(&str, &str)] = &[
+const DEFAULT_CUSIP_MAP: &[(&str, &str)] = &[
     ("037833100", "AAPL"),
     ("594918104", "MSFT"),
     ("02079K305", "GOOGL"),
@@ -58,7 +65,7 @@ pub(crate) const CUSIP_MAP: &[(&str, &str)] = &[
     ("91324P102", "UNH"),
 ];
 
-pub(crate) const CIK_MAP: &[(&str, &str)] = &[
+const DEFAULT_CIK_MAP: &[(&str, &str)] = &[
     ("AAPL",  "0000320193"),
     ("MSFT",  "0000789019"),
     ("GOOGL", "0001652044"),
@@ -70,6 +77,72 @@ pub(crate) const CIK_MAP: &[(&str, &str)] = &[
     ("V",     "0001403161"),
     ("UNH",   "0000731766"),
 ];
+
+static WATCHLIST_STORE: OnceLock<&'static [&'static str]> = OnceLock::new();
+static CIK_MAP_STORE: OnceLock<&'static [(&'static str, &'static str)]> = OnceLock::new();
+static CUSIP_MAP_STORE: OnceLock<&'static [(&'static str, &'static str)]> = OnceLock::new();
+static INSTITUTION_MAP_STORE: OnceLock<&'static [(&'static str, &'static str)]> = OnceLock::new();
+
+pub(crate) fn watchlist() -> &'static [&'static str] {
+    WATCHLIST_STORE.get().copied().unwrap_or(DEFAULT_WATCHLIST)
+}
+pub(crate) fn cik_map() -> &'static [(&'static str, &'static str)] {
+    CIK_MAP_STORE.get().copied().unwrap_or(DEFAULT_CIK_MAP)
+}
+pub(crate) fn cusip_map() -> &'static [(&'static str, &'static str)] {
+    CUSIP_MAP_STORE.get().copied().unwrap_or(DEFAULT_CUSIP_MAP)
+}
+pub(crate) fn institution_map() -> &'static [(&'static str, &'static str)] {
+    INSTITUTION_MAP_STORE.get().copied().unwrap_or(DEFAULT_INSTITUTION_MAP)
+}
+
+/// Leak a `String` to get a `&'static str`. Safe for process-lifetime config.
+fn leak_str(s: String) -> &'static str {
+    Box::leak(s.into_boxed_str())
+}
+
+/// Load scraper config from the `scraper_watchlist` and `scraper_institutions`
+/// tables. Falls back to DEFAULT_* constants on error or empty results.
+async fn init_config(pool: &sqlx::PgPool) {
+    // Load watchlist + CIK + CUSIP from one table
+    match sqlx::query_as::<_, (String, Option<String>, Option<String>)>(
+        "SELECT ticker, cik, cusip FROM scraper_watchlist WHERE active = true ORDER BY ticker",
+    )
+    .fetch_all(pool)
+    .await
+    {
+        Ok(rows) if !rows.is_empty() => {
+            let tickers: Vec<&'static str> = rows.iter().map(|(t, _, _)| leak_str(t.clone())).collect();
+            let cik_pairs: Vec<(&'static str, &'static str)> = rows.iter()
+                .filter_map(|(t, c, _)| Some((leak_str(t.clone()), leak_str(c.as_ref()?.clone()))))
+                .collect();
+            let cusip_pairs: Vec<(&'static str, &'static str)> = rows.iter()
+                .filter_map(|(t, _, c)| Some((leak_str(c.as_ref()?.clone()), leak_str(t.clone()))))
+                .collect();
+            println!("[Config] Loaded {} tickers from scraper_watchlist", tickers.len());
+            let _ = WATCHLIST_STORE.set(Box::leak(tickers.into_boxed_slice()));
+            let _ = CIK_MAP_STORE.set(Box::leak(cik_pairs.into_boxed_slice()));
+            let _ = CUSIP_MAP_STORE.set(Box::leak(cusip_pairs.into_boxed_slice()));
+        }
+        Ok(_) => println!("[Config] scraper_watchlist empty, using defaults"),
+        Err(e) => eprintln!("[Config] Failed to load watchlist ({e}), using defaults"),
+    }
+
+    // Load institution CIKs
+    match sqlx::query_as::<_, (String, String)>(
+        "SELECT cik, name FROM scraper_institutions WHERE active = true ORDER BY name",
+    )
+    .fetch_all(pool)
+    .await
+    {
+        Ok(rows) if !rows.is_empty() => {
+            let pairs: Vec<(&'static str, &'static str)> =
+                rows.into_iter().map(|(c, n)| (leak_str(c), leak_str(n))).collect();
+            let _ = INSTITUTION_MAP_STORE.set(Box::leak(pairs.into_boxed_slice()));
+        }
+        _ => {} // Use defaults silently
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Shared fetch audit log — fire-and-forget, never crashes the scraper
@@ -122,6 +195,9 @@ async fn main() -> Result<()> {
         .await
         .context("Failed to run migrations")?;
     println!("Migrations OK.");
+
+    // Load DB-backed config (watchlist, CIK map, etc.)
+    init_config(&pool).await;
 
     let user_agent = std::env::var("EDGAR_USER_AGENT")
         .unwrap_or_else(|_| "FinancialDashboard/1.0 student@pursuit.org".to_string());
@@ -384,7 +460,7 @@ async fn run_all_fetches(
             m
         }
         Err(e) => {
-            eprintln!("     CIK map fetch failed ({e:#}), falling back to hardcoded CIK_MAP");
+            eprintln!("     CIK map fetch failed ({e:#}), falling back to DB/default CIK map");
             std::collections::HashMap::new()
         }
     };

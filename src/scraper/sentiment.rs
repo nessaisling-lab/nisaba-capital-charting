@@ -52,7 +52,7 @@ pub async fn fetch_av_sentiment_all(
             all_tickers.push(t.clone());
         }
     }
-    for t in crate::WATCHLIST {
+    for t in crate::watchlist() {
         let s = t.to_string();
         if !all_tickers.contains(&s) {
             all_tickers.push(s);

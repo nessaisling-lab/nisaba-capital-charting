@@ -208,7 +208,15 @@ pub fn run_strategy_backtest(
     }
 
     // Close open position
-    let last = data.last().unwrap();
+    let Some(last) = data.last() else {
+        return BacktestResult {
+            ticker: ticker.to_string(), trades, total_return_pct: 0.0,
+            buy_hold_return_pct: 0.0, max_drawdown_pct: 0.0, win_rate_pct: 0.0,
+            signal_accuracy_pct: 0.0, num_trades: 0, days_tested: 0,
+            final_capital: initial_capital,
+            insufficient_data: Some("No data available".to_string()),
+        };
+    };
     if in_position {
         trades.push(Trade {
             buy_date,

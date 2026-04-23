@@ -87,7 +87,7 @@ pub async fn fetch_all_prices_tiingo(
          ORDER BY {order}
          LIMIT {budget}"
     ))
-    .bind(crate::WATCHLIST)
+    .bind(crate::watchlist())
     .fetch_all(pool.as_ref())
     .await
     .unwrap_or_default();

@@ -1,3 +1,4 @@
+use crate::error::SqlResultExt;
 use pursuit_week4_automation::models::{
     AnalystRating, EarningsDate, FilingRow, FundamentalMetric, HoldingRow,
     InsiderTradeRow, MacroIndicator, NewsArticle, PolymarketMarket, PriceRow,
@@ -11,7 +12,7 @@ pub async fn fetch_prices(pool: Arc<PgPool>, ticker: String) -> Result<Vec<Price
         "SELECT ticker, date, open, high, low, close, volume \
          FROM price_data WHERE ticker = $1 ORDER BY date DESC LIMIT 100",
     )
-    .bind(&ticker).fetch_all(pool.as_ref()).await.map_err(|e| e.to_string())
+    .bind(&ticker).fetch_all(pool.as_ref()).await.ctx("fetch_prices")
 }
 
 pub async fn fetch_holdings(pool: Arc<PgPool>, ticker: String) -> Result<Vec<HoldingRow>, String> {
@@ -19,7 +20,7 @@ pub async fn fetch_holdings(pool: Arc<PgPool>, ticker: String) -> Result<Vec<Hol
         "SELECT institution_name, report_period, shares_held, market_value, investment_discretion \
          FROM institutional_holdings WHERE ticker = $1 ORDER BY shares_held DESC LIMIT 10",
     )
-    .bind(&ticker).fetch_all(pool.as_ref()).await.map_err(|e| e.to_string())
+    .bind(&ticker).fetch_all(pool.as_ref()).await.ctx("fetch_holdings")
 }
 
 pub async fn fetch_8k_filings(pool: Arc<PgPool>, ticker: String) -> Result<Vec<FilingRow>, String> {
@@ -28,7 +29,7 @@ pub async fn fetch_8k_filings(pool: Arc<PgPool>, ticker: String) -> Result<Vec<F
          FROM filings WHERE ticker = $1 AND form_type = '8-K' \
          ORDER BY filed_date DESC LIMIT 10",
     )
-    .bind(&ticker).fetch_all(pool.as_ref()).await.map_err(|e| e.to_string())
+    .bind(&ticker).fetch_all(pool.as_ref()).await.ctx("fetch_8k_filings")
 }
 
 pub async fn fetch_insider_trades(pool: Arc<PgPool>, ticker: String) -> Result<Vec<InsiderTradeRow>, String> {
@@ -38,7 +39,7 @@ pub async fn fetch_insider_trades(pool: Arc<PgPool>, ticker: String) -> Result<V
          FROM insider_trades WHERE ticker = $1 \
          ORDER BY transaction_date DESC LIMIT 20",
     )
-    .bind(&ticker).fetch_all(pool.as_ref()).await.map_err(|e| e.to_string())
+    .bind(&ticker).fetch_all(pool.as_ref()).await.ctx("fetch_insider_trades")
 }
 
 pub async fn fetch_news(pool: Arc<PgPool>, ticker: String) -> Result<Vec<NewsArticle>, String> {
@@ -47,7 +48,7 @@ pub async fn fetch_news(pool: Arc<PgPool>, ticker: String) -> Result<Vec<NewsArt
          FROM news_articles WHERE ticker = $1 \
          ORDER BY published_at DESC LIMIT 30",
     )
-    .bind(&ticker).fetch_all(pool.as_ref()).await.map_err(|e| e.to_string())
+    .bind(&ticker).fetch_all(pool.as_ref()).await.ctx("fetch_news")
 }
 
 pub async fn fetch_polymarket(pool: Arc<PgPool>) -> Result<Vec<PolymarketMarket>, String> {
@@ -56,7 +57,7 @@ pub async fn fetch_polymarket(pool: Arc<PgPool>) -> Result<Vec<PolymarketMarket>
          FROM polymarket_markets WHERE active = true \
          ORDER BY volume DESC NULLS LAST LIMIT 10",
     )
-    .fetch_all(pool.as_ref()).await.map_err(|e| e.to_string())
+    .fetch_all(pool.as_ref()).await.ctx("fetch_polymarket")
 }
 
 pub async fn fetch_rss_articles(pool: Arc<PgPool>) -> Result<Vec<RssArticle>, String> {
@@ -64,7 +65,7 @@ pub async fn fetch_rss_articles(pool: Arc<PgPool>) -> Result<Vec<RssArticle>, St
         "SELECT feed_source, category, headline, summary, link, published_at \
          FROM rss_articles ORDER BY published_at DESC LIMIT 50",
     )
-    .fetch_all(pool.as_ref()).await.map_err(|e| e.to_string())
+    .fetch_all(pool.as_ref()).await.ctx("fetch_rss_articles")
 }
 
 pub async fn fetch_analyst_rating(pool: Arc<PgPool>, ticker: String) -> Result<Option<AnalystRating>, String> {
@@ -74,7 +75,7 @@ pub async fn fetch_analyst_rating(pool: Arc<PgPool>, ticker: String) -> Result<O
          ORDER BY period DESC LIMIT 1",
     )
     .bind(&ticker)
-    .fetch_optional(pool.as_ref()).await.map_err(|e| e.to_string())
+    .fetch_optional(pool.as_ref()).await.ctx("fetch_analyst_rating")
 }
 
 pub async fn fetch_sentiment(pool: Arc<PgPool>, ticker: String) -> Result<Option<SentimentScore>, String> {
@@ -84,7 +85,7 @@ pub async fn fetch_sentiment(pool: Arc<PgPool>, ticker: String) -> Result<Option
          ORDER BY fetch_date DESC LIMIT 1",
     )
     .bind(&ticker)
-    .fetch_optional(pool.as_ref()).await.map_err(|e| e.to_string())
+    .fetch_optional(pool.as_ref()).await.ctx("fetch_sentiment")
 }
 
 pub async fn fetch_short_interest(pool: Arc<PgPool>, ticker: String) -> Result<Option<ShortInterest>, String> {
@@ -94,7 +95,7 @@ pub async fn fetch_short_interest(pool: Arc<PgPool>, ticker: String) -> Result<O
          ORDER BY settlement_date DESC LIMIT 1",
     )
     .bind(&ticker)
-    .fetch_optional(pool.as_ref()).await.map_err(|e| e.to_string())
+    .fetch_optional(pool.as_ref()).await.ctx("fetch_short_interest")
 }
 
 #[allow(dead_code)] // kept for future watchlist-wide earnings calendar view
@@ -104,7 +105,7 @@ pub async fn fetch_all_earnings(pool: Arc<PgPool>) -> Result<Vec<EarningsDate>, 
          FROM earnings_dates \
          ORDER BY earnings_date ASC",
     )
-    .fetch_all(pool.as_ref()).await.map_err(|e| e.to_string())
+    .fetch_all(pool.as_ref()).await.ctx("fetch_all_earnings")
 }
 
 /// Fetch earnings for a specific ticker only.
@@ -115,7 +116,7 @@ pub async fn fetch_ticker_earnings(pool: Arc<PgPool>, ticker: String) -> Result<
          ORDER BY earnings_date ASC",
     )
     .bind(&ticker)
-    .fetch_all(pool.as_ref()).await.map_err(|e| e.to_string())
+    .fetch_all(pool.as_ref()).await.ctx("fetch_ticker_earnings")
 }
 
 pub async fn fetch_fundamentals(
@@ -137,7 +138,7 @@ pub async fn fetch_fundamentals(
     .bind(&ticker)
     .fetch_optional(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("fetch_fundamentals")
 }
 
 pub async fn fetch_macro_indicators(pool: Arc<PgPool>) -> Result<Vec<MacroIndicator>, String> {
@@ -169,5 +170,40 @@ pub async fn fetch_macro_indicators(pool: Arc<PgPool>) -> Result<Vec<MacroIndica
          UNION ALL
          SELECT series_id, series_name, obs_date, value FROM cpi_yoy",
     )
-    .fetch_all(pool.as_ref()).await.map_err(|e| e.to_string())
+    .fetch_all(pool.as_ref()).await.ctx("fetch_macro_indicators")
+}
+
+pub async fn fetch_fear_greed() -> Result<(f32, String), String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let text = client
+        .get("https://api.alternative.me/fng/?limit=1")
+        .header("User-Agent", "FinancialDashboard/1.0")
+        .send()
+        .await
+        .map_err(|e| format!("request: {e}"))?
+        .text()
+        .await
+        .map_err(|e| format!("body: {e}"))?;
+
+    let v: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|e| format!("json({e}): {}", &text[..text.len().min(120)]))?;
+
+    let entry = &v["data"][0];
+
+    let score = entry["value"]
+        .as_str()
+        .ok_or_else(|| format!("missing value in: {}", &text[..text.len().min(200)]))?
+        .parse::<f32>()
+        .map_err(|e| format!("parse score: {e}"))?;
+
+    let label = entry["value_classification"]
+        .as_str()
+        .unwrap_or("Unknown")
+        .to_string();
+
+    Ok((score, label))
 }

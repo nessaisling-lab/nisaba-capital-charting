@@ -52,7 +52,7 @@ pub async fn fetch_all_short_interest(
         .to_string();
 
     // Combine watchlist + astro-priority tickers (deduplicated)
-    let mut all_tickers: Vec<String> = crate::WATCHLIST.iter().map(|s| s.to_string()).collect();
+    let mut all_tickers: Vec<String> = crate::watchlist().iter().map(|s| s.to_string()).collect();
     for t in extra_tickers {
         if !all_tickers.iter().any(|existing| existing == t) {
             all_tickers.push(t.clone());

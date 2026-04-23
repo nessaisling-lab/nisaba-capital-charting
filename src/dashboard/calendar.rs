@@ -112,7 +112,7 @@ impl canvas::Program<Message> for AstroCalendar {
             let x = col as f32 * cell_w;
             let y = header_h + row_idx as f32 * cell_h;
 
-            let date = NaiveDate::from_ymd_opt(self.year, self.month, day_num).unwrap();
+            let Some(date) = NaiveDate::from_ymd_opt(self.year, self.month, day_num) else { continue };
 
             // Color cell by astro score
             if let Some(&score) = score_map.get(&date) {

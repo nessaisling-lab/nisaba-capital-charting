@@ -1,3 +1,4 @@
+use crate::error::SqlResultExt;
 use pursuit_week4_automation::models::PortfolioPosition;
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -10,7 +11,7 @@ pub async fn fetch_portfolio(pool: Arc<PgPool>) -> Result<Vec<PortfolioPosition>
     )
     .fetch_all(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("fetch_portfolio")
 }
 
 /// Import tickers from a list into portfolio_positions with 0 shares/cost (placeholders).
@@ -29,7 +30,7 @@ pub async fn import_tickers_to_portfolio(
         .bind(ticker)
         .execute(pool.as_ref())
         .await
-        .map_err(|e| e.to_string())?;
+        .ctx("import_tickers_to_portfolio")?;
         imported += result.rows_affected();
     }
     Ok(imported)
@@ -72,7 +73,7 @@ pub async fn fetch_portfolio_pnl(
     )
     .fetch_all(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("fetch_portfolio_pnl")
 }
 
 // ---------------------------------------------------------------------------
@@ -100,7 +101,7 @@ pub async fn fetch_transactions(
     )
     .fetch_all(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("fetch_transactions")
 }
 
 pub async fn insert_transaction(
@@ -125,7 +126,7 @@ pub async fn insert_transaction(
     .bind(notes.as_deref())
     .fetch_one(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("insert_transaction")
 }
 
 pub async fn delete_transaction(
@@ -136,7 +137,7 @@ pub async fn delete_transaction(
         .bind(id)
         .execute(pool.as_ref())
         .await
-        .map_err(|e| e.to_string())?;
+        .ctx("delete_transaction")?;
     Ok(())
 }
 
@@ -158,7 +159,7 @@ pub async fn fetch_named_watchlists(
     )
     .fetch_all(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("fetch_named_watchlists")
 }
 
 pub async fn fetch_watchlist_tickers(
@@ -171,7 +172,7 @@ pub async fn fetch_watchlist_tickers(
     .bind(watchlist_id)
     .fetch_all(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("fetch_watchlist_tickers")
 }
 
 pub async fn create_watchlist(
@@ -184,7 +185,7 @@ pub async fn create_watchlist(
     .bind(&name)
     .fetch_one(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("create_watchlist")
 }
 
 pub async fn add_to_watchlist(
@@ -200,7 +201,7 @@ pub async fn add_to_watchlist(
     .bind(&ticker)
     .execute(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())?;
+    .ctx("add_to_watchlist")?;
     Ok(())
 }
 
@@ -216,7 +217,7 @@ pub async fn remove_from_watchlist(
     .bind(&ticker)
     .execute(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())?;
+    .ctx("remove_from_watchlist")?;
     Ok(())
 }
 
@@ -228,7 +229,7 @@ pub async fn delete_watchlist(
         .bind(watchlist_id)
         .execute(pool.as_ref())
         .await
-        .map_err(|e| e.to_string())?;
+        .ctx("delete_watchlist")?;
     Ok(())
 }
 
@@ -242,7 +243,7 @@ pub async fn fetch_recently_viewed(pool: Arc<PgPool>) -> Result<Vec<String>, Str
     )
     .fetch_all(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("fetch_recently_viewed")
 }
 
 /// Upserts a ticker into recently_viewed and prunes to the 10 most recent.

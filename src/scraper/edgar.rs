@@ -26,7 +26,7 @@ pub async fn fetch_all_edgar(
             tickers_to_fetch.push(upper);
         }
     }
-    for t in crate::WATCHLIST {
+    for t in crate::watchlist() {
         let upper = t.to_uppercase();
         if seen.insert(upper.clone()) {
             tickers_to_fetch.push(upper);
@@ -41,7 +41,7 @@ pub async fn fetch_all_edgar(
             Some(c) => *c,
             None => {
                 // Fall back to hardcoded CIK_MAP for the original 10 tickers
-                match crate::CIK_MAP.iter().find(|(t, _)| *t == ticker.as_str()) {
+                match crate::cik_map().iter().find(|(t, _)| *t == ticker.as_str()) {
                     Some((_, cik_str)) => cik_str.trim_start_matches('0').parse::<u64>().unwrap_or(0),
                     None => { skipped_no_cik += 1; continue; }
                 }

@@ -75,7 +75,7 @@ pub async fn fetch_all_options_flow(
         }
     }
 
-    for ticker in crate::WATCHLIST {
+    for ticker in crate::watchlist() {
         match fetch_options_pcr(ticker, &pool, &client, &polygon_api_key).await {
             Ok(()) => println!("[Options] {ticker}: put/call data stored"),
             Err(e) => eprintln!("[Options] {ticker} error (skipping): {e:#}"),

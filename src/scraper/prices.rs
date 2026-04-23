@@ -10,7 +10,7 @@ pub async fn fetch_all_tickers(
     api_key: Arc<String>,
     limiter: Arc<governor::DefaultDirectRateLimiter>,
 ) {
-    for ticker in crate::WATCHLIST {
+    for ticker in crate::watchlist() {
         limiter.until_ready().await;
         match fetch_and_store(ticker, &pool, &client, &api_key).await {
             Ok(inserted) => {
@@ -36,7 +36,7 @@ pub async fn fetch_priority_prices(
     priority_tickers: &[String],
 ) {
     let watchlist_set: std::collections::HashSet<&str> =
-        crate::WATCHLIST.iter().copied().collect();
+        crate::watchlist().iter().copied().collect();
 
     for ticker in priority_tickers {
         // Skip tickers already in the watchlist (they'll be fetched by fetch_all_tickers)
@@ -99,7 +99,8 @@ async fn fetch_and_store(
             // Second attempt also rate-limited — give up
             let msg = body.get("Note")
                 .or_else(|| body.get("Information"))
-                .unwrap();
+                .cloned()
+                .unwrap_or_else(|| serde_json::Value::String("unknown error".to_string()));
             anyhow::bail!("AV rate limit after retry: {msg}");
         }
         break; // success, no rate limit

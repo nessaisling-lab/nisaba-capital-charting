@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 pub async fn fetch_all_13f(pool: Arc<sqlx::PgPool>, client: Arc<reqwest::Client>) {
-    for (institution_cik, institution_name) in crate::INSTITUTION_MAP {
+    for (institution_cik, institution_name) in crate::institution_map() {
         tokio::time::sleep(Duration::from_millis(400)).await;
         match fetch_13f_holdings(institution_cik, institution_name, &pool, &client).await {
             Ok(n) => {
@@ -139,7 +139,7 @@ async fn parse_and_insert_13f(
             None => continue,
         };
 
-        let ticker = match crate::CUSIP_MAP.iter().find(|(c, _)| *c == cusip.as_str()) {
+        let ticker = match crate::cusip_map().iter().find(|(c, _)| *c == cusip.as_str()) {
             Some((_, t)) => *t,
             None => continue,
         };

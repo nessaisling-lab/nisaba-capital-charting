@@ -6,6 +6,8 @@ pub mod portfolio;
 use sqlx::PgPool;
 use std::sync::Arc;
 
+use crate::error::SqlResultExt;
+
 // Re-export everything so existing `use crate::db::*` imports keep working.
 pub use ticker_data::*;
 pub use astro::*;
@@ -22,7 +24,7 @@ pub async fn connect_db(url: String) -> Result<Arc<PgPool>, String> {
         .connect(&url)
         .await
         .map(Arc::new)
-        .map_err(|e| e.to_string())
+        .ctx("connect_db")
 }
 
 // ---------------------------------------------------------------------------
@@ -33,7 +35,7 @@ pub async fn load_tickers(pool: Arc<PgPool>) -> Result<Vec<String>, String> {
     sqlx::query_scalar::<_, String>(
         "SELECT ticker FROM tickers WHERE active = true ORDER BY ticker ASC",
     )
-    .fetch_all(pool.as_ref()).await.map_err(|e| e.to_string())
+    .fetch_all(pool.as_ref()).await.ctx("load_tickers")
 }
 
 // ---------------------------------------------------------------------------
@@ -57,7 +59,7 @@ pub async fn search_tickers(
     .bind(format!("%{}%", prefix))
     .fetch_all(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("search_tickers")
 }
 
 // ---------------------------------------------------------------------------
@@ -72,7 +74,7 @@ pub async fn fetch_settings(
     )
     .fetch_all(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())?;
+    .ctx("fetch_settings")?;
     Ok(rows)
 }
 
@@ -89,6 +91,6 @@ pub async fn upsert_setting(
     .bind(&value)
     .execute(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())?;
+    .ctx("upsert_setting")?;
     Ok(())
 }

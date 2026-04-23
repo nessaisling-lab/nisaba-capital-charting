@@ -1,3 +1,4 @@
+use crate::error::SqlResultExt;
 use pursuit_week4_automation::models::{LagrangeAlert, LagrangeHistory};
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -111,7 +112,7 @@ pub async fn fetch_universe_page(
     .bind(&search_pattern)
     .fetch_all(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("fetch_universe_page")
 }
 
 /// Count total rows matching current filters (for pagination display).
@@ -155,7 +156,7 @@ pub async fn fetch_universe_count(
     .bind(&search_pattern)
     .fetch_one(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())?;
+    .ctx("fetch_universe_count")?;
 
     Ok(count.unwrap_or(0))
 }
@@ -173,7 +174,7 @@ pub async fn fetch_available_sectors(
     )
     .fetch_all(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("fetch_available_sectors")
 }
 
 /// Fetch sector-level summary for heat map.
@@ -207,7 +208,7 @@ pub async fn fetch_sector_summaries(
     )
     .fetch_all(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("fetch_sector_summaries")
 }
 
 // ---------------------------------------------------------------------------
@@ -255,7 +256,7 @@ pub async fn fetch_compare_data(
     .bind(&tickers)
     .fetch_all(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("fetch_compare_data")
 }
 
 /// Fetch up to 6 sector peers for a given ticker (same sector, exclude self).
@@ -274,7 +275,7 @@ pub async fn fetch_sector_peers(
     .bind(&ticker)
     .fetch_all(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("fetch_sector_peers")
 }
 
 // ---------------------------------------------------------------------------
@@ -309,7 +310,7 @@ pub async fn fetch_watchlist_summaries(pool: Arc<PgPool>) -> Result<Vec<Watchlis
     )
     .fetch_all(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("fetch_watchlist_summaries")
 }
 
 pub async fn fetch_market_fear_greed(pool: Arc<PgPool>) -> Result<(f32, String), String> {
@@ -326,7 +327,7 @@ pub async fn fetch_market_fear_greed(pool: Arc<PgPool>) -> Result<(f32, String),
              50.0::float8)
          FROM latest l JOIN sma s USING (ticker)",
     )
-    .fetch_one(pool.as_ref()).await.map_err(|e| e.to_string())?;
+    .fetch_one(pool.as_ref()).await.ctx("fetch_market_fear_greed/breadth")?;
 
     let sentiment: f64 = sqlx::query_scalar(
         "SELECT COALESCE(
@@ -339,7 +340,7 @@ pub async fn fetch_market_fear_greed(pool: Arc<PgPool>) -> Result<(f32, String),
              ORDER BY ticker, fetch_date DESC
          ) sub",
     )
-    .fetch_one(pool.as_ref()).await.map_err(|e| e.to_string())?;
+    .fetch_one(pool.as_ref()).await.ctx("fetch_market_fear_greed/sentiment")?;
 
     let buy_ratio: f64 = sqlx::query_scalar(
         "SELECT COALESCE(
@@ -355,7 +356,7 @@ pub async fn fetch_market_fear_greed(pool: Arc<PgPool>) -> Result<(f32, String),
              ORDER BY ticker, period DESC
          ) sub",
     )
-    .fetch_one(pool.as_ref()).await.map_err(|e| e.to_string())?;
+    .fetch_one(pool.as_ref()).await.ctx("fetch_market_fear_greed/buy_ratio")?;
 
     let score = (breadth * 0.50 + sentiment * 0.30 + buy_ratio * 0.20) as f32;
     let label = match score as u32 {
@@ -383,7 +384,7 @@ pub async fn fetch_lagrange_history(
     .bind(&ticker)
     .fetch_all(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("fetch_lagrange_history")
 }
 
 // ---------------------------------------------------------------------------
@@ -399,7 +400,7 @@ pub async fn fetch_alerts(pool: Arc<PgPool>) -> Result<Vec<LagrangeAlert>, Strin
     )
     .fetch_all(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("fetch_alerts")
 }
 
 /// Fire-and-forget -- marks one alert as read in the DB.

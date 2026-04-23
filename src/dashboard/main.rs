@@ -5,6 +5,7 @@ mod calendar;
 mod charts;
 mod dcf;
 mod db;
+mod error;
 mod gauges;
 mod heatmap;
 mod helpers;

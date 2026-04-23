@@ -1,0 +1,236 @@
+//! Ticker data message handlers.
+//!
+//! Covers: TickerSelected, DataLoaded (prices), InsiderTrades, Filings,
+//! Holdings, News, RSS, Polymarket, Earnings, AnalystRating, Sentiment,
+//! FearGreed, Macro, ShortInterest, Fundamentals, DCF, Agents, Compare,
+//! SectorPeers, LagrangeHistory, search/autocomplete.
+
+use iced::Task;
+use std::sync::Arc;
+
+use crate::db::{
+    fetch_lagrange_history, fetch_sector_peers, fetch_recently_viewed,
+    search_tickers, upsert_recently_viewed,
+};
+use crate::indicators::Indicators;
+use crate::state::{Dashboard, Message};
+
+/// Handle all ticker-data-related messages. Returns `Some(task)` if handled.
+pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Message>> {
+    match message {
+        Message::TickerSelected(ticker) => {
+            if ticker == state.selected_ticker {
+                return Some(Task::none());
+            }
+            state.selected_ticker = ticker.clone();
+            state.rows = vec![];
+            state.indicators = None;
+            state.insider_trades = vec![];
+            state.filings_8k = vec![];
+            state.holdings = vec![];
+            state.news = vec![];
+            state.analyst_rating = None;
+            state.sentiment = None;
+            state.astro_score = None;
+            state.astro_aspects = vec![];
+            state.natal_positions = vec![];
+            state.short_interest = None;
+            state.fundamentals = None;
+            state.agent_analysis = None;
+            state.lagrange_history = vec![];
+            state.sector_peers = vec![];
+            state.status = format!("Loading {ticker}...");
+            if let Some(pool) = &state.pool {
+                let rv_pool = Arc::clone(pool);
+                let rv_ticker = ticker.clone();
+                Some(Task::batch([
+                    Dashboard::fetch_all(pool, ticker.clone()),
+                    Task::perform(
+                        fetch_lagrange_history(Arc::clone(pool), ticker.clone()),
+                        Message::LagrangeHistoryLoaded,
+                    ),
+                    Task::perform(
+                        fetch_sector_peers(Arc::clone(pool), ticker),
+                        Message::SectorPeersLoaded,
+                    ),
+                    Task::perform(
+                        async move {
+                            upsert_recently_viewed(Arc::clone(&rv_pool), rv_ticker).await;
+                            fetch_recently_viewed(rv_pool).await
+                        },
+                        Message::RecentlyViewedLoaded,
+                    ),
+                ]))
+            } else {
+                Some(Task::none())
+            }
+        }
+
+        Message::TickerSearchInput(s) => {
+            if state.autocomplete_dismissed {
+                state.autocomplete_dismissed = false;
+                return Some(Task::none());
+            }
+            state.ticker_search_input = s.clone();
+            if s.trim().is_empty() {
+                state.autocomplete_suggestions = vec![];
+                return Some(Task::none());
+            }
+            if let Some(pool) = &state.pool {
+                Some(Task::perform(
+                    search_tickers(Arc::clone(pool), s),
+                    |res| Message::AutocompleteResults(res.unwrap_or_default()),
+                ))
+            } else {
+                Some(Task::none())
+            }
+        }
+        Message::AutocompleteResults(suggestions) => {
+            if state.autocomplete_dismissed || state.ticker_search_input.is_empty() {
+                return Some(Task::none());
+            }
+            state.autocomplete_suggestions = suggestions;
+            Some(Task::none())
+        }
+        Message::AutocompleteSelected(ticker) => {
+            state.ticker_search_input = String::new();
+            state.autocomplete_suggestions = vec![];
+            state.autocomplete_dismissed = true;
+            Some(state.update(Message::TickerSelected(ticker)))
+        }
+        Message::TickerSearchSubmit => {
+            let ticker = state.ticker_search_input.trim().to_uppercase();
+            if ticker.is_empty() {
+                return Some(Task::none());
+            }
+            state.ticker_search_input = String::new();
+            state.autocomplete_suggestions = vec![];
+            state.autocomplete_dismissed = true;
+            Some(state.update(Message::TickerSelected(ticker)))
+        }
+
+        Message::RecentlyViewedLoaded(Ok(tickers)) => {
+            state.recently_viewed = tickers;
+            Some(Task::none())
+        }
+        Message::RecentlyViewedLoaded(Err(_)) => Some(Task::none()),
+
+        Message::DataLoaded(Ok(rows)) => {
+            state.refreshing = false;
+            state.status = if rows.is_empty() {
+                format!(
+                    "{} — no data yet (run the scraper first)",
+                    state.selected_ticker
+                )
+            } else {
+                format!("Loaded {} rows for {}", rows.len(), state.selected_ticker)
+            };
+            if rows.len() >= 20 {
+                let prices: Vec<f32> = rows
+                    .iter()
+                    .rev()
+                    .map(|r| r.close.to_string().parse::<f32>().unwrap_or(0.0))
+                    .collect();
+                state.indicators = Some(Indicators::compute(&prices));
+            }
+            state.rows = rows;
+            Some(Task::none())
+        }
+        Message::DataLoaded(Err(e)) => {
+            state.refreshing = false;
+            state.status = format!("Query error (showing stale data): {e}");
+            Some(Task::none())
+        }
+
+        Message::InsiderTradesLoaded(Ok(t)) => { state.insider_trades = t; Some(Task::none()) }
+        Message::InsiderTradesLoaded(Err(_)) => Some(Task::none()),
+        Message::FilingsLoaded(Ok(f)) => { state.filings_8k = f; Some(Task::none()) }
+        Message::FilingsLoaded(Err(_)) => Some(Task::none()),
+        Message::HoldingsLoaded(Ok(h)) => { state.holdings = h; Some(Task::none()) }
+        Message::HoldingsLoaded(Err(_)) => Some(Task::none()),
+        Message::NewsLoaded(Ok(n)) => { state.news = n; Some(Task::none()) }
+        Message::NewsLoaded(Err(_)) => Some(Task::none()),
+        Message::RssArticlesLoaded(Ok(a)) => { state.rss_articles = a; Some(Task::none()) }
+        Message::RssArticlesLoaded(Err(_)) => Some(Task::none()),
+        Message::PolymarketLoaded(Ok(m)) => { state.polymarket = m; Some(Task::none()) }
+        Message::PolymarketLoaded(Err(_)) => Some(Task::none()),
+        Message::EarningsLoaded(Ok(e)) => { state.earnings = e; Some(Task::none()) }
+        Message::EarningsLoaded(Err(_)) => Some(Task::none()),
+        Message::AnalystRatingLoaded(Ok(r)) => { state.analyst_rating = r; Some(Task::none()) }
+        Message::AnalystRatingLoaded(Err(_)) => Some(Task::none()),
+        Message::SentimentLoaded(Ok(s)) => { state.sentiment = s; Some(Task::none()) }
+        Message::SentimentLoaded(Err(_)) => Some(Task::none()),
+        Message::FearGreedLoaded(Ok(fg)) => { state.fear_greed = Some(fg); Some(Task::none()) }
+        Message::FearGreedLoaded(Err(e)) => { state.fear_greed_err = Some(e); Some(Task::none()) }
+        Message::MarketFGLoaded(Ok(fg)) => { state.market_fg = Some(fg); Some(Task::none()) }
+        Message::MarketFGLoaded(Err(e)) => { state.market_fg_err = Some(e); Some(Task::none()) }
+        Message::MacroDataLoaded(Ok(data)) => { state.macro_data = data; Some(Task::none()) }
+        Message::MacroDataLoaded(Err(_)) => Some(Task::none()),
+        Message::ShortInterestLoaded(Ok(si)) => { state.short_interest = si; Some(Task::none()) }
+        Message::ShortInterestLoaded(Err(_)) => Some(Task::none()),
+
+        Message::FundamentalsLoaded(Ok(f)) => {
+            state.fundamentals = f;
+            state.compute_dcf_if_ready();
+            state.recompute_agent_if_active();
+            Some(Task::none())
+        }
+        Message::FundamentalsLoaded(Err(_)) => Some(Task::none()),
+
+        Message::LagrangeHistoryLoaded(Ok(h)) => { state.lagrange_history = h; Some(Task::none()) }
+        Message::LagrangeHistoryLoaded(Err(_)) => Some(Task::none()),
+
+        Message::SectorPeersLoaded(Ok(peers)) => { state.sector_peers = peers; Some(Task::none()) }
+        Message::SectorPeersLoaded(Err(_)) => Some(Task::none()),
+
+        // DCF inputs
+        Message::DcfGrowthRateInput(s) => { state.dcf_growth_rate = s; Some(Task::none()) }
+        Message::DcfGrowthYearsInput(s) => { state.dcf_growth_years = s; Some(Task::none()) }
+        Message::DcfTerminalGrowthInput(s) => { state.dcf_terminal_growth = s; Some(Task::none()) }
+        Message::DcfDiscountRateInput(s) => { state.dcf_discount_rate = s; Some(Task::none()) }
+        Message::DcfCompute => { state.compute_dcf_if_ready(); Some(Task::none()) }
+
+        // Agent selection
+        Message::AgentSelected(persona) => {
+            state.active_agent = Some(persona);
+            state.recompute_agent_if_active();
+            Some(Task::none())
+        }
+
+        // Comparison
+        Message::CompareInput(s) => { state.compare_input = s; Some(Task::none()) }
+        Message::CompareAdd => {
+            let ticker = state.compare_input.trim().to_uppercase();
+            if ticker.is_empty()
+                || state.compare_tickers.len() >= 4
+                || state.compare_tickers.contains(&ticker)
+            {
+                return Some(Task::none());
+            }
+            state.compare_input = String::new();
+            state.compare_tickers.push(ticker);
+            Some(state.refresh_compare())
+        }
+        Message::CompareAddDirect(ticker) => {
+            let ticker = ticker.to_uppercase();
+            if state.compare_tickers.len() >= 4 || state.compare_tickers.contains(&ticker) {
+                return Some(Task::none());
+            }
+            state.compare_tickers.push(ticker);
+            Some(state.refresh_compare())
+        }
+        Message::CompareRemove(ticker) => {
+            state.compare_tickers.retain(|t| t != &ticker);
+            if state.compare_tickers.is_empty() {
+                state.compare_data = vec![];
+                Some(Task::none())
+            } else {
+                Some(state.refresh_compare())
+            }
+        }
+        Message::CompareDataLoaded(Ok(data)) => { state.compare_data = data; Some(Task::none()) }
+        Message::CompareDataLoaded(Err(_)) => Some(Task::none()),
+
+        _ => None,
+    }
+}

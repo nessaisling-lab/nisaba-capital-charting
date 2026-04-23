@@ -754,7 +754,7 @@ fn classify_dominant_theme(aspects: &[ActiveAspect], score: f32) -> String {
     ];
 
     let dominant = max_theme.iter()
-        .max_by(|a, b| a.0.partial_cmp(&b.0).unwrap())
+        .max_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal))
         .map(|(_, name)| *name)
         .unwrap_or("Neutral");
 

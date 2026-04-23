@@ -226,9 +226,9 @@ impl canvas::Program<Message> for PriceChart {
 
         // High / low callouts
         let max_i = self.data.iter().enumerate()
-            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap()).map(|(i, _)| i).unwrap_or(0);
+            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal)).map(|(i, _)| i).unwrap_or(0);
         let min_i = self.data.iter().enumerate()
-            .min_by(|a, b| a.1.partial_cmp(b.1).unwrap()).map(|(i, _)| i).unwrap_or(0);
+            .min_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal)).map(|(i, _)| i).unwrap_or(0);
         for idx in [max_i, min_i] {
             let p = price_pts[idx];
             frame.fill_text(canvas::Text {

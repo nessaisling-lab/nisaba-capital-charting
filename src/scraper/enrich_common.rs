@@ -38,7 +38,7 @@ pub async fn seed_one_natal_chart(pool: &sqlx::PgPool, ticker: &str, ipo_date: N
 /// Builds the `ORDER BY CASE WHEN ticker IN (...) THEN 0 ELSE 1 END, ticker`
 /// fragment used by enrichment queries to prioritise watchlist tickers.
 pub fn watchlist_priority_sql() -> String {
-    let list = crate::WATCHLIST
+    let list = crate::watchlist()
         .iter()
         .map(|t| format!("'{t}'"))
         .collect::<Vec<_>>()

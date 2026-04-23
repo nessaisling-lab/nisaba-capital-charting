@@ -183,7 +183,7 @@ pub fn compute_transit_score(natal: &NatalChart, score_date: NaiveDate) -> Trans
 
     // Sort aspects by magnitude (most significant first)
     active_aspects.sort_by(|a, b| {
-        b.score_delta.abs().partial_cmp(&a.score_delta.abs()).unwrap()
+        b.score_delta.abs().partial_cmp(&a.score_delta.abs()).unwrap_or(std::cmp::Ordering::Equal)
     });
 
     // Composite score — normalized sigmoid

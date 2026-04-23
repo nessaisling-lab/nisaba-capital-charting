@@ -1,3 +1,4 @@
+use crate::error::SqlResultExt;
 use chrono::Utc;
 use pursuit_week4_automation::models::{AstroScore, DailyTransit, NatalPosition};
 use sqlx::PgPool;
@@ -14,7 +15,7 @@ pub async fn fetch_astro_score(pool: Arc<PgPool>, ticker: String) -> Result<Opti
     .bind(today)
     .fetch_optional(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("fetch_astro_score")
 }
 
 pub async fn fetch_natal_chart(pool: Arc<PgPool>, ticker: String) -> Result<Vec<NatalPosition>, String> {
@@ -26,7 +27,7 @@ pub async fn fetch_natal_chart(pool: Arc<PgPool>, ticker: String) -> Result<Vec<
     .bind(&ticker)
     .fetch_all(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("fetch_natal_chart")
 }
 
 pub async fn fetch_daily_transits(pool: Arc<PgPool>) -> Result<Vec<DailyTransit>, String> {
@@ -39,7 +40,7 @@ pub async fn fetch_daily_transits(pool: Arc<PgPool>) -> Result<Vec<DailyTransit>
     .bind(today)
     .fetch_all(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("fetch_daily_transits")
 }
 
 /// A retrograde station event: a planet changing from direct to retrograde or vice versa.
@@ -74,7 +75,7 @@ pub async fn fetch_retrograde_events(
     .bind(end)
     .fetch_all(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("fetch_retrograde_events")
 }
 
 pub async fn fetch_astro_active_aspects(pool: Arc<PgPool>, ticker: String) -> Result<serde_json::Value, String> {
@@ -86,7 +87,7 @@ pub async fn fetch_astro_active_aspects(pool: Arc<PgPool>, ticker: String) -> Re
     .bind(today)
     .fetch_optional(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())?;
+    .ctx("fetch_astro_active_aspects")?;
 
     Ok(raw.unwrap_or(serde_json::Value::Array(vec![])))
 }
@@ -106,7 +107,7 @@ pub async fn fetch_horoscope(
     .bind(today)
     .fetch_optional(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())?;
+    .ctx("fetch_horoscope")?;
 
     Ok(row.and_then(|(json,)| {
         pursuit_week4_automation::astrology::interpretation::horoscope_from_json(&ticker, today, &json)
@@ -132,7 +133,7 @@ pub async fn fetch_astro_calendar(
     .bind(end_date)
     .fetch_all(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("fetch_astro_calendar")
 }
 
 /// One day of joined price + astro data for backtesting.
@@ -158,40 +159,6 @@ pub async fn fetch_backtest_data(
     .bind(&ticker)
     .fetch_all(pool.as_ref())
     .await
-    .map_err(|e| e.to_string())
+    .ctx("fetch_backtest_data")
 }
 
-pub async fn fetch_fear_greed() -> Result<(f32, String), String> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .map_err(|e| e.to_string())?;
-
-    let text = client
-        .get("https://api.alternative.me/fng/?limit=1")
-        .header("User-Agent", "FinancialDashboard/1.0")
-        .send()
-        .await
-        .map_err(|e| format!("request: {e}"))?
-        .text()
-        .await
-        .map_err(|e| format!("body: {e}"))?;
-
-    let v: serde_json::Value = serde_json::from_str(&text)
-        .map_err(|e| format!("json({e}): {}", &text[..text.len().min(120)]))?;
-
-    let entry = &v["data"][0];
-
-    let score = entry["value"]
-        .as_str()
-        .ok_or_else(|| format!("missing value in: {}", &text[..text.len().min(200)]))?
-        .parse::<f32>()
-        .map_err(|e| format!("parse score: {e}"))?;
-
-    let label = entry["value_classification"]
-        .as_str()
-        .unwrap_or("Unknown")
-        .to_string();
-
-    Ok((score, label))
-}
