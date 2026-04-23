@@ -1,5 +1,6 @@
 mod astrology;
 mod company_enrich;
+mod dbnomics;
 mod edgar;
 mod edgar_enrich;
 mod enrich_common;
@@ -379,23 +380,27 @@ async fn run_all_fetches(
     println!("3.5 Fetching 13F institutional holdings...");
     holdings::fetch_all_13f(Arc::clone(&pool), Arc::clone(&client)).await;
 
+    // International economics (free, no API key)
+    println!("3.6 Fetching DBnomics international macro data...");
+    dbnomics::fetch_all_dbnomics(Arc::clone(&pool), Arc::clone(&client)).await;
+
     // IPO date enrichment pipeline (4 sources)
-    println!("3.6 Enriching missing IPO dates (AV OVERVIEW)...");
+    println!("3.7 Enriching missing IPO dates (AV OVERVIEW)...");
     company_enrich::enrich_missing_ipo_dates(
         Arc::clone(&pool), Arc::clone(&client), Arc::clone(&api_key),
     ).await;
 
     if let Some(ref fmp_k) = fmp_key {
-        println!("3.7 Enriching missing IPO dates (FMP profile)...");
+        println!("3.8 Enriching missing IPO dates (FMP profile)...");
         fmp_enrich::enrich_ipo_dates(Arc::clone(&pool), Arc::clone(&client), Arc::clone(fmp_k)).await;
     }
 
-    println!("3.8 Enriching founding dates (Wikidata SPARQL)...");
+    println!("3.9 Enriching founding dates (Wikidata SPARQL)...");
     wikidata_enrich::enrich_founding_dates(
         Arc::clone(&pool), Arc::clone(&client), Arc::clone(&user_agent),
     ).await;
 
-    println!("3.9 Enriching first-filing dates (SEC EDGAR)...");
+    println!("3.10 Enriching first-filing dates (SEC EDGAR)...");
     edgar_enrich::enrich_first_filing_dates(
         Arc::clone(&pool), Arc::clone(&client), Arc::clone(&user_agent),
     ).await;

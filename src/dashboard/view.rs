@@ -640,7 +640,7 @@ impl Dashboard {
                 .map(|v| format!("{v:.2}"))
                 .unwrap_or_else(|| "—".into())
         };
-        let macro_strip = row![
+        let macro_strip_us = row![
             text(format!("Fed Funds: {}%",   macro_find("FEDFUNDS"))).size(theme::TEXT_BASE),
             text(format!("CPI YoY: {}%",       macro_find("CPIAUCSL_YOY"))).size(theme::TEXT_BASE),
             text(format!("Unemploy: {}%",     macro_find("UNRATE"))).size(theme::TEXT_BASE),
@@ -650,6 +650,15 @@ impl Dashboard {
             text(format!("VIX: {}",           macro_find("VIXCLS"))).size(theme::TEXT_BASE),
             text(format!("WTI Oil: ${}",      macro_find("DCOILWTICO"))).size(theme::TEXT_BASE),
         ].spacing(20);
+        // International macro (DBnomics) — shows "—" until first scraper run fetches data
+        let macro_strip_intl = row![
+            text(format!("Euribor 3M: {}%",  macro_find("DBNOMICS:ECB/FM/M.U2.EUR.RT.MM.EURIBOR3MD_.HSTA"))).size(theme::TEXT_BASE),
+            text(format!("PBoC: {}%",         macro_find("DBNOMICS:BIS/WS_CBPOL/M.CN"))).size(theme::TEXT_BASE),
+            text(format!("EU CPI: {}%",       macro_find("DBNOMICS:Eurostat/prc_hicp_manr/M.RCH_A.CP00.EA"))).size(theme::TEXT_BASE),
+            text(format!("OECD CLI: {}",      macro_find("DBNOMICS:OECD/MEI_CLI/LOLITOAA.USA.M"))).size(theme::TEXT_BASE),
+            text(format!("US Credit/GDP: {}%",macro_find("DBNOMICS:BIS/WS_TC/Q.US.P.A.M.770.A"))).size(theme::TEXT_BASE),
+        ].spacing(20);
+        let macro_strip = column![macro_strip_us, macro_strip_intl].spacing(4);
 
         // Astrology section: natal wheel + transits table side by side
         let moon_phase  = self.astro_score.as_ref().and_then(|s| s.moon_phase.as_deref());
