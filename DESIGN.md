@@ -3,12 +3,45 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v3.1.9
-**Next milestone:** v4.0.0 "The Forge" (approved 2026-04-23)
+**Current version:** v4.0.0
+**Next milestone:** v4.1.0 "The Glass" (UI/UX Overhaul)
 
 ---
 
 ## Changelog
+
+### v4.0.0 — "Structural Steel" (2026-04-23)
+
+**Theme:** Tech debt reduction. No visual changes. Dashboard behaves identically before and after. Codebase reduced by ~726 net lines, all 47 tests passing.
+
+1. **Split update/mod.rs (921 -> 315 lines)** -- the monolithic 921-line match block that handled every message variant was the biggest maintenance bottleneck. Split into 5 domain-focused files: `update/astro.rs` (astro score, horoscope, natal, retrogrades), `update/data.rs` (ticker selection, price/news/fundamentals loading), `update/universe.rs` (universe pagination, alerts, search, export), `update/portfolio.rs` (portfolio, backtest, DCF, watchlist, transactions). The `mod.rs` dispatch file is now 315 lines, routing each message to its handler.
+   - *Files:* `src/dashboard/update/{astro,data,universe,portfolio}.rs` (new), `update/mod.rs` (trimmed), `update/helpers.rs` (moved shared helpers)
+
+2. **Unwrap audit (44 -> ~8 remaining)** -- replaced unsafe `.unwrap()` calls with proper error handling across the astrology engine and agent modules. `swisseph_bridge.rs` (6 unwraps removed: FFI returns wrapped in `Option`/`Result`), `interpretation.rs` (8 removed: `.unwrap_or_default()` and format fallbacks), `natal.rs` (5 removed: `?` operator chains), `aspects.rs` (4 removed), `agents.rs` (4 removed). Remaining unwraps are justified (`Mutex::lock`, test assertions).
+   - *Files:* `src/astrology/{swisseph_bridge,interpretation,natal,aspects}.rs`, `src/dashboard/agents.rs`
+
+3. **Agent code deduplication (905 -> 651 lines)** -- the 4 agent personas (Buffett, Graham, Lynch, Munger) shared ~60% identical structure. Extracted three shared helpers: `eval_metric()` replaces duplicated if/else threshold cascades with data-driven tier arrays `&[(f64, bool, &str, i32)]`; `score_to_verdict()` maps accumulated scores to `AgentVerdict` enums; `assemble_analysis()` handles the common tail pattern of building the final `AgentAnalysis`. Each persona retains its unique philosophy, thresholds, and narrative voice.
+   - *Files:* `src/dashboard/agents.rs` (254 lines removed, 3 helpers added)
+
+4. **Hardcoded watchlist extraction to DB** -- moved `WATCHLIST` (10 tickers), `CIK_MAP`, `CUSIP_MAP`, and `INSTITUTION_MAP` from const arrays in `scraper/main.rs` to DB-backed config. New migration `0031_scraper_config.sql` creates `scraper_watchlist` and `scraper_institutions` tables, seeded with the 10 default tickers and 4 institutions. Scraper loads from DB at startup via `init_config()`, using `OnceLock` + `Box::leak` to produce `&'static [&'static str]` slices for zero-blast-radius compatibility with all 11 existing call sites. Falls back to compiled defaults when DB is empty.
+   - *Files:* `src/scraper/main.rs` (+init_config, +OnceLock statics, renamed consts), `migrations/0031_scraper_config.sql` (new), 11 scraper modules (mechanical rename `crate::WATCHLIST` -> `crate::watchlist()`)
+
+5. **Error handling consistency (DashError + SqlResultExt)** -- created `src/dashboard/error.rs` with a `DashError` enum (Clone-safe for Iced's Message constraint) and `SqlResultExt` trait providing `.ctx("function_name")` as a drop-in replacement for `.map_err(|e| e.to_string())`. Applied across all 5 `db/` modules (~50 call sites). Every DB error now carries the originating function name: `[fetch_prices] relation price_data does not exist` instead of a raw sqlx message.
+   - *Files:* `src/dashboard/error.rs` (new), `src/dashboard/main.rs` (+mod error), `src/dashboard/db/{mod,ticker_data,astro,universe,portfolio}.rs` (~50 `.map_err` -> `.ctx()`)
+
+6. **Swiss Ephemeris NaN fix** -- the Swiss Ephemeris C library has global mutable state. Mixing flag sets (file-based ephemeris first, then Moshier fallback) corrupted internal state, causing TrueNode (NorthNode) to return NaN and subsequent calls to return inconsistent positions. Fixed by using Moshier analytical ephemeris as the primary flag set for all calls (sub-arcminute accuracy, built-in, no external `.se1` files needed). Added NaN guard as defense-in-depth. All 38 lib tests + 9 dashboard tests now pass (was 37/38).
+   - *Files:* `src/astrology/swisseph_bridge.rs` (Moshier primary, NaN guard, updated docs)
+
+**Post-refactor metrics:**
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Total Rust lines | 17,851 | 17,986 |
+| `update/mod.rs` | 921 lines | 315 lines (+ 4 domain files) |
+| `agents.rs` | 905 lines | 651 lines |
+| `.unwrap()` (non-test) | 44 | ~25 |
+| Test results | 37/38 pass | 47/47 pass |
+| New files | -- | 6 (error.rs, 4 update/, migration) |
 
 ### v3.1.9 — "New Tools" (2026-04-23)
 
