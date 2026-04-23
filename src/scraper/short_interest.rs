@@ -45,13 +45,22 @@ pub async fn fetch_all_short_interest(
     pool: Arc<sqlx::PgPool>,
     client: Arc<reqwest::Client>,
     finra_api_key: Arc<String>,
+    extra_tickers: &[String],
 ) {
     let since = (Utc::now() - chrono::Duration::days(14))
         .format("%Y-%m-%d")
         .to_string();
 
+    // Combine watchlist + astro-priority tickers (deduplicated)
+    let mut all_tickers: Vec<String> = crate::WATCHLIST.iter().map(|s| s.to_string()).collect();
+    for t in extra_tickers {
+        if !all_tickers.iter().any(|existing| existing == t) {
+            all_tickers.push(t.clone());
+        }
+    }
+
     // Fetch per ticker — FINRA API exact-match filter on the SIP symbol field
-    for ticker in crate::WATCHLIST {
+    for ticker in &all_tickers {
         match fetch_finra_ticker(ticker, &since, &pool, &client, &finra_api_key).await {
             Ok(n) => println!("[ShortInt] {ticker}: {n} new short volume rows"),
             Err(e) => eprintln!("[ShortInt] {ticker} error (skipping): {e:#}"),

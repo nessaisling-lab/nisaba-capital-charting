@@ -316,13 +316,14 @@ async fn run_all_fetches(
         Arc::clone(&pool), Arc::clone(&client), Arc::clone(&api_key), Arc::clone(&av_limiter),
     ).await;
 
-    println!("2.2 Fetching Alpha Vantage sentiment (budget-aware)...");
-    sentiment::fetch_av_sentiment_all(Arc::clone(&pool), Arc::clone(&client), Arc::clone(&api_key)).await;
+    println!("2.2 Fetching Alpha Vantage sentiment (budget-aware, astro-priority first)...");
+    sentiment::fetch_av_sentiment_all(Arc::clone(&pool), Arc::clone(&client), Arc::clone(&api_key), &priority).await;
 
     if let Some(ref fh_key) = finnhub_key {
         println!("2.3 Fetching Finnhub data (news, earnings, ratings)...");
         finnhub::fetch_all_finnhub(
             Arc::clone(&pool), Arc::clone(&client), Arc::clone(fh_key), Arc::clone(&fh_limiter),
+            &priority,
         ).await;
     }
 
@@ -333,7 +334,7 @@ async fn run_all_fetches(
 
     if let Some(ref finra_k) = finra_key {
         println!("2.5 Fetching short interest (FINRA API)...");
-        short_interest::fetch_all_short_interest(Arc::clone(&pool), Arc::clone(&client), Arc::clone(finra_k)).await;
+        short_interest::fetch_all_short_interest(Arc::clone(&pool), Arc::clone(&client), Arc::clone(finra_k), &priority).await;
     }
 
     if let Some(ref polygon_k) = polygon_key {

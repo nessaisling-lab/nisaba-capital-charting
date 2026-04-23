@@ -41,8 +41,25 @@ pub async fn fetch_av_sentiment_all(
     pool: Arc<sqlx::PgPool>,
     client: Arc<reqwest::Client>,
     api_key: Arc<String>,
+    extra_tickers: &[String],
 ) {
-    for ticker in crate::WATCHLIST {
+    // Priority tickers first (astro top 5), then watchlist — deduplicated.
+    // This ensures astro-highlighted tickers get sentiment data before
+    // the AV daily budget (25 calls) is exhausted.
+    let mut all_tickers: Vec<String> = Vec::new();
+    for t in extra_tickers {
+        if !all_tickers.contains(t) {
+            all_tickers.push(t.clone());
+        }
+    }
+    for t in crate::WATCHLIST {
+        let s = t.to_string();
+        if !all_tickers.contains(&s) {
+            all_tickers.push(s);
+        }
+    }
+
+    for ticker in &all_tickers {
         let calls_used = av_calls_today(&pool).await;
         if calls_used >= 24 {
             eprintln!("[sentiment] AV daily limit reached ({calls_used} calls today). Skipping remaining tickers.");

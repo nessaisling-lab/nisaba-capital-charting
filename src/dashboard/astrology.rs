@@ -273,32 +273,32 @@ pub fn build_transits_section<'a>(
     moon_deg: Option<f64>,
     mercury_rx: bool,
 ) -> Element<'a, Message> {
-    let header = text("Astrological Transits").size(theme::TEXT_LG);
+    let header = text("Astrological Transits").size(theme::text_lg());
 
     // Moon phase line
     let moon_line = {
         let phase = moon_phase.unwrap_or("—");
         let deg   = moon_deg.map(|d| format!(" ({:.0}°)", d)).unwrap_or_default();
         let rx_note = if mercury_rx { "  •  ☿ Mercury Rx — caution" } else { "" };
-        text(format!("Moon: {phase}{deg}{rx_note}")).size(theme::TEXT_BASE)
+        text(format!("Moon: {phase}{deg}{rx_note}")).size(theme::text_base())
     };
 
     if aspects.is_empty() {
         return column![
             header,
             moon_line,
-            text("No active aspects — run the scraper to compute today's transits").size(theme::TEXT_BASE),
+            text("No active aspects — run the scraper to compute today's transits").size(theme::text_base()),
         ].spacing(4).into();
     }
 
     // Table header
     let col_hdr = row![
-        text("Transit").size(theme::TEXT_SM).width(Length::Fixed(110.0)),
-        text("Natal").size(theme::TEXT_SM).width(Length::Fixed(110.0)),
-        text("Aspect").size(theme::TEXT_SM).width(Length::Fixed(90.0)),
-        text("Orb").size(theme::TEXT_SM).width(Length::Fixed(45.0)),
-        text("A/S").size(theme::TEXT_SM).width(Length::Fixed(30.0)),
-        text("Effect").size(theme::TEXT_SM).width(Length::Fill),
+        text("Transit").size(theme::text_sm()).width(Length::Fixed(110.0)),
+        text("Natal").size(theme::text_sm()).width(Length::Fixed(110.0)),
+        text("Aspect").size(theme::text_sm()).width(Length::Fixed(90.0)),
+        text("Orb").size(theme::text_sm()).width(Length::Fixed(45.0)),
+        text("A/S").size(theme::text_sm()).width(Length::Fixed(30.0)),
+        text("Effect").size(theme::text_sm()).width(Length::Fill),
     ].spacing(6);
 
     let rows: Vec<Element<Message>> = aspects.iter().take(15).filter_map(|obj| {
@@ -328,17 +328,17 @@ pub fn build_transits_section<'a>(
 
         Some(row![
             text(format!("{} {}{} ({})", planet_glyph(transit_planet), transit_planet, dignity_suffix, transit_sign))
-                .size(theme::TEXT_SM).width(Length::Fixed(110.0)),
+                .size(theme::text_sm()).width(Length::Fixed(110.0)),
             text(format!("{} {} ({})", planet_glyph(natal_planet), natal_planet, natal_sign))
-                .size(theme::TEXT_SM).width(Length::Fixed(110.0)),
+                .size(theme::text_sm()).width(Length::Fixed(110.0)),
             text(format!("{} {}", symbol, aspect))
-                .size(theme::TEXT_SM).width(Length::Fixed(90.0)),
+                .size(theme::text_sm()).width(Length::Fixed(90.0)),
             text(format!("{:.1}°", orb))
-                .size(theme::TEXT_SM).width(Length::Fixed(45.0)),
+                .size(theme::text_sm()).width(Length::Fixed(45.0)),
             text(apply_indicator)
-                .size(theme::TEXT_SM).width(Length::Fixed(30.0)),
+                .size(theme::text_sm()).width(Length::Fixed(30.0)),
             text(format!("{}{}", effect_color_hint, effect))
-                .size(theme::TEXT_SM).width(Length::Fill),
+                .size(theme::text_sm()).width(Length::Fill),
         ].spacing(6).into())
     }).collect();
 
@@ -358,14 +358,14 @@ pub fn build_transits_section<'a>(
 
 pub fn build_wheel_legend<'a>() -> Element<'a, Message> {
     row![
-        text("●").size(theme::TEXT_BASE).color(theme::NATAL_GOLD),
-        text("Natal (IPO)").size(theme::TEXT_SM),
+        text("●").size(theme::text_base()).color(theme::NATAL_GOLD),
+        text("Natal (IPO)").size(theme::text_sm()),
         iced::widget::Space::with_width(Length::Fixed(12.0)),
-        text("●").size(theme::TEXT_BASE).color(theme::TRANSIT_BLUE),
-        text("Today's transits").size(theme::TEXT_SM),
+        text("●").size(theme::text_base()).color(theme::TRANSIT_BLUE),
+        text("Today's transits").size(theme::text_sm()),
         iced::widget::Space::with_width(Length::Fixed(12.0)),
-        text("●").size(theme::TEXT_BASE).color(theme::RETROGRADE_RED),
-        text("Retrograde").size(theme::TEXT_SM),
+        text("●").size(theme::text_base()).color(theme::RETROGRADE_RED),
+        text("Retrograde").size(theme::text_sm()),
     ]
     .spacing(4)
     .align_y(Alignment::Center)

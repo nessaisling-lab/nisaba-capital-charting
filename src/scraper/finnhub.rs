@@ -58,8 +58,17 @@ pub async fn fetch_all_finnhub(
     client: Arc<reqwest::Client>,
     finnhub_key: Arc<String>,
     limiter: Arc<governor::DefaultDirectRateLimiter>,
+    extra_tickers: &[String],
 ) {
-    for ticker in crate::WATCHLIST {
+    // Combine watchlist + astro-priority tickers (deduplicated)
+    let mut all_tickers: Vec<String> = crate::WATCHLIST.iter().map(|s| s.to_string()).collect();
+    for t in extra_tickers {
+        if !all_tickers.iter().any(|existing| existing == t) {
+            all_tickers.push(t.clone());
+        }
+    }
+
+    for ticker in &all_tickers {
         limiter.until_ready().await;
         match fetch_finnhub_news(ticker, &pool, &client, &finnhub_key).await {
             Ok(n) => {
@@ -85,7 +94,7 @@ pub async fn fetch_all_finnhub(
         }
     }
 
-    for ticker in crate::WATCHLIST {
+    for ticker in &all_tickers {
         limiter.until_ready().await;
         match fetch_finnhub_recommendations(ticker, &pool, &client, &finnhub_key).await {
             Ok(n) => {

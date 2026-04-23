@@ -138,7 +138,7 @@ async fn fetch_markets_by_tag(
     let url = format!(
         "{GAMMA_BASE}/markets?tag={tag}&closed=false&limit=10&order=volume&ascending=false"
     );
-    fetch_and_upsert(&url, pool, client).await
+    fetch_and_upsert(&url, Some(tag), pool, client).await
 }
 
 async fn fetch_top_markets(
@@ -148,11 +148,12 @@ async fn fetch_top_markets(
     let url = format!(
         "{GAMMA_BASE}/markets?closed=false&limit=20&order=volume&ascending=false"
     );
-    fetch_and_upsert(&url, pool, client).await
+    fetch_and_upsert(&url, None, pool, client).await
 }
 
 async fn fetch_and_upsert(
     url: &str,
+    fallback_category: Option<&str>,
     pool: &sqlx::PgPool,
     client: &reqwest::Client,
 ) -> Result<u64> {
@@ -186,11 +187,19 @@ async fn fetch_and_upsert(
         let outcome_yes: Option<f64> = prices.first().and_then(|p| p.parse().ok());
         let outcome_no: Option<f64> = prices.get(1).and_then(|p| p.parse().ok());
 
-        // Category: prefer market.category, fall back to first tag label
+        // Category: prefer market.category, fall back to first tag, then query tag
         let category = m.category.clone()
             .or_else(|| m.tags.first().and_then(|t| {
                 t.as_object().and_then(|o| o.get("label").and_then(|l| l.as_str().map(String::from)))
                     .or_else(|| t.as_str().map(String::from))
+            }))
+            .or_else(|| fallback_category.map(|s| {
+                // Capitalize the tag for display: "economics" -> "Economics"
+                let mut c = s.chars();
+                match c.next() {
+                    None => String::new(),
+                    Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+                }
             }));
 
         let result = sqlx::query(
@@ -203,6 +212,7 @@ async fn fetch_and_upsert(
                 volume = EXCLUDED.volume, \
                 liquidity = EXCLUDED.liquidity, \
                 active = EXCLUDED.active, \
+                category = COALESCE(EXCLUDED.category, polymarket_markets.category), \
                 fetched_at = NOW()",
         )
         .bind(&market_id)

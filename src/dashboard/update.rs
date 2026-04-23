@@ -755,6 +755,16 @@ impl Dashboard {
                     if k == "refresh_interval_secs" {
                         self.settings_refresh_input = v.clone();
                     }
+                    if k == "font_scale" {
+                        let (scale, label) = match v.as_str() {
+                            "Compact" => (0.85, "Compact"),
+                            "Large"   => (1.15, "Large"),
+                            "XL"      => (1.35, "XL"),
+                            _         => (1.0,  "Default"),
+                        };
+                        crate::theme::set_font_scale(scale);
+                        self.font_scale_label = label.to_string();
+                    }
                     self.settings.insert(k, v);
                 }
                 Task::none()
@@ -771,6 +781,17 @@ impl Dashboard {
                         _ => crate::theme::ThemeMode::Auto,
                     };
                     self.theme = crate::theme::iced_theme(self.theme_mode);
+                }
+                // Apply font scale immediately
+                if key == "font_scale" {
+                    let (scale, label) = match value.as_str() {
+                        "Compact" => (0.85, "Compact"),
+                        "Large"   => (1.15, "Large"),
+                        "XL"      => (1.35, "XL"),
+                        _         => (1.0,  "Default"),
+                    };
+                    crate::theme::set_font_scale(scale);
+                    self.font_scale_label = label.to_string();
                 }
                 if let Some(pool) = &self.pool {
                     Task::perform(

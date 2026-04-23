@@ -142,6 +142,7 @@ pub struct Dashboard {
     // Settings
     pub settings:                 std::collections::HashMap<String, String>,
     pub settings_refresh_input:   String,
+    pub font_scale_label:         String,  // "Compact" / "Default" / "Large" / "XL"
     // Astro Calendar
     pub calendar_days:            Vec<crate::calendar::CalendarDay>,
     pub calendar_year:            i32,
@@ -230,6 +231,7 @@ impl Default for Dashboard {
             tx_action:                "BUY".to_string(),
             settings:                 std::collections::HashMap::new(),
             settings_refresh_input:   "30".to_string(),
+            font_scale_label:         "Default".to_string(),
             calendar_days:            vec![],
             calendar_year:            chrono::Local::now().year(),
             calendar_month:           chrono::Local::now().month(),

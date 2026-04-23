@@ -3,11 +3,43 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v3.1.2
+**Current version:** v3.1.4
 
 ---
 
 ## Changelog
+
+### v3.1.4 — Video Review Bug Fixes *(completed 2026-04-22)*
+
+**Theme:** Six fixes identified from screen recording review of the live dashboard at 2560x1540 resolution.
+
+**Bug 5 fix -- Y-axis labels garbled for low-price stocks:** `charts.rs:144` used `format!("{pr:.0}")` which truncated all labels to zero decimals. A $2.18 stock showed "2, 2, 2, 2, 2" on the Y-axis. Fix: dynamic precision based on price range (range < $5: 2 decimals, < $50: 1 decimal, else: integer).
+
+**Bug 3 fix -- Polymarket volume "$1000K" instead of "$1.0M":** When volume was ~$999,500, rounding to zero decimals in the $K branch produced "$1000K". Fix: lowered the million threshold to $999,500 so borderline values display as "$1.0M".
+
+**UX 5 fix -- Calendar nav buttons showed "0":** The Unicode characters "◀" and "▶" aren't in Iced's default font, rendering as "0". Fix: replaced with ASCII text "< Prev" and "Next >".
+
+**Bug 2 fix -- Polymarket categories all showing "---":** The Gamma API returns NULL for `category` on most markets. Fix: (1) pass the query tag (e.g. "economics", "fed") as a fallback category when the API doesn't provide one, (2) the UPSERT now also updates `category` with COALESCE to preserve existing non-NULL values.
+
+**Bug 6 fix -- Macro strip "---%" formatting:** When DBnomics data was unavailable, the format string `"Euribor 3M: —%"` showed a trailing "%" after the dash. Fix: refactored macro_fmt helper to only include the suffix/prefix when actual data exists. Missing data now shows clean "Euribor 3M: —".
+
+**UX 3 fix -- Current price label on chart:** Added a blue pill with white text at the right edge of the price chart showing the last closing price. Uses the same dynamic precision as Y-axis labels. Makes it immediately obvious what the current price is without hovering.
+
+**Modified:** `src/dashboard/charts.rs` (Y-axis precision + current price label), `src/dashboard/view.rs` (Polymarket volume threshold, calendar buttons, macro strip formatting), `src/scraper/polymarket.rs` (category fallback from query tag, UPSERT updates category)
+
+---
+
+### v3.1.3 — Font Scale Setting + Astro Priority Full Scrape *(completed 2026-04-22)*
+
+**Theme:** Two user-requested improvements. (1) Bigger, bolder text with runtime-adjustable font scale. (2) Top 5 astro-ranked tickers get complete data from all scraper sources, not just price data.
+
+**Font scale system:** Converted 6 hardcoded type-scale constants (`TEXT_XS` through `TEXT_2XL`) to runtime functions backed by `std::sync::atomic::AtomicU32`. The base scale was bumped ~25% (body text 12px to 15px, headings proportionally). Four presets are available in the Settings tab: Compact (0.85x), Default (1.0x), Large (1.15x), XL (1.35x). The setting persists in the `settings` table and applies instantly without restart. All 384 `.size()` calls across `view.rs` and `astrology.rs` were migrated from constants to function calls via batch replacement.
+
+**Astro priority full scrape:** Previously, only `prices::fetch_priority_prices()` used the astro ranking's top 5 + bottom 5 tickers. Now three additional scraper modules accept `extra_tickers: &[String]` and process astro-priority tickers alongside the watchlist: Finnhub (news + analyst ratings), FINRA short interest, and Alpha Vantage sentiment. AV sentiment processes priority tickers first to ensure they get data before the 25-call daily budget is exhausted. All ticker lists are deduplicated so watchlist members appearing in the astro top/bottom 10 are not fetched twice.
+
+**Modified:** `src/dashboard/theme.rs` (atomic font scale), `src/dashboard/view.rs` (384 constant-to-function migrations + font scale UI in Settings), `src/dashboard/astrology.rs` (21 constant-to-function migrations), `src/dashboard/state.rs` (font_scale_label field), `src/dashboard/update.rs` (font_scale setting handler), `src/scraper/finnhub.rs` (extra_tickers param), `src/scraper/short_interest.rs` (extra_tickers param), `src/scraper/sentiment.rs` (extra_tickers param, priority-first ordering), `src/scraper/main.rs` (pass priority to 3 modules)
+
+---
 
 ### v3.1.2 — Polymarket Prediction Markets *(completed 2026-04-22)*
 

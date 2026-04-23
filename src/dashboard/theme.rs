@@ -86,18 +86,38 @@ pub fn is_dark(theme: &iced::Theme) -> bool {
 }
 
 use chrono::Timelike;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 // ---------------------------------------------------------------------------
-// Type scale — 1.2x (minor third) based on 12px body
-// 8 → 10 → 12 → 14 → 17 → 20 → 24
+// Type scale — 1.25x (major third) based on 15px body
+// 11 → 14 → 15 → 18 → 21 → 28
+//
+// Runtime-adjustable via set_font_scale(). Presets:
+//   Compact 0.85 | Default 1.0 | Large 1.15 | XL 1.35
 // ---------------------------------------------------------------------------
 
-pub const TEXT_XS: f32 = 8.0;      // sparkline dates, legend labels
-pub const TEXT_SM: f32 = 10.0;     // table headers, gauge labels, captions
-pub const TEXT_BASE: f32 = 12.0;   // body text, data values
-pub const TEXT_MD: f32 = 14.0;     // secondary section headings
-pub const TEXT_LG: f32 = 17.0;     // primary section headings
-pub const TEXT_2XL: f32 = 24.0;    // page title
+// Scale stored as integer (100 = 1.0x) for atomic access
+static FONT_SCALE_X100: AtomicU32 = AtomicU32::new(100);
+
+/// Set the global font scale factor (1.0 = default).
+pub fn set_font_scale(scale: f32) {
+    FONT_SCALE_X100.store((scale * 100.0) as u32, Ordering::Relaxed);
+}
+
+/// Get the current font scale factor.
+pub fn font_scale() -> f32 {
+    FONT_SCALE_X100.load(Ordering::Relaxed) as f32 / 100.0
+}
+
+fn s(base: f32) -> f32 { base * font_scale() }
+
+pub fn text_xs()   -> f32 { s(11.0) }  // sparkline dates, legend labels
+pub fn text_sm()   -> f32 { s(14.0) }  // table headers, gauge labels, captions
+pub fn text_base() -> f32 { s(15.0) }  // body text, data values
+pub fn text_md()   -> f32 { s(18.0) }  // secondary section headings
+pub fn text_lg()   -> f32 { s(21.0) }  // primary section headings
+pub fn text_2xl()  -> f32 { s(28.0) }  // page title
+
 
 // ---------------------------------------------------------------------------
 // Semantic background colors

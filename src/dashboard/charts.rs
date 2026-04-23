@@ -141,7 +141,9 @@ impl canvas::Program<Message> for PriceChart {
                 ..canvas::Stroke::default()
             });
             frame.fill_text(canvas::Text {
-                content: format!("{pr:.0}"),
+                content: if range < 5.0 { format!("{pr:.2}") }
+                         else if range < 50.0 { format!("{pr:.1}") }
+                         else { format!("{pr:.0}") },
                 position: Point::new(pad_left - 5.0, y),
                 color: theme::fg_muted(_theme),
                 size: iced::Pixels(10.0),
@@ -235,6 +237,30 @@ impl canvas::Program<Message> for PriceChart {
                 color: theme::label_color(_theme),
                 size: iced::Pixels(9.0),
                 horizontal_alignment: iced::alignment::Horizontal::Center,
+                ..canvas::Text::default()
+            });
+        }
+
+        // Current price label (right edge, highlighted)
+        if let Some(&last_price) = self.data.last() {
+            let last_y = y_of(last_price);
+            let label = if range < 5.0 { format!("{last_price:.2}") }
+                        else if range < 50.0 { format!("{last_price:.1}") }
+                        else { format!("{last_price:.0}") };
+            // Background pill
+            let pill_w = 48.0_f32;
+            let pill_h = 14.0_f32;
+            frame.fill_rectangle(
+                Point::new(pad_left + w + 2.0, last_y - pill_h / 2.0),
+                iced::Size::new(pill_w, pill_h),
+                theme::ACCENT_BLUE,
+            );
+            frame.fill_text(canvas::Text {
+                content: label,
+                position: Point::new(pad_left + w + 4.0, last_y),
+                color: Color::WHITE,
+                size: iced::Pixels(10.0),
+                vertical_alignment: iced::alignment::Vertical::Center,
                 ..canvas::Text::default()
             });
         }
