@@ -233,8 +233,8 @@ impl Dashboard {
         // Earnings calendar
         let earnings_section = if self.earnings.is_empty() {
             column![
-                text("Earnings Calendar").size(theme::TEXT_MD),
-                text("No upcoming earnings loaded yet.").size(theme::TEXT_BASE),
+                text(format!("{} Earnings", self.selected_ticker)).size(theme::TEXT_MD),
+                text("No earnings dates found for this ticker.").size(theme::TEXT_BASE),
                 text("The scraper fetches earnings dates from Finnhub.").size(theme::TEXT_SM),
             ].spacing(4)
         } else {
@@ -503,8 +503,17 @@ impl Dashboard {
         )
         .direction(scrollable::Direction::Horizontal(scrollable::Scrollbar::default()));
 
+        let tab_subtitle = match self.active_tab {
+            Tab::Astrology => "Astrology & Timing",
+            Tab::Overview => "Daily Price Data",
+            Tab::Universe => "Universe Explorer",
+            Tab::Fundamentals => "Fundamentals & Agents",
+            Tab::Research => "Research & Filings",
+            Tab::Portfolio => "Portfolio & Positions",
+            Tab::Settings => "Settings",
+        };
         let header = row![
-            text(format!("{} — Daily Price Data", self.selected_ticker)).size(theme::TEXT_2XL),
+            text(format!("{} — {}", self.selected_ticker, tab_subtitle)).size(theme::TEXT_2XL),
             iced::widget::Space::with_width(Length::Fill),
             button(text(theme_label).size(theme::TEXT_SM)).on_press(Message::ToggleTheme),
         ].align_y(Alignment::Center);
@@ -662,8 +671,8 @@ impl Dashboard {
                 natal:    self.natal_positions.clone(),
                 transits: self.daily_transits.clone(),
             })
-            .width(Length::Fixed(240.0))
-            .height(Length::Fixed(240.0));
+            .width(Length::Fixed(300.0))
+            .height(Length::Fixed(300.0));
 
             let wheel_col = column![
                 text(format!("{} Birth Chart", self.selected_ticker)).size(theme::TEXT_LG),
@@ -675,10 +684,50 @@ impl Dashboard {
                 build_transits_section(&self.astro_aspects, moon_phase, moon_deg, mercury_rx),
             ].width(Length::Fill);
 
-            row![wheel_col, transits_col]
-                .spacing(20)
-                .align_y(Alignment::Start)
-                .into()
+            // Horoscope reading section (if available)
+            let horoscope_section: Element<Message> = if let Some(ref h) = self.horoscope {
+                let key_transit_items: Vec<Element<Message>> = h.key_transits.iter().map(|t| {
+                    row![
+                        text(&t.transit_desc).size(theme::TEXT_SM).width(Length::Fixed(180.0)),
+                        text(&t.strength).size(theme::TEXT_XS).width(Length::Fixed(120.0)),
+                        text(&t.financial_implication).size(theme::TEXT_XS).width(Length::Fill),
+                    ].spacing(8).into()
+                }).collect();
+
+                let mercury_line: Element<Message> = if let Some(ref warn) = h.mercury_warning {
+                    text(format!("Mercury: {warn}")).size(theme::TEXT_SM)
+                        .color(theme::ZONE_UNFAVORABLE).into()
+                } else {
+                    text("Mercury: Direct — clear communications").size(theme::TEXT_SM).into()
+                };
+
+                column![
+                    horizontal_rule(1),
+                    text("Horoscope Reading").size(theme::TEXT_LG),
+                    text(&h.overall_outlook).size(theme::TEXT_BASE),
+                    row![
+                        text(format!("Theme: {}", h.dominant_theme)).size(theme::TEXT_SM),
+                        text(format!("Confidence: {:.0}/100", h.confidence)).size(theme::TEXT_SM),
+                    ].spacing(20),
+                    text("Key Transits:").size(theme::TEXT_SM),
+                    Column::with_children(key_transit_items).spacing(2),
+                    row![
+                        text(&h.moon_guidance).size(theme::TEXT_SM),
+                        mercury_line,
+                    ].spacing(20),
+                    text(format!("Timing: {}", h.timing_window)).size(theme::TEXT_SM),
+                ].spacing(6).into()
+            } else {
+                text("Horoscope reading not yet generated for today. Run the scraper to compute.")
+                    .size(theme::TEXT_SM).into()
+            };
+
+            column![
+                row![wheel_col, transits_col]
+                    .spacing(20)
+                    .align_y(Alignment::Start),
+                horoscope_section,
+            ].spacing(12).into()
         };
 
         // News and 8-K side by side
@@ -1010,6 +1059,15 @@ impl Dashboard {
                         button(text("▶").size(theme::TEXT_SM)).on_press(Message::CalendarNextMonth),
                     ].spacing(8).align_y(Alignment::Center);
 
+                    let legend = row![
+                        text("■").size(theme::TEXT_SM).color(iced::Color::from_rgb(0.3, 0.8, 0.4)),
+                        text("Favorable (>50)").size(theme::TEXT_XS),
+                        text("■").size(theme::TEXT_SM).color(iced::Color::from_rgb(0.5, 0.7, 0.2)),
+                        text("Neutral (~50)").size(theme::TEXT_XS),
+                        text("■").size(theme::TEXT_SM).color(iced::Color::from_rgb(0.8, 0.3, 0.3)),
+                        text("Unfavorable (<50)").size(theme::TEXT_XS),
+                    ].spacing(6).align_y(Alignment::Center);
+
                     column![
                         nav,
                         Canvas::new(AstroCalendar {
@@ -1019,6 +1077,7 @@ impl Dashboard {
                         })
                         .width(Length::Fill)
                         .height(Length::Fixed(180.0)),
+                        legend,
                     ].spacing(6).into()
                 };
 
@@ -1148,7 +1207,7 @@ impl Dashboard {
 
                 // Universe table
                 let universe_table: Element<'_, Message> = if self.universe_rows.is_empty() {
-                    text("No scored tickers yet. Run the scraper to compute Lagrange scores.").size(theme::TEXT_BASE).into()
+                    text("No scored tickers yet. Run the scraper to compute astro scores.").size(theme::TEXT_BASE).into()
                 } else {
                     let hdr = row![
                         text("#").size(theme::TEXT_SM).width(Length::Fixed(30.0)),
@@ -1410,7 +1469,13 @@ impl Dashboard {
                         text(format!("On the stars: {}", analysis.astro_take)).size(theme::TEXT_XS),
                     ].spacing(6).into()
                 } else {
-                    text("Select an agent above to get their investment analysis.").size(theme::TEXT_SM).into()
+                    column![
+                        text("Select an agent to get their investment analysis:").size(theme::TEXT_SM),
+                        text("Buffett — moat, FCF, owner earnings").size(theme::TEXT_XS),
+                        text("Graham — margin of safety, deep value").size(theme::TEXT_XS),
+                        text("Lynch — PEG ratio, know what you own").size(theme::TEXT_XS),
+                        text("Munger — quality, mental models, durability").size(theme::TEXT_XS),
+                    ].spacing(3).into()
                 };
 
                 column![

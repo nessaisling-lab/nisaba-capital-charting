@@ -71,26 +71,38 @@ async fn fetch_and_store(
          &outputsize=compact"
     );
 
-    let response = client
-        .get(&url)
-        .send()
-        .await
-        .context("HTTP request to Alpha Vantage failed")?;
+    // Retry loop: AV returns HTTP 200 with JSON "Note" or "Information" when rate-limited.
+    // Sleep 60s and retry once before giving up.
+    let mut body: serde_json::Value = serde_json::Value::Null;
+    for attempt in 0..2 {
+        let response = client
+            .get(&url)
+            .send()
+            .await
+            .context("HTTP request to Alpha Vantage failed")?;
 
-    if !response.status().is_success() {
-        anyhow::bail!("Alpha Vantage returned HTTP {}", response.status());
-    }
+        if !response.status().is_success() {
+            anyhow::bail!("Alpha Vantage returned HTTP {}", response.status());
+        }
 
-    let body: serde_json::Value = response
-        .json()
-        .await
-        .context("Failed to parse Alpha Vantage response")?;
+        body = response
+            .json()
+            .await
+            .context("Failed to parse Alpha Vantage response")?;
 
-    if let Some(note) = body.get("Note") {
-        anyhow::bail!("Rate limit message: {note}");
-    }
-    if let Some(msg) = body.get("Information") {
-        anyhow::bail!("Alpha Vantage info: {msg}");
+        if body.get("Note").is_some() || body.get("Information").is_some() {
+            if attempt == 0 {
+                eprintln!("[Prices] {ticker}: AV rate limit hit, waiting 60s before retry...");
+                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                continue;
+            }
+            // Second attempt also rate-limited — give up
+            let msg = body.get("Note")
+                .or_else(|| body.get("Information"))
+                .unwrap();
+            anyhow::bail!("AV rate limit after retry: {msg}");
+        }
+        break; // success, no rate limit
     }
 
     let parsed: AlphaVantageResponse =

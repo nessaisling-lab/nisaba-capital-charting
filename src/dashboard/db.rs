@@ -174,6 +174,28 @@ pub async fn fetch_astro_active_aspects(pool: Arc<PgPool>, ticker: String) -> Re
     Ok(raw.unwrap_or(serde_json::Value::Array(vec![])))
 }
 
+/// Fetch the latest horoscope reading for a ticker.
+/// Returns the JSONB reading column, reconstructed into HoroscopeReading.
+pub async fn fetch_horoscope(
+    pool: Arc<PgPool>,
+    ticker: String,
+) -> Result<Option<pursuit_week4_automation::astrology::interpretation::HoroscopeReading>, String> {
+    let today = chrono::Utc::now().date_naive();
+    let row: Option<(serde_json::Value,)> = sqlx::query_as(
+        "SELECT reading FROM horoscope_readings \
+         WHERE ticker = $1 AND reading_date = $2",
+    )
+    .bind(&ticker)
+    .bind(today)
+    .fetch_optional(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(row.and_then(|(json,)| {
+        pursuit_week4_automation::astrology::interpretation::horoscope_from_json(&ticker, today, &json)
+    }))
+}
+
 pub async fn fetch_macro_indicators(pool: Arc<PgPool>) -> Result<Vec<MacroIndicator>, String> {
     // Fetch latest per series, plus a synthetic CPI YoY% row.
     // The actual DB column is obs_date (see migration 0012).
@@ -218,12 +240,24 @@ pub async fn fetch_short_interest(pool: Arc<PgPool>, ticker: String) -> Result<O
     .fetch_optional(pool.as_ref()).await.map_err(|e| e.to_string())
 }
 
+#[allow(dead_code)] // kept for future watchlist-wide earnings calendar view
 pub async fn fetch_all_earnings(pool: Arc<PgPool>) -> Result<Vec<EarningsDate>, String> {
     sqlx::query_as::<_, EarningsDate>(
         "SELECT ticker, earnings_date, eps_estimate, eps_actual, revenue_estimate \
          FROM earnings_dates \
          ORDER BY earnings_date ASC",
     )
+    .fetch_all(pool.as_ref()).await.map_err(|e| e.to_string())
+}
+
+/// Fetch earnings for a specific ticker only.
+pub async fn fetch_ticker_earnings(pool: Arc<PgPool>, ticker: String) -> Result<Vec<EarningsDate>, String> {
+    sqlx::query_as::<_, EarningsDate>(
+        "SELECT ticker, earnings_date, eps_estimate, eps_actual, revenue_estimate \
+         FROM earnings_dates WHERE ticker = $1 \
+         ORDER BY earnings_date ASC",
+    )
+    .bind(&ticker)
     .fetch_all(pool.as_ref()).await.map_err(|e| e.to_string())
 }
 
@@ -571,7 +605,9 @@ pub struct UniverseRow {
 }
 
 /// Fetch a page of the scored universe, with optional zone and sector filters.
-/// Returns rows ordered by score descending (astro-first universe).
+/// Uses astro_scores as the primary table so ALL astrologically scored tickers
+/// appear (not just the ~10 with Lagrange composite scores). Lagrange sub-scores
+/// are LEFT JOINed and show as NULL when unavailable.
 pub async fn fetch_universe_page(
     pool: Arc<PgPool>,
     zone_filter: Option<String>,
@@ -583,26 +619,44 @@ pub async fn fetch_universe_page(
     let limit = page_size as i64;
 
     sqlx::query_as::<_, UniverseRow>(
-        "WITH latest_date AS (
+        "WITH latest_astro AS (
+             SELECT MAX(score_date) AS d FROM astro_scores
+         ),
+         latest_lagrange AS (
              SELECT MAX(score_date) AS d FROM lagrange_history
          )
-         SELECT lh.ticker,
+         SELECT a.ticker,
                 cm.company_name,
                 cm.sector,
-                lh.score,
-                lh.label,
-                lh.astro_score,
+                COALESCE(lh.score, a.astro_score::real) AS score,
+                COALESCE(lh.label, CASE
+                    WHEN a.astro_score >= 70 THEN 'Optimal'
+                    WHEN a.astro_score >= 55 THEN 'Favorable'
+                    WHEN a.astro_score >= 45 THEN 'Neutral'
+                    WHEN a.astro_score >= 30 THEN 'Unfavorable'
+                    ELSE 'Misaligned'
+                END) AS label,
+                a.astro_score::real AS astro_score,
                 lh.fin_score,
                 lh.macro_score,
                 lh.short_score,
                 lh.concordance
-         FROM lagrange_history lh
-         CROSS JOIN latest_date ld
-         LEFT JOIN company_metadata cm ON cm.ticker = lh.ticker
-         WHERE lh.score_date = ld.d
-           AND ($1::text IS NULL OR lh.label = $1)
+         FROM astro_scores a
+         CROSS JOIN latest_astro la
+         LEFT JOIN company_metadata cm ON cm.ticker = a.ticker
+         LEFT JOIN lagrange_history lh
+              ON lh.ticker = a.ticker
+             AND lh.score_date = (SELECT d FROM latest_lagrange)
+         WHERE a.score_date = la.d
+           AND ($1::text IS NULL OR COALESCE(lh.label, CASE
+                    WHEN a.astro_score >= 70 THEN 'Optimal'
+                    WHEN a.astro_score >= 55 THEN 'Favorable'
+                    WHEN a.astro_score >= 45 THEN 'Neutral'
+                    WHEN a.astro_score >= 30 THEN 'Unfavorable'
+                    ELSE 'Misaligned'
+                END) = $1)
            AND ($2::text IS NULL OR cm.sector = $2)
-         ORDER BY lh.score DESC
+         ORDER BY a.astro_score DESC NULLS LAST
          LIMIT $3 OFFSET $4",
     )
     .bind(&zone_filter)
@@ -615,21 +669,34 @@ pub async fn fetch_universe_page(
 }
 
 /// Count total rows matching current filters (for pagination display).
+/// Mirrors fetch_universe_page: uses astro_scores as primary table.
 pub async fn fetch_universe_count(
     pool: Arc<PgPool>,
     zone_filter: Option<String>,
     sector_filter: Option<String>,
 ) -> Result<i64, String> {
     let count: Option<i64> = sqlx::query_scalar(
-        "WITH latest_date AS (
+        "WITH latest_astro AS (
+             SELECT MAX(score_date) AS d FROM astro_scores
+         ),
+         latest_lagrange AS (
              SELECT MAX(score_date) AS d FROM lagrange_history
          )
          SELECT COUNT(*)
-         FROM lagrange_history lh
-         CROSS JOIN latest_date ld
-         LEFT JOIN company_metadata cm ON cm.ticker = lh.ticker
-         WHERE lh.score_date = ld.d
-           AND ($1::text IS NULL OR lh.label = $1)
+         FROM astro_scores a
+         CROSS JOIN latest_astro la
+         LEFT JOIN company_metadata cm ON cm.ticker = a.ticker
+         LEFT JOIN lagrange_history lh
+              ON lh.ticker = a.ticker
+             AND lh.score_date = (SELECT d FROM latest_lagrange)
+         WHERE a.score_date = la.d
+           AND ($1::text IS NULL OR COALESCE(lh.label, CASE
+                    WHEN a.astro_score >= 70 THEN 'Optimal'
+                    WHEN a.astro_score >= 55 THEN 'Favorable'
+                    WHEN a.astro_score >= 45 THEN 'Neutral'
+                    WHEN a.astro_score >= 30 THEN 'Unfavorable'
+                    ELSE 'Misaligned'
+                END) = $1)
            AND ($2::text IS NULL OR cm.sector = $2)",
     )
     .bind(&zone_filter)

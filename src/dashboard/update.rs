@@ -14,9 +14,9 @@ use crate::db::{
     add_to_watchlist, connect_db, create_watchlist, delete_watchlist, fetch_8k_filings,
     fetch_backtest_data, fetch_portfolio_pnl, fetch_transactions,
     insert_transaction, delete_transaction, fetch_astro_calendar, fetch_settings, upsert_setting, WatchlistRow,
-    fetch_alerts, fetch_all_earnings, fetch_analyst_rating, fetch_astro_active_aspects,
+    fetch_alerts, fetch_analyst_rating, fetch_astro_active_aspects, fetch_horoscope,
     fetch_astro_score, fetch_available_sectors, fetch_compare_data, fetch_daily_transits,
-    fetch_fear_greed, fetch_fundamentals, fetch_holdings, fetch_insider_trades,
+    fetch_fear_greed, fetch_fundamentals, fetch_holdings, fetch_insider_trades, fetch_ticker_earnings,
     fetch_lagrange_history, fetch_macro_indicators, fetch_market_fear_greed, fetch_natal_chart,
     fetch_named_watchlists, fetch_news, fetch_portfolio, fetch_prices, fetch_recently_viewed,
     fetch_sector_summaries, fetch_sentiment, fetch_short_interest, fetch_universe_count,
@@ -61,8 +61,10 @@ impl Dashboard {
             Task::perform(fetch_astro_score(Arc::clone(pool), ticker.clone()), Message::AstroScoreLoaded),
             Task::perform(fetch_natal_chart(Arc::clone(pool), ticker.clone()), Message::NatalChartLoaded),
             Task::perform(fetch_astro_active_aspects(Arc::clone(pool), ticker.clone()), Message::AstroAspectsLoaded),
+            Task::perform(fetch_horoscope(Arc::clone(pool), ticker.clone()), Message::HoroscopeLoaded),
             Task::perform(fetch_short_interest(Arc::clone(pool), ticker.clone()), Message::ShortInterestLoaded),
-            Task::perform(fetch_fundamentals(Arc::clone(pool), ticker), Message::FundamentalsLoaded),
+            Task::perform(fetch_fundamentals(Arc::clone(pool), ticker.clone()), Message::FundamentalsLoaded),
+            Task::perform(fetch_ticker_earnings(Arc::clone(pool), ticker), Message::EarningsLoaded),
         ])
     }
 
@@ -86,7 +88,7 @@ impl Dashboard {
                 if let Some(pool) = &self.pool {
                     Task::batch([
                         Self::fetch_all(pool, self.selected_ticker.clone()),
-                        Task::perform(fetch_all_earnings(Arc::clone(pool)), Message::EarningsLoaded),
+                        Task::perform(fetch_ticker_earnings(Arc::clone(pool), self.selected_ticker.clone()), Message::EarningsLoaded),
                         Task::perform(fetch_market_fear_greed(Arc::clone(pool)), Message::MarketFGLoaded),
                         Task::perform(fetch_daily_transits(Arc::clone(pool)), Message::TransitsLoaded),
                         Task::perform(fetch_macro_indicators(Arc::clone(pool)), Message::MacroDataLoaded),
@@ -163,6 +165,12 @@ impl Dashboard {
                 }
             }
             Message::TickerSearchInput(s) => {
+                // Guard: if we just dismissed (via selection or submit), ignore
+                // the on_input event that fires when the text_input is cleared.
+                if self.autocomplete_dismissed {
+                    self.autocomplete_dismissed = false;
+                    return Task::none();
+                }
                 self.ticker_search_input = s.clone();
                 if s.trim().is_empty() {
                     self.autocomplete_suggestions = vec![];
@@ -178,12 +186,17 @@ impl Dashboard {
                 }
             }
             Message::AutocompleteResults(suggestions) => {
+                // Don't repopulate if the dropdown was dismissed since the query was sent
+                if self.autocomplete_dismissed || self.ticker_search_input.is_empty() {
+                    return Task::none();
+                }
                 self.autocomplete_suggestions = suggestions;
                 Task::none()
             }
             Message::AutocompleteSelected(ticker) => {
                 self.ticker_search_input = String::new();
                 self.autocomplete_suggestions = vec![];
+                self.autocomplete_dismissed = true;
                 self.update(Message::TickerSelected(ticker))
             }
             Message::TickerSearchSubmit => {
@@ -191,6 +204,7 @@ impl Dashboard {
                 if ticker.is_empty() { return Task::none(); }
                 self.ticker_search_input = String::new();
                 self.autocomplete_suggestions = vec![];
+                self.autocomplete_dismissed = true;
                 self.update(Message::TickerSelected(ticker))
             }
             Message::RecentlyViewedLoaded(Ok(tickers)) => {
@@ -248,6 +262,8 @@ impl Dashboard {
                 Task::none()
             }
             Message::AstroAspectsLoaded(Err(_)) => Task::none(),
+            Message::HoroscopeLoaded(Ok(reading)) => { self.horoscope = reading; Task::none() }
+            Message::HoroscopeLoaded(Err(_))      => Task::none(),
             Message::MacroDataLoaded(Ok(data))    => { self.macro_data = data;     Task::none() }
             Message::MacroDataLoaded(Err(_))       => Task::none(),
             Message::ShortInterestLoaded(Ok(si))  => { self.short_interest = si;   Task::none() }
@@ -810,6 +826,7 @@ impl Dashboard {
             Message::EscapePressed => {
                 self.ticker_search_input = String::new();
                 self.autocomplete_suggestions = vec![];
+                self.autocomplete_dismissed = true;
                 Task::none()
             }
             Message::NotifyAlerts => Task::none(),

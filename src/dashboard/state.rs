@@ -74,6 +74,7 @@ pub struct Dashboard {
     pub astro_aspects:     Vec<serde_json::Value>, // decoded from active_aspects JSONB
     pub natal_positions:   Vec<NatalPosition>,
     pub daily_transits:    Vec<DailyTransit>,
+    pub horoscope:         Option<pursuit_week4_automation::astrology::interpretation::HoroscopeReading>,
     pub macro_data:        Vec<MacroIndicator>,
     pub short_interest:    Option<ShortInterest>,
     pub fundamentals:      Option<FundamentalMetric>,
@@ -91,6 +92,7 @@ pub struct Dashboard {
     pub notifications_fired: bool,
     pub ticker_search_input:      String,
     pub autocomplete_suggestions: Vec<(String, String)>,  // (ticker, company_name)
+    pub autocomplete_dismissed:   bool,                    // guard against async race on selection
     pub active_agent:             Option<AgentPersona>,
     pub agent_analysis:           Option<AgentAnalysis>,
     pub compare_tickers:          Vec<String>,       // up to 4 tickers for comparison
@@ -167,6 +169,7 @@ impl Default for Dashboard {
             astro_aspects:   vec![],
             natal_positions: vec![],
             daily_transits:  vec![],
+            horoscope:         None,
             macro_data:        vec![],
             short_interest:    None,
             fundamentals:      None,
@@ -183,6 +186,7 @@ impl Default for Dashboard {
             notifications_fired: false,
             ticker_search_input:      String::new(),
             autocomplete_suggestions: vec![],
+            autocomplete_dismissed:   false,
             active_agent:             None,
             agent_analysis:           None,
             compare_tickers:          vec![],
@@ -247,6 +251,7 @@ pub enum Message {
     NatalChartLoaded(Result<Vec<NatalPosition>, String>),
     TransitsLoaded(Result<Vec<DailyTransit>, String>),
     AstroAspectsLoaded(Result<serde_json::Value, String>),
+    HoroscopeLoaded(Result<Option<pursuit_week4_automation::astrology::interpretation::HoroscopeReading>, String>),
     MacroDataLoaded(Result<Vec<MacroIndicator>, String>),
     ShortInterestLoaded(Result<Option<ShortInterest>, String>),
     FundamentalsLoaded(Result<Option<FundamentalMetric>, String>),
