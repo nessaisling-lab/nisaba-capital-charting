@@ -3,29 +3,33 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v3.0 (v3.0.7 in progress, v3.1.x planned)
+**Current version:** v3.0.7 (v3.1.x planned)
 
 ---
 
 ## Changelog
 
-### v3.0.7 — Dashboard UI Review & Fixes *(in progress)*
+### v3.0.7 — Dashboard UI Review & Fixes *(completed 2026-04-22)*
 
-**Theme:** Full dashboard UI review via video frame extraction (87 frames, all 7 tabs, 3 tickers). Six bugs identified plus six UX improvements. Covers search interaction, Universe data pipeline, horoscope display, and scraper rate limiting.
+**Theme:** Full dashboard UI review via video frame extraction (87 frames, all 7 tabs, 3 tickers). Six bugs fixed plus four UX improvements. Covers search interaction, Universe data pipeline, horoscope display, scraper rate limiting, and visual polish.
 
-**Bug 4 (CRITICAL UX): Search Autocomplete Dropdown Never Dismisses.** After typing in the search box and selecting a suggestion, the autocomplete dropdown stays visible permanently. It persists through tab switches, button clicks, and scrolling. The dropdown overlays content for the rest of the session. Root cause: no dismiss handler on suggestion click, click-outside, or Escape key. The `on_input` handler populates `search_suggestions` but nothing clears it when a selection is made or focus leaves.
+**Bug 4 (CRITICAL UX): Search Autocomplete Dropdown Never Dismisses.** Root cause was an async race condition, not a missing handler. Selecting a suggestion clears `ticker_search_input`, but Iced's `text_input` fires `on_input("")` when cleared, which triggers a new `search_tickers("")` query. The async result arrives after the selection handler ran, repopulating the dropdown. Fix: added `autocomplete_dismissed: bool` guard flag to `Dashboard` state. Set to `true` on selection, submit, and Escape. Checked in `TickerSearchInput` and `AutocompleteResults` handlers to short-circuit the stale async cycle. Reset to `false` on next real keypress.
 
-**Bug 5 (MODERATE): Universe Explorer Shows Only 3 of 1675 Scored Tickers.** The scraper scored 1675 tickers astrologically, but the Universe Explorer shows only the 3 watchlist tickers that have Lagrange composite scores. Root cause: `fetch_universe_page()` in `db.rs` INNER JOINs on `lagrange_history`, excluding the 1665 tickers that have astro scores but no composite. Fix: change to LEFT JOIN, allow astro-only rows, show "---" for missing sub-scores.
+**Bug 5+6 (MODERATE): Universe Explorer Shows Only 3 of 1675 Scored Tickers.** The Universe Explorer used `FROM lagrange_history` as its primary table, which only contains the 10 watchlist tickers with composite scores. The 1665 tickers that have astro scores but no Lagrange history were excluded. Fix: rewrote `fetch_universe_page()` and `fetch_universe_count()` in `db.rs` to use `FROM astro_scores` as the primary table with `LEFT JOIN lagrange_history`. Uses two CTEs (`latest_astro`, `latest_lagrange`) to get the most recent score per ticker. Astro scores display directly; Lagrange sub-scores show "---" when absent. Sort by `astro_score DESC NULLS LAST`. The astro label is derived via CASE expression from the score value (Optimal/Favorable/Neutral/Unfavorable/Misaligned).
 
-**Bug 6 (MODERATE): Astro Scores Show 0 in Universe Table.** GOOGL shows Astro=0 and JPM shows Astro=0 in the Universe table, but the scraper output shows GOOGL=28 and JPM=34. The `astro_scores` join in the universe query is failing, likely using wrong date or column name.
+**Bug 7 (MODERATE): Horoscope Reading Narrative Not Displayed.** The scraper generates horoscope readings (overall outlook, dominant theme, key transits, moon guidance, mercury retrograde warnings, timing windows) and stores them in `horoscope_readings` as JSONB, but the dashboard never queried or rendered them. Fix: added `fetch_horoscope()` to `db.rs` that queries the latest reading and reconstructs `HoroscopeReading` via `horoscope_from_json()`. Added `horoscope` field to state, `HoroscopeLoaded` message, wired into `fetch_all()` batch. View renders the reading below the natal wheel with structured sections: outlook, theme + confidence, key transits table, moon guidance + mercury warning, timing window. Falls back to "not yet generated" message.
 
-**Bug 7 (MODERATE): Horoscope Reading Narrative Not Displayed.** The Astrology tab shows the birth chart wheel and transits table but never renders the horoscope reading (overall outlook, dominant theme, timing window, confidence). The scraper generates and stores these in `horoscope_readings`, and `state.rs` has the `horoscope` field, but the view function doesn't render it. This is the flagship feature from v2.0.3.
+**Bug 8 (MINOR): AV Rate Limiter No Backoff on "Information" Response.** Alpha Vantage returns HTTP 200 with JSON `{"Information": "..."}` or `{"Note": "..."}` when rate-limited instead of HTTP errors. The scraper treated these as parse failures. Fix: added retry loop in `fetch_and_store()` (`for attempt in 0..2`). On first rate-limit JSON response, logs and sleeps 60s before retrying. On second hit, bails with descriptive error. This prevents 4-of-10 priority ticker failures in rapid succession.
 
-**Bug 8 (MINOR): AV Rate Limiter No Backoff on "Information" Response.** Alpha Vantage returns HTTP 200 with a JSON "Information" key when rate-limited (not an HTTP error). The scraper treats this as a data error, so 4 of 10 priority tickers fail in rapid succession with no retry/backoff.
+**Bug 9 (MINOR): Earnings Calendar Not Ticker-Specific.** `fetch_all_earnings()` had no WHERE clause, showing all watchlist earnings regardless of selected ticker. Fix: added `fetch_ticker_earnings()` with `WHERE ticker = $1` filter. Wired into per-ticker data loading. Section title now shows "{ticker} Earnings" instead of generic "Earnings Calendar".
 
-**Bug 9 (MINOR): Earnings Calendar Not Ticker-Specific.** The Fundamentals tab earnings section shows watchlist earnings (NVDA, JPM, GOOGL) regardless of the currently selected ticker (e.g., QS).
+**UX Improvements:**
+1. Natal wheel enlarged from 240px to 300px for readable planet glyphs (plan specified 300x300).
+2. Astro calendar now has a color legend below the grid: green = favorable (>50), neutral (~50), red = unfavorable (<50).
+3. Title bar now shows tab-contextual subtitle: "Astrology & Timing", "Daily Price Data", "Universe Explorer", etc.
+4. Agent empty state now shows each persona's philosophy (Buffett: moat/FCF, Graham: margin of safety, Lynch: PEG ratio, Munger: mental models).
 
-**UX Improvements:** (1) Birth chart wheel too small (~150px, plan specified 300x300). (2) Astro calendar lacks color legend. (3) BlackRock appears twice in institutional holders. (4) Title bar always says "Daily Price Data" regardless of tab. (5) Agent commentary thin when all data missing. (6) Recently Viewed row needs overflow cap.
+**Modified:** `src/dashboard/db.rs` (universe SQL rewrite, `fetch_horoscope()`, `fetch_ticker_earnings()`), `src/dashboard/state.rs` (`autocomplete_dismissed`, `horoscope` field, `HoroscopeLoaded` message), `src/dashboard/update.rs` (autocomplete guard, horoscope wiring, earnings wiring), `src/dashboard/view.rs` (horoscope render, wheel size, calendar legend, title bar, agent empty state), `src/scraper/prices.rs` (retry loop)
 
 ### v3.0.6 — Post-Release Bugfix Patch *(completed 2026-04-22)*
 
