@@ -1,11 +1,12 @@
-//! Swiss Ephemeris bridge — sub-arcsecond planetary positions.
+//! Swiss Ephemeris bridge — high-accuracy planetary positions.
 //!
 //! Adapter layer translating our `Planet`/`PlanetSnapshot` types to/from
-//! the `swiss-eph` crate's safe API. Falls back to the Jean Meeus engine
-//! if Swiss Ephemeris computation fails for a given body.
+//! the `swiss-eph` crate's safe API. Uses the built-in Moshier analytical
+//! ephemeris (sub-arcminute, no external `.se1` files required). Falls back
+//! to the Jean Meeus engine if Swiss Ephemeris computation fails for a body.
 //!
 //! Key advantages over Meeus:
-//!   - Sub-arcsecond accuracy for all planets (vs ~1-2° for outer planets)
+//!   - Sub-arcminute accuracy for all planets (vs ~1-2° for outer planets)
 //!   - Lunar nodes (True Node) and Chiron natively supported
 //!   - `longitude_speed` gives applying/separating without needing yesterday
 //!   - House cusps + Ascendant + MC for location-aware charts
@@ -51,16 +52,15 @@ fn to_swe_planet(planet: Planet) -> Option<SwePlanet> {
 // Core calculation flags
 // ---------------------------------------------------------------------------
 
-/// Standard flags: Swiss Ephemeris + speed (needed for retrograde detection
-/// and applying/separating aspect computation).
+/// Standard flags: Moshier analytical ephemeris + speed.
+///
+/// Moshier is built into the Swiss Ephemeris library — no external `.se1`
+/// data files needed. Sub-arcminute accuracy for all bodies (far better
+/// than Meeus, and more than sufficient for astrological orbs of 1-8°).
+///
+/// If `.se1` files are installed later, remove `.with_moshier()` to get
+/// sub-arcsecond accuracy from the full Swiss Ephemeris data.
 fn default_flags() -> CalcFlags {
-    CalcFlags::new().with_speed()
-}
-
-/// Flags for asteroids (Chiron, etc.) that may not have dedicated .se1 files.
-/// Falls back to Moshier analytical ephemeris (built-in, no external files).
-/// Still sub-arcminute accuracy — far better than Meeus.
-fn asteroid_flags() -> CalcFlags {
     CalcFlags::new().with_speed().with_moshier()
 }
 
@@ -89,11 +89,13 @@ fn calc_position(planet: Planet, jd: f64) -> anyhow::Result<(f64, f64)> {
     let swe_planet = to_swe_planet(planet)
         .ok_or_else(|| anyhow::anyhow!("No Swiss Ephemeris mapping for {:?}", planet))?;
 
-    // Try the main Swiss Ephemeris first. If that fails (missing .se1 files for
-    // asteroids like Chiron), fall back to Moshier analytical ephemeris.
     let pos: SwePosition = swe::calc(jd, swe_planet, default_flags())
-        .or_else(|_| swe::calc(jd, swe_planet, asteroid_flags()))
         .map_err(|e| anyhow::anyhow!("Swiss Ephemeris calc failed for {:?}: {}", planet, e))?;
+
+    // Guard: Swiss Ephemeris can return Ok with NaN in edge cases.
+    if pos.longitude.is_nan() {
+        anyhow::bail!("{:?}: Swiss Ephemeris returned NaN longitude", planet);
+    }
 
     Ok((norm360(pos.longitude), pos.longitude_speed))
 }
