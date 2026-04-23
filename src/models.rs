@@ -185,6 +185,7 @@ pub struct LagrangeHistory {
     pub astro_score: Option<f32>,
     pub macro_score: Option<f32>,
     pub short_score: Option<f32>,
+    pub concordance: Option<String>,
 }
 
 /// One row from lagrange_alerts
@@ -199,6 +200,33 @@ pub struct LagrangeAlert {
     pub prev_label: Option<String>,
     pub alert_type: String,
     pub is_read:    bool,
+}
+
+/// One row from fundamental_metrics (FMP key-metrics + ratios)
+#[derive(Debug, Clone, FromRow)]
+pub struct FundamentalMetric {
+    pub ticker:            String,
+    pub fetch_date:        NaiveDate,
+    pub market_cap:        Option<i64>,
+    pub pe_ratio:          Option<f64>,
+    pub pb_ratio:          Option<f64>,
+    pub ps_ratio:          Option<f64>,
+    pub ev_ebitda:         Option<f64>,
+    pub peg_ratio:         Option<f64>,
+    pub price_to_fcf:      Option<f64>,
+    pub roe:               Option<f64>,
+    pub roa:               Option<f64>,
+    pub net_margin:        Option<f64>,
+    pub operating_margin:  Option<f64>,
+    pub debt_equity:       Option<f64>,
+    pub current_ratio:     Option<f64>,
+    pub fcf:               Option<i64>,
+    pub operating_cf:      Option<i64>,
+    pub revenue:           Option<i64>,
+    pub net_income:        Option<i64>,
+    pub eps:               Option<f64>,
+    pub dividend_yield:    Option<f64>,
+    pub shares_outstanding: Option<i64>,
 }
 
 /// One row from portfolio_positions

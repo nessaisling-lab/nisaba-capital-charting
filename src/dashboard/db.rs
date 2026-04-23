@@ -1,8 +1,8 @@
 use chrono::Utc;
 use pursuit_week4_automation::models::{
-    AnalystRating, AstroScore, DailyTransit, EarningsDate, FilingRow, HoldingRow,
-    InsiderTradeRow, LagrangeAlert, LagrangeHistory, MacroIndicator, NatalPosition, NewsArticle,
-    PortfolioPosition, PriceRow, SentimentScore, ShortInterest,
+    AnalystRating, AstroScore, DailyTransit, EarningsDate, FilingRow, FundamentalMetric,
+    HoldingRow, InsiderTradeRow, LagrangeAlert, LagrangeHistory, MacroIndicator, NatalPosition,
+    NewsArticle, PortfolioPosition, PriceRow, SentimentScore, ShortInterest,
 };
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -363,7 +363,7 @@ pub async fn fetch_lagrange_history(
     ticker: String,
 ) -> Result<Vec<LagrangeHistory>, String> {
     sqlx::query_as(
-        "SELECT ticker, score_date, score, label, fin_score, astro_score, macro_score, short_score
+        "SELECT ticker, score_date, score, label, fin_score, astro_score, macro_score, short_score, concordance
          FROM lagrange_history
          WHERE ticker = $1
          ORDER BY score_date ASC
@@ -455,6 +455,32 @@ pub async fn search_tickers(
     .map_err(|e| e.to_string())
 }
 
+// ---------------------------------------------------------------------------
+// Fundamental metrics
+// ---------------------------------------------------------------------------
+
+pub async fn fetch_fundamentals(
+    pool: Arc<PgPool>,
+    ticker: String,
+) -> Result<Option<FundamentalMetric>, String> {
+    sqlx::query_as::<_, FundamentalMetric>(
+        "SELECT ticker, fetch_date,
+                market_cap, pe_ratio, pb_ratio, ps_ratio, ev_ebitda, peg_ratio, price_to_fcf,
+                roe, roa, net_margin, operating_margin,
+                debt_equity, current_ratio,
+                fcf, operating_cf, revenue, net_income, eps,
+                dividend_yield, shares_outstanding
+         FROM fundamental_metrics
+         WHERE ticker = $1
+         ORDER BY fetch_date DESC
+         LIMIT 1",
+    )
+    .bind(&ticker)
+    .fetch_optional(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())
+}
+
 /// Upserts a ticker into recently_viewed and prunes to the 10 most recent.
 /// Fire-and-forget — errors are logged, not propagated.
 pub async fn upsert_recently_viewed(pool: Arc<PgPool>, ticker: String) {
@@ -475,4 +501,486 @@ pub async fn upsert_recently_viewed(pool: Arc<PgPool>, ticker: String) {
     )
     .execute(pool.as_ref())
     .await;
+}
+
+// ---------------------------------------------------------------------------
+// Comparative analysis — fetch fundamentals + astro for multiple tickers
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct CompareRow {
+    pub ticker:       String,
+    pub pe_ratio:     Option<f64>,
+    pub pb_ratio:     Option<f64>,
+    pub ps_ratio:     Option<f64>,
+    pub ev_ebitda:    Option<f64>,
+    pub peg_ratio:    Option<f64>,
+    pub roe:          Option<f64>,
+    pub net_margin:   Option<f64>,
+    pub debt_equity:  Option<f64>,
+    pub fcf:          Option<i64>,
+    pub market_cap:   Option<i64>,
+    pub astro_score:  Option<f64>,
+    pub astro_label:  Option<String>,
+}
+
+pub async fn fetch_compare_data(
+    pool: Arc<PgPool>,
+    tickers: Vec<String>,
+) -> Result<Vec<CompareRow>, String> {
+    // Use LATERAL joins to get latest row per ticker for both tables
+    sqlx::query_as::<_, CompareRow>(
+        "SELECT f.ticker, f.pe_ratio, f.pb_ratio, f.ps_ratio, f.ev_ebitda,
+                f.peg_ratio, f.roe, f.net_margin, f.debt_equity, f.fcf, f.market_cap,
+                a.astro_score, a.astro_label
+         FROM UNNEST($1::text[]) AS t(ticker)
+         LEFT JOIN LATERAL (
+             SELECT * FROM fundamental_metrics fm
+             WHERE fm.ticker = t.ticker
+             ORDER BY fm.fetch_date DESC LIMIT 1
+         ) f ON true
+         LEFT JOIN LATERAL (
+             SELECT astro_score, astro_label FROM astro_scores asc_
+             WHERE asc_.ticker = t.ticker
+             ORDER BY asc_.score_date DESC LIMIT 1
+         ) a ON true
+         ORDER BY array_position($1::text[], t.ticker)",
+    )
+    .bind(&tickers)
+    .fetch_all(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())
+}
+
+// ---------------------------------------------------------------------------
+// Universe Explorer — paginated scored universe with filters
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct UniverseRow {
+    pub ticker:       String,
+    pub company_name: Option<String>,
+    pub sector:       Option<String>,
+    pub score:        f32,
+    pub label:        String,
+    pub astro_score:  Option<f32>,
+    pub fin_score:    Option<f32>,
+    pub macro_score:  Option<f32>,
+    pub short_score:  Option<f32>,
+    pub concordance:  Option<String>,
+}
+
+/// Fetch a page of the scored universe, with optional zone and sector filters.
+/// Returns rows ordered by score descending (astro-first universe).
+pub async fn fetch_universe_page(
+    pool: Arc<PgPool>,
+    zone_filter: Option<String>,
+    sector_filter: Option<String>,
+    page: usize,
+    page_size: usize,
+) -> Result<Vec<UniverseRow>, String> {
+    let offset = (page * page_size) as i64;
+    let limit = page_size as i64;
+
+    sqlx::query_as::<_, UniverseRow>(
+        "WITH latest_date AS (
+             SELECT MAX(score_date) AS d FROM lagrange_history
+         )
+         SELECT lh.ticker,
+                cm.company_name,
+                cm.sector,
+                lh.score,
+                lh.label,
+                lh.astro_score,
+                lh.fin_score,
+                lh.macro_score,
+                lh.short_score,
+                lh.concordance
+         FROM lagrange_history lh
+         CROSS JOIN latest_date ld
+         LEFT JOIN company_metadata cm ON cm.ticker = lh.ticker
+         WHERE lh.score_date = ld.d
+           AND ($1::text IS NULL OR lh.label = $1)
+           AND ($2::text IS NULL OR cm.sector = $2)
+         ORDER BY lh.score DESC
+         LIMIT $3 OFFSET $4",
+    )
+    .bind(&zone_filter)
+    .bind(&sector_filter)
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Count total rows matching current filters (for pagination display).
+pub async fn fetch_universe_count(
+    pool: Arc<PgPool>,
+    zone_filter: Option<String>,
+    sector_filter: Option<String>,
+) -> Result<i64, String> {
+    let count: Option<i64> = sqlx::query_scalar(
+        "WITH latest_date AS (
+             SELECT MAX(score_date) AS d FROM lagrange_history
+         )
+         SELECT COUNT(*)
+         FROM lagrange_history lh
+         CROSS JOIN latest_date ld
+         LEFT JOIN company_metadata cm ON cm.ticker = lh.ticker
+         WHERE lh.score_date = ld.d
+           AND ($1::text IS NULL OR lh.label = $1)
+           AND ($2::text IS NULL OR cm.sector = $2)",
+    )
+    .bind(&zone_filter)
+    .bind(&sector_filter)
+    .fetch_one(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(count.unwrap_or(0))
+}
+
+/// Fetch distinct sectors that have scored tickers.
+pub async fn fetch_available_sectors(
+    pool: Arc<PgPool>,
+) -> Result<Vec<String>, String> {
+    sqlx::query_scalar(
+        "SELECT DISTINCT cm.sector
+         FROM company_metadata cm
+         JOIN lagrange_history lh ON lh.ticker = cm.ticker
+         WHERE cm.sector IS NOT NULL
+         ORDER BY cm.sector",
+    )
+    .fetch_all(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Fetch sector-level summary for heat map: sector name, avg astro score, ticker count.
+#[derive(Debug, Clone, sqlx::FromRow)]
+#[allow(dead_code)] // `avg_lagrange` populated from DB, displayed in future heat map tooltip
+pub struct SectorSummary {
+    pub sector:         String,
+    pub avg_astro:      Option<f64>,
+    pub avg_lagrange:   Option<f64>,
+    pub ticker_count:   i64,
+}
+
+pub async fn fetch_sector_summaries(
+    pool: Arc<PgPool>,
+) -> Result<Vec<SectorSummary>, String> {
+    sqlx::query_as::<_, SectorSummary>(
+        "WITH latest_date AS (
+             SELECT MAX(score_date) AS d FROM lagrange_history
+         )
+         SELECT cm.sector,
+                AVG(lh.astro_score)::float8 AS avg_astro,
+                AVG(lh.score)::float8       AS avg_lagrange,
+                COUNT(*)                     AS ticker_count
+         FROM lagrange_history lh
+         CROSS JOIN latest_date ld
+         JOIN company_metadata cm ON cm.ticker = lh.ticker
+         WHERE lh.score_date = ld.d
+           AND cm.sector IS NOT NULL
+         GROUP BY cm.sector
+         ORDER BY AVG(lh.astro_score) DESC NULLS LAST",
+    )
+    .fetch_all(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())
+}
+
+// ---------------------------------------------------------------------------
+// Named Watchlists — CRUD for multiple named watchlists
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct NamedWatchlist {
+    pub id:   i32,
+    pub name: String,
+}
+
+/// Fetch all named watchlists.
+pub async fn fetch_named_watchlists(
+    pool: Arc<PgPool>,
+) -> Result<Vec<NamedWatchlist>, String> {
+    sqlx::query_as::<_, NamedWatchlist>(
+        "SELECT id, name FROM watchlists ORDER BY id",
+    )
+    .fetch_all(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Fetch tickers in a specific watchlist.
+pub async fn fetch_watchlist_tickers(
+    pool: Arc<PgPool>,
+    watchlist_id: i32,
+) -> Result<Vec<String>, String> {
+    sqlx::query_scalar(
+        "SELECT ticker FROM watchlist_members WHERE watchlist_id = $1 ORDER BY ticker",
+    )
+    .bind(watchlist_id)
+    .fetch_all(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Create a new named watchlist. Returns the new watchlist.
+pub async fn create_watchlist(
+    pool: Arc<PgPool>,
+    name: String,
+) -> Result<NamedWatchlist, String> {
+    sqlx::query_as::<_, NamedWatchlist>(
+        "INSERT INTO watchlists (name) VALUES ($1) RETURNING id, name",
+    )
+    .bind(&name)
+    .fetch_one(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Add a ticker to a watchlist (no-op if already present).
+pub async fn add_to_watchlist(
+    pool: Arc<PgPool>,
+    watchlist_id: i32,
+    ticker: String,
+) -> Result<(), String> {
+    sqlx::query(
+        "INSERT INTO watchlist_members (watchlist_id, ticker) VALUES ($1, $2)
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(watchlist_id)
+    .bind(&ticker)
+    .execute(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Remove a ticker from a watchlist.
+pub async fn remove_from_watchlist(
+    pool: Arc<PgPool>,
+    watchlist_id: i32,
+    ticker: String,
+) -> Result<(), String> {
+    sqlx::query(
+        "DELETE FROM watchlist_members WHERE watchlist_id = $1 AND ticker = $2",
+    )
+    .bind(watchlist_id)
+    .bind(&ticker)
+    .execute(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Delete an entire watchlist (cascade removes members).
+pub async fn delete_watchlist(
+    pool: Arc<PgPool>,
+    watchlist_id: i32,
+) -> Result<(), String> {
+    sqlx::query("DELETE FROM watchlists WHERE id = $1")
+        .bind(watchlist_id)
+        .execute(pool.as_ref())
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Backtest data: joined astro_scores + price_data by (ticker, date)
+// ---------------------------------------------------------------------------
+
+/// One day of joined price + astro data for backtesting.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct BacktestDayRow {
+    pub date:        chrono::NaiveDate,
+    pub close:       rust_decimal::Decimal,
+    pub astro_score: f64,
+}
+
+/// Fetch joined price + astro data for a ticker, ordered by date ascending.
+pub async fn fetch_backtest_data(
+    pool: Arc<PgPool>,
+    ticker: String,
+) -> Result<Vec<BacktestDayRow>, String> {
+    sqlx::query_as::<_, BacktestDayRow>(
+        "SELECT p.date, p.close, a.astro_score
+         FROM price_data p
+         INNER JOIN astro_scores a ON a.ticker = p.ticker AND a.score_date = p.date
+         WHERE p.ticker = $1 AND a.astro_score IS NOT NULL
+         ORDER BY p.date ASC",
+    )
+    .bind(&ticker)
+    .fetch_all(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())
+}
+
+// ---------------------------------------------------------------------------
+// Portfolio with current prices (for P&L tracking)
+// ---------------------------------------------------------------------------
+
+/// Portfolio position with latest price and astro score for P&L display.
+#[derive(Debug, Clone, sqlx::FromRow)]
+#[allow(dead_code)] // `notes` populated from DB, displayed in future portfolio detail view
+pub struct PortfolioPnlRow {
+    pub ticker:      String,
+    pub shares:      f32,
+    pub avg_cost:    f32,
+    pub notes:       Option<String>,
+    pub last_close:  Option<rust_decimal::Decimal>,
+    pub astro_score: Option<f64>,
+    pub astro_label: Option<String>,
+}
+
+/// Fetch portfolio positions with latest price and astro score.
+pub async fn fetch_portfolio_pnl(
+    pool: Arc<PgPool>,
+) -> Result<Vec<PortfolioPnlRow>, String> {
+    sqlx::query_as::<_, PortfolioPnlRow>(
+        "SELECT pp.ticker, pp.shares, pp.avg_cost, pp.notes,
+                p.close AS last_close,
+                a.astro_score, a.astro_label
+         FROM portfolio_positions pp
+         LEFT JOIN LATERAL (
+             SELECT close FROM price_data
+             WHERE ticker = pp.ticker ORDER BY date DESC LIMIT 1
+         ) p ON true
+         LEFT JOIN LATERAL (
+             SELECT astro_score, astro_label FROM astro_scores
+             WHERE ticker = pp.ticker ORDER BY score_date DESC LIMIT 1
+         ) a ON true
+         ORDER BY pp.ticker",
+    )
+    .fetch_all(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())
+}
+
+// ---------------------------------------------------------------------------
+// Transaction log
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+#[allow(dead_code)] // `notes` populated from DB, displayed in future transaction detail view
+pub struct TransactionRow {
+    pub id:         i32,
+    pub ticker:     String,
+    pub action:     String,
+    pub shares:     f32,
+    pub price:      f32,
+    pub trade_date: chrono::NaiveDate,
+    pub notes:      Option<String>,
+}
+
+/// Fetch all transactions, most recent first.
+pub async fn fetch_transactions(
+    pool: Arc<PgPool>,
+) -> Result<Vec<TransactionRow>, String> {
+    sqlx::query_as::<_, TransactionRow>(
+        "SELECT id, ticker, action, shares, price, trade_date, notes
+         FROM transactions ORDER BY trade_date DESC, id DESC",
+    )
+    .fetch_all(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Insert a new transaction.
+pub async fn insert_transaction(
+    pool: Arc<PgPool>,
+    ticker: String,
+    action: String,
+    shares: f32,
+    price: f32,
+    trade_date: chrono::NaiveDate,
+    notes: Option<String>,
+) -> Result<TransactionRow, String> {
+    sqlx::query_as::<_, TransactionRow>(
+        "INSERT INTO transactions (ticker, action, shares, price, trade_date, notes)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, ticker, action, shares, price, trade_date, notes",
+    )
+    .bind(&ticker)
+    .bind(&action)
+    .bind(shares)
+    .bind(price)
+    .bind(trade_date)
+    .bind(notes.as_deref())
+    .fetch_one(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Delete a transaction by ID.
+pub async fn delete_transaction(
+    pool: Arc<PgPool>,
+    id: i32,
+) -> Result<(), String> {
+    sqlx::query("DELETE FROM transactions WHERE id = $1")
+        .bind(id)
+        .execute(pool.as_ref())
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Settings key-value store
+// ---------------------------------------------------------------------------
+
+/// Fetch all settings as key-value pairs.
+pub async fn fetch_settings(
+    pool: Arc<PgPool>,
+) -> Result<Vec<(String, String)>, String> {
+    let rows: Vec<(String, String)> = sqlx::query_as(
+        "SELECT key, value FROM settings ORDER BY key",
+    )
+    .fetch_all(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(rows)
+}
+
+/// Fetch astro scores for a ticker over a date range (for calendar view).
+pub async fn fetch_astro_calendar(
+    pool: Arc<PgPool>,
+    ticker: String,
+    start_date: chrono::NaiveDate,
+    end_date: chrono::NaiveDate,
+) -> Result<Vec<(chrono::NaiveDate, f64, Option<String>)>, String> {
+    sqlx::query_as(
+        "SELECT score_date, astro_score, astro_label
+         FROM astro_scores
+         WHERE ticker = $1 AND score_date >= $2 AND score_date <= $3
+           AND astro_score IS NOT NULL
+         ORDER BY score_date ASC",
+    )
+    .bind(&ticker)
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_all(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Upsert a single setting.
+pub async fn upsert_setting(
+    pool: Arc<PgPool>,
+    key: String,
+    value: String,
+) -> Result<(), String> {
+    sqlx::query(
+        "INSERT INTO settings (key, value) VALUES ($1, $2)
+         ON CONFLICT (key) DO UPDATE SET value = $2",
+    )
+    .bind(&key)
+    .bind(&value)
+    .execute(pool.as_ref())
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(())
 }

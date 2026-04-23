@@ -3,11 +3,1099 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v1.1.0
+**Current version:** v3.0 (v3.0.7 in progress, v3.1.x planned)
 
 ---
 
 ## Changelog
+
+### v3.0.7 — Dashboard UI Review & Fixes *(in progress)*
+
+**Theme:** Full dashboard UI review via video frame extraction (87 frames, all 7 tabs, 3 tickers). Six bugs identified plus six UX improvements. Covers search interaction, Universe data pipeline, horoscope display, and scraper rate limiting.
+
+**Bug 4 (CRITICAL UX): Search Autocomplete Dropdown Never Dismisses.** After typing in the search box and selecting a suggestion, the autocomplete dropdown stays visible permanently. It persists through tab switches, button clicks, and scrolling. The dropdown overlays content for the rest of the session. Root cause: no dismiss handler on suggestion click, click-outside, or Escape key. The `on_input` handler populates `search_suggestions` but nothing clears it when a selection is made or focus leaves.
+
+**Bug 5 (MODERATE): Universe Explorer Shows Only 3 of 1675 Scored Tickers.** The scraper scored 1675 tickers astrologically, but the Universe Explorer shows only the 3 watchlist tickers that have Lagrange composite scores. Root cause: `fetch_universe_page()` in `db.rs` INNER JOINs on `lagrange_history`, excluding the 1665 tickers that have astro scores but no composite. Fix: change to LEFT JOIN, allow astro-only rows, show "---" for missing sub-scores.
+
+**Bug 6 (MODERATE): Astro Scores Show 0 in Universe Table.** GOOGL shows Astro=0 and JPM shows Astro=0 in the Universe table, but the scraper output shows GOOGL=28 and JPM=34. The `astro_scores` join in the universe query is failing, likely using wrong date or column name.
+
+**Bug 7 (MODERATE): Horoscope Reading Narrative Not Displayed.** The Astrology tab shows the birth chart wheel and transits table but never renders the horoscope reading (overall outlook, dominant theme, timing window, confidence). The scraper generates and stores these in `horoscope_readings`, and `state.rs` has the `horoscope` field, but the view function doesn't render it. This is the flagship feature from v2.0.3.
+
+**Bug 8 (MINOR): AV Rate Limiter No Backoff on "Information" Response.** Alpha Vantage returns HTTP 200 with a JSON "Information" key when rate-limited (not an HTTP error). The scraper treats this as a data error, so 4 of 10 priority tickers fail in rapid succession with no retry/backoff.
+
+**Bug 9 (MINOR): Earnings Calendar Not Ticker-Specific.** The Fundamentals tab earnings section shows watchlist earnings (NVDA, JPM, GOOGL) regardless of the currently selected ticker (e.g., QS).
+
+**UX Improvements:** (1) Birth chart wheel too small (~150px, plan specified 300x300). (2) Astro calendar lacks color legend. (3) BlackRock appears twice in institutional holders. (4) Title bar always says "Daily Price Data" regardless of tab. (5) Agent commentary thin when all data missing. (6) Recently Viewed row needs overflow cap.
+
+### v3.0.6 — Post-Release Bugfix Patch *(completed 2026-04-22)*
+
+**Theme:** Quality pass after reviewing scraper and dashboard output at scale. Three bugs fixed, 16 compiler warnings eliminated. Both binaries now build with zero warnings.
+
+**Bug 1 (CRITICAL): Score Polarization.** Astro scores clustered bimodally at 0-5 and 95-100 across 1642 tickers. The logistic sigmoid in `natal.rs` fed raw `delta_sum` (range +/-300 with 50-70 aspects per ticker) into a sigmoid with k=0.04, which saturated at extremes. Fix: normalize by `sqrt(aspect_count)` before the sigmoid, increase k to 0.10. The sqrt normalization is the standard statistical approach for sums of independent variables. It preserves the signal ("more aligned aspects = stronger") while preventing large aspect counts from overwhelming the sigmoid. New distribution is bell-shaped, centered at 50, with meaningful spread from ~27 to ~73 at the tails.
+
+**Bug 2 (MODERATE): Theme-Score Mismatch.** Tickers like AG scored 64 ("Greed") but showed theme "Mild Caution & Restructuring". The theme classifier counts aspect frequencies by planet type (how many Saturn aspects), while the score sums signed deltas. These independent pathways disagreed in the 36-64 range because the reconciliation logic only overrode at extremes (65+ or 0-35). Fix: expand thresholds to 56+/0-44, matching the score label boundaries where Neutral ends (45-55).
+
+**Bug 3 (MINOR): AstroRanking Not Consumed.** The `AstroRanking` struct was computed in Phase 1 but stored as `_ranking` (unused). Phase 2 fetched financial data in hardcoded WATCHLIST order, ignoring astro-prioritized tickers. Fix: renamed to `ranking`, added `fetch_priority_prices()` in `prices.rs` that fetches price data for top 5 + bottom 5 astro tickers before the watchlist. Tickers already in the watchlist are skipped (HashSet dedup) to avoid wasting API calls.
+
+**16 Compiler Warnings Resolved:**
+- 5 true dead code removed: unused `Theme` import (view.rs:3), unused `Logic` import (view.rs:936), unused variable `n` (view.rs:103), unused `shortcut()` method (tabs.rs:53), unused `TEXT_XL` constant (theme.rs:100)
+- 9 incomplete feature fields suppressed with `#[allow(dead_code)]`: AgentContext (6 fields for LLM path), CalendarDay.label, DcfResult (3 breakdown fields), SectorSummary.avg_lagrange, PortfolioPnlRow.notes, TransactionRow.notes, AstroRanking.total_scored, FmpKeyMetrics.earnings_yield_ttm
+- 2 partially wired strategy features suppressed: MacdCrossUp/MacdCrossDown variants, Condition::all_options(), Strategy.name
+
+**Modified:** `src/astrology/natal.rs` (sigmoid fix), `src/astrology/interpretation.rs` (reconciliation fix), `src/scraper/main.rs` (ranking wiring), `src/scraper/prices.rs` (new `fetch_priority_prices()`), `src/scraper/astrology.rs` (allow dead_code), `src/scraper/fundamentals.rs` (allow dead_code), `src/dashboard/view.rs` (3 dead code removals), `src/dashboard/tabs.rs` (remove shortcut), `src/dashboard/theme.rs` (remove TEXT_XL), `src/dashboard/agents.rs` (allow dead_code), `src/dashboard/calendar.rs` (allow dead_code), `src/dashboard/dcf.rs` (allow dead_code), `src/dashboard/db.rs` (allow dead_code x3), `src/dashboard/strategy.rs` (allow dead_code x3)
+**Tests:** 37 passed, 1 pre-existing failure (lunar node tolerance, unrelated)
+
+---
+
+### v3.0.5 — Astro Calendar *(completed 2026-04-22)*
+
+**Theme:** A monthly calendar view in the Astrology tab where each day is colored by the astro score for the selected ticker. Green days = favorable astro conditions, red days = unfavorable. Navigate months with prev/next buttons. This answers: "When are the best days to buy this month?"
+
+**Why a calendar?** Traders think in time windows. "Is next week a good time to enter AAPL?" The calendar turns the astro score time series into a visual heat map of favorable and unfavorable days. At a glance, the user sees clusters of green (favorable windows) and red (avoid windows).
+
+**Canvas widget:** `AstroCalendar` implements `canvas::Program<Message>` with a 7-column Monday-to-Sunday grid. Each day cell is colored using two-phase interpolation (same scheme as the sector heat map). The day number appears top-left, the score bottom-right. A month/year label anchors the bottom.
+
+**Date math:** Uses `chrono::NaiveDate` weekday offset to position day 1 in the correct column. Days-in-month is computed by finding the first day of the next month and subtracting one day. The prev/next navigation wraps correctly across year boundaries (December -> January).
+
+**DB query:** `fetch_astro_calendar(pool, ticker, start_date, end_date)` returns `(date, score, label)` tuples for the date range. Only days with non-null scores are returned.
+
+**New file:** `src/dashboard/calendar.rs` (~165 lines)
+**New query:** `fetch_astro_calendar()` in db.rs
+**Modified:** `src/dashboard/main.rs` (mod calendar), `src/dashboard/state.rs` (3 fields + 3 messages), `src/dashboard/update.rs` (3 handlers + refresh_calendar + initial load), `src/dashboard/view.rs` (calendar in Astrology tab)
+**Tests:** 8 dashboard tests passing (no new tests; calendar is visual)
+
+---
+
+### v3.0.4 — Settings Panel *(completed 2026-04-22)*
+
+**Theme:** A persistent settings system using a database key-value store. Users can change theme mode and refresh interval from a dedicated Settings tab, and the changes persist across sessions.
+
+**Why DB-backed settings?** Previously, theme mode and other preferences reset on every app launch. The `settings` table stores key-value pairs that are loaded on startup and applied immediately. The `ON CONFLICT DO UPDATE` upsert pattern means the same code handles both first-run initialization and subsequent changes.
+
+**Settings tab (7th tab):** Shows theme selection (Auto/Light/Dark buttons), refresh interval input, and a dashboard info section showing counts of tickers, universe size, transactions, watchlists, and alerts. Keyboard shortcut: Ctrl+7.
+
+**New migration:** `migrations/0027_settings.sql` (key-value table, seeded with defaults)
+**New queries:** `fetch_settings()`, `upsert_setting()` in db.rs
+**Modified:** `src/dashboard/tabs.rs` (added Settings tab), `src/dashboard/state.rs` (settings HashMap + refresh input + 4 messages), `src/dashboard/update.rs` (4 handlers + Ctrl+7 shortcut + initial load), `src/dashboard/view.rs` (Settings tab view)
+**Tests:** 8 dashboard tests passing
+
+---
+
+### v3.0.3 — Portfolio Transaction Log *(completed 2026-04-22)*
+
+**Theme:** A buy/sell transaction log that records every trade. Users can add BUY or SELL transactions with ticker, shares, price, and date. Transactions display in the Portfolio tab with color-coded action labels (green for BUY, red for SELL) and a delete button per row.
+
+**Why a transaction log?** The existing `portfolio_positions` table is a static snapshot. A transaction log captures the full trade history, enabling future P&L attribution ("Was my AAPL buy on March 5th a good entry?") and integration with the backtester ("Compare my actual trades vs what the astro signal recommended").
+
+**New migration:** `migrations/0026_transactions.sql` with CHECK constraints on action ('BUY'/'SELL'), shares > 0, price > 0. Indexed on ticker and trade_date.
+
+**CRUD operations:** `fetch_transactions()` (sorted by date DESC), `insert_transaction()` (RETURNING for optimistic UI), `delete_transaction()`. The toggle button cycles between BUY and SELL action modes.
+
+**Display:** Last 20 transactions shown in a compact 7-column table (Action, Ticker, Shares, Price, Total, Date, Delete). BUY rows are green, SELL rows are red.
+
+**New migration:** `migrations/0026_transactions.sql`
+**New queries:** `fetch_transactions()`, `insert_transaction()`, `delete_transaction()` in db.rs
+**Modified:** `src/dashboard/state.rs` (5 fields + 9 messages), `src/dashboard/update.rs` (9 handlers + initial load), `src/dashboard/view.rs` (transaction log in Portfolio tab)
+**Tests:** 8 dashboard tests passing
+
+---
+
+### v3.0.2 — Strategy Builder *(completed 2026-04-22)*
+
+**Theme:** A user-composable strategy system. Users build buy/sell rules from condition chains (e.g., "IF Astro > 70 AND RSI < 70 THEN BUY"), then run the strategy through the backtester to see how it would have performed.
+
+**Why a strategy builder?** The v2.8 backtester uses simple astro threshold crossings. Real trading decisions combine multiple signals. The strategy builder lets users test compound hypotheses: "Does buying when astro is favorable AND RSI isn't overbought outperform either signal alone?"
+
+**Condition types (8):**
+| Condition | What it checks |
+|-----------|---------------|
+| AstroAbove(n) | Astro score >= n |
+| AstroBelow(n) | Astro score <= n |
+| RsiAbove(n) | RSI >= n |
+| RsiBelow(n) | RSI <= n |
+| MacdCrossUp | MACD line crosses above 0 |
+| MacdCrossDown | MACD line crosses below 0 |
+| PriceAboveSma50 | Close > SMA50 |
+| PriceBelowSma50 | Close < SMA50 |
+
+**Logic operators:** AND (all conditions must be true) and OR (any condition true). Buy and sell rules each have independent logic operators.
+
+**Quick-add buttons:** Rather than a complex form, common conditions can be added with one click (+Astro>70, +RSI<70, +P>SMA50, etc.). Conditions display as removable chips with labels.
+
+**Backtest integration:** `run_strategy_backtest()` uses the same `BacktestResult` struct as v2.8, so the results display identically. The strategy evaluates `DaySnapshot` structs that combine price, astro, and indicator data.
+
+**New file:** `src/dashboard/strategy.rs` (~280 lines) with `Condition`, `Logic`, `Strategy`, `DaySnapshot`, `run_strategy_backtest()`
+**Modified:** `src/dashboard/main.rs` (mod strategy), `src/dashboard/state.rs` (2 fields + 8 messages), `src/dashboard/update.rs` (8 handlers), `src/dashboard/view.rs` (strategy builder in Astrology tab)
+**Tests:** 2 new (test_strategy_and_logic, test_strategy_or_logic), 8 dashboard tests total
+
+---
+
+### v3.0.1 — Advanced Charting *(completed 2026-04-22)*
+
+**Theme:** Three enhancements to the price chart: volume bars, timeframe selector, and astro event markers.
+
+**Volume bars:** Rendered in the bottom 18% of the chart canvas. Each bar's height is proportional to the day's volume relative to the max in the visible window. Green bars for up days (close >= previous close), red for down days. This adds the volume dimension that every serious financial chart needs.
+
+**Timeframe selector:** 5 buttons (1M, 3M, 6M, 1Y, ALL) filter the visible data window. The `ChartTimeframe` enum maps each option to a max bar count (22, 66, 132, 252, MAX). Indicators (SMA20, SMA50, BB) are trimmed to match the visible window. Default is 6M.
+
+**Astro event markers:** Vertical dashed lines on days with extreme astro scores. Days with astro >= 75 get a green star marker, days with astro <= 25 get a red warning marker. Markers are built from `lagrange_history` data which has date-aligned astro sub-scores. The dashed line uses 4px-on/4px-off segments.
+
+**Chart height:** Increased from 220px to 250px to accommodate the volume bars strip without shrinking the price area.
+
+**New enum:** `ChartTimeframe` in state.rs (5 variants, `max_bars()`, `label()`)
+**New struct:** `AstroMarker` in charts.rs
+**Modified:** `src/dashboard/charts.rs` (volumes + astro_markers fields, volume bar rendering, dashed line markers), `src/dashboard/state.rs` (chart_timeframe field + SetTimeframe message), `src/dashboard/update.rs` (handler), `src/dashboard/view.rs` (timeframe bar + data filtering + marker generation)
+**Tests:** 8 dashboard tests passing
+
+---
+
+### v2.8.2 — Portfolio Gain/Loss Tracking *(completed 2026-04-22)*
+
+**Theme:** The Portfolio tab now shows unrealized P&L for every position with color coding (green = profit, red = loss), plus the current astro score next to each holding. This answers the question every investor asks daily: "Am I making or losing money, and do the stars still favor my holdings?"
+
+**Why P&L tracking?** The previous portfolio view only showed cost basis. Without current prices, the user had to mentally compute their gains. This is the financial equivalent of a speedometer that shows RPM but not speed. The enhanced view shows: shares, average cost, last close price, dollar P&L, percentage P&L, and the current astro score/label. The totals row at the bottom aggregates the entire portfolio.
+
+**LATERAL JOIN for efficient fetching:**
+
+The `fetch_portfolio_pnl()` query joins `portfolio_positions` with two `LEFT JOIN LATERAL` subqueries:
+1. Latest `price_data.close` for each ticker (most recent close price)
+2. Latest `astro_scores.astro_score` and `astro_label` for each ticker
+
+This fetches all data in a single query instead of N+1 lookups per position. The `LEFT JOIN` ensures positions still display even if price or astro data is missing.
+
+**Color coding:** P&L values use the theme's zone colors: `ZONE_OPTIMAL` (green) for gains, `ZONE_MISALIGNED` (red) for losses, `ZONE_NEUTRAL` for break-even. The same coloring applies to both per-position and total P&L.
+
+**Astro integration:** Each position shows its current astro score and zone label. This lets the user ask: "My AAPL position is up 15%, but the astro signal just shifted to Misaligned. Time to take profits?" The astro column makes this visible without switching tabs.
+
+**Fallback behavior:** If the P&L query returns no results (e.g., no price data yet), the view falls back to the original cost-basis-only display. The `portfolio_pnl` data loads on startup alongside all other initial data.
+
+**New struct:** `PortfolioPnlRow` in db.rs (7 fields: ticker, shares, avg_cost, notes, last_close, astro_score, astro_label)
+**New query:** `fetch_portfolio_pnl()` in db.rs (LATERAL JOIN pattern)
+**Modified:** `src/dashboard/state.rs` (portfolio_pnl field + PortfolioPnlLoaded message), `src/dashboard/update.rs` (handler + initial load), `src/dashboard/view.rs` (enhanced portfolio display with 7 columns)
+**Tests:** 6 dashboard tests passing (no new tests; P&L is query + UI integration)
+
+---
+
+### v2.8.1 — Astro-Driven Backtesting Engine *(completed 2026-04-22)*
+
+**Theme:** A backtesting engine that tests the core thesis: "Does buying when the astro score is favorable and selling when it's unfavorable outperform buy-and-hold?" This is the ultimate accountability feature. If the astro signal doesn't predict price movement, the user should know.
+
+**Why backtesting?** Every signal system needs empirical validation. The dashboard computes astro scores daily, but until now there was no way to ask: "Over the last 6 months of data, would following the astro signal have made money?" The backtester joins `astro_scores` and `price_data` by (ticker, date) and simulates a simple long-only strategy.
+
+**Strategy:**
+- **Buy** when astro score crosses above the buy threshold (default 65)
+- **Sell** when astro score drops below the sell threshold (default 35)
+- Fully invested while in a trade, fully cash while out
+- No shorting, no leverage, no position sizing (all-in/all-out)
+- Open positions close at the last available price
+
+**Configurable thresholds:** The user can adjust buy/sell thresholds via text inputs in the Astrology tab. Different thresholds test different questions: strict thresholds (buy > 80, sell < 20) produce fewer trades but potentially higher quality signals; loose thresholds (buy > 55, sell < 45) produce more trades and test whether even mild astro direction has predictive value.
+
+**Key metric: Astro Signal Accuracy (30d)**
+
+The killer number. For every day where astro_score >= buy_threshold, the engine checks: "Did the price go higher at any point in the next 30 trading days?" The percentage of "yes" answers is the signal accuracy. 
+
+- Above 55%: the astro signal has meaningful predictive power
+- 45-55%: no better than a coin flip
+- Below 45%: the astro signal is counter-predictive (contrarian use possible)
+
+**Results displayed:**
+| Metric | Description |
+|--------|-------------|
+| Strategy Return | Total % return of the astro-timed strategy |
+| Buy & Hold Return | What you'd have made just holding (benchmark) |
+| Trades | Number of buy/sell round-trips |
+| Win Rate | % of trades that were profitable |
+| Max Drawdown | Largest peak-to-trough decline during the backtest |
+| Final Capital | Ending portfolio value ($10,000 starting) |
+| Signal Accuracy | 30-day forward accuracy (the headline metric) |
+
+**Trade log:** The last 10 trades display with buy date, buy price, sell date, sell price, and return percentage. Green for profitable trades, red for losing trades.
+
+**Data flow:** `RunBacktest` message triggers `fetch_backtest_data()` which executes:
+```sql
+SELECT p.date, p.close, a.astro_score
+FROM price_data p
+INNER JOIN astro_scores a ON a.ticker = p.ticker AND a.score_date = p.date
+WHERE p.ticker = $1 AND a.astro_score IS NOT NULL
+ORDER BY p.date ASC
+```
+The INNER JOIN ensures only days with both price and astro data are included. Results are converted from `BacktestDayRow` (sqlx types) to `BacktestDay` (pure f64) and fed to `run_backtest()`.
+
+**Placement:** The backtest section sits below the natal wheel and transits in the Astrology tab. This is deliberate: the user sees the current astro reading, then can test "But does this signal actually work?"
+
+**New file:** `src/dashboard/backtest.rs` (~210 lines) with `BacktestConfig`, `BacktestDay`, `Trade`, `BacktestResult`, `run_backtest()`, `compute_signal_accuracy()`
+**New struct:** `BacktestDayRow` in db.rs
+**New query:** `fetch_backtest_data()` in db.rs
+**Modified:** `src/dashboard/main.rs` (mod backtest), `src/dashboard/state.rs` (5 new fields + 4 messages), `src/dashboard/update.rs` (4 handlers), `src/dashboard/view.rs` (backtest section in Astrology tab)
+**Tests:** 2 new (test_basic_backtest, test_signal_accuracy), 6 dashboard tests total
+
+---
+
+### v2.6.3 — Multiple Watchlists + CSV Export *(completed 2026-04-22)*
+
+**Theme:** Users can now create, manage, and switch between multiple named watchlists. Each watchlist has its own set of tickers. A CSV export button lets users download their watchlist ranking data via a native file dialog.
+
+**Why named watchlists?** A single global ticker list doesn't scale. Traders track different groups for different strategies: "Astro Favorites", "Earnings This Week", "Short Squeeze Candidates". Named watchlists let the user organize tickers by intent without losing track of anything. The Default watchlist is auto-seeded from existing active tickers so nothing breaks on migration.
+
+**Database schema:**
+
+The feature uses two new tables via `migrations/0025_named_watchlists.sql`:
+
+```sql
+watchlists (id SERIAL PK, name TEXT UNIQUE, created_at TIMESTAMPTZ)
+watchlist_members (id SERIAL PK, watchlist_id INT FK CASCADE, ticker TEXT, added_at TIMESTAMPTZ, UNIQUE(watchlist_id, ticker))
+```
+
+The `CASCADE` on the foreign key means deleting a watchlist automatically cleans up all its member rows. The `UNIQUE(watchlist_id, ticker)` constraint prevents duplicate tickers within a single watchlist. The seed step inserts a "Default" watchlist populated from `tickers WHERE active = true`, so the migration is non-destructive.
+
+**CRUD operations (6 functions in db.rs):**
+
+| Function | SQL | Purpose |
+|----------|-----|---------|
+| `fetch_named_watchlists()` | `SELECT id, name FROM watchlists ORDER BY id` | List all watchlists |
+| `fetch_watchlist_tickers()` | `SELECT ticker FROM watchlist_members WHERE watchlist_id = $1` | Get tickers in one watchlist |
+| `create_watchlist()` | `INSERT INTO watchlists (name) VALUES ($1) RETURNING id, name` | Create new watchlist |
+| `add_to_watchlist()` | `INSERT ... ON CONFLICT DO NOTHING` | Add ticker (idempotent) |
+| `remove_from_watchlist()` | `DELETE FROM watchlist_members WHERE watchlist_id = $1 AND ticker = $2` | Remove single ticker |
+| `delete_watchlist()` | `DELETE FROM watchlists WHERE id = $1` | Delete entire watchlist (cascades) |
+
+**State management:** 12 new message variants handle the full lifecycle: load, select, create, add ticker, remove ticker, delete, export. The `NamedWatchlistsLoaded` handler auto-selects the first watchlist if none is active, loading its tickers immediately.
+
+**Optimistic updates:** When adding or removing a ticker, the local `watchlist_tickers_list` is updated immediately before the async DB call returns. This makes the UI feel instant. The DB write happens in the background via `WatchlistMutated`.
+
+**CSV export:** Uses `rfd` (Rust File Dialog) for a native OS save dialog and `csv` for serialization. The export includes 6 columns: Ticker, Astro Score, Astro Label, Sentiment, Sentiment Label, Short %. The user picks the save path via their OS file picker. If they cancel, no file is written.
+
+**UI:** The Portfolio tab now includes a "Watchlists" section below the portfolio positions table. It shows: (1) watchlist selector buttons (active watchlist marked with triangle), (2) "create new" text input + button, (3) ticker list with per-ticker remove buttons, (4) "add ticker" text input, (5) action buttons for delete and CSV export.
+
+**New migration:** `migrations/0025_named_watchlists.sql`
+**New dependencies:** `rfd = "0.15"`, `csv = "1"` in Cargo.toml
+**Modified:** `src/dashboard/db.rs` (NamedWatchlist struct + 6 CRUD functions), `src/dashboard/state.rs` (5 new fields + 12 messages), `src/dashboard/update.rs` (12 handlers + export_watchlist_csv async fn), `src/dashboard/view.rs` (watchlist manager UI in Portfolio tab)
+**Tests:** 4 passing (no new tests; CRUD is integration-level)
+
+---
+
+### v2.6.2 — Sector Heat Map *(completed 2026-04-22)*
+
+**Theme:** A canvas-rendered heat map widget showing each sector colored by its average astro score. This gives an at-a-glance view of which sectors the stars favor and which face headwinds.
+
+**Why a heat map?** The Universe Explorer table shows individual tickers. But institutional thinking starts with sectors: "Is Technology in a favorable astro zone this week? What about Healthcare?" A heat map answers this instantly through color: green sectors are favorable, red are stressed, yellow are neutral. The proportional cell sizing also reveals sector concentration: if Technology has 180 tickers and Utilities has 12, the visual weight communicates the universe composition.
+
+**Color interpolation:** The `score_to_color(score: f64)` function uses two-phase linear interpolation:
+- Score 0-50: Red (255,80,80) to Yellow (255,220,80) -- danger to caution
+- Score 50-100: Yellow (255,220,80) to Green (80,200,120) -- caution to favorable
+
+This avoids the problem with single-phase interpolation where mid-range values become muddy brown. The two-phase approach ensures yellow at the midpoint, which is intuitive for financial dashboards.
+
+**Proportional cell width:** Each sector's cell width is proportional to its ticker count relative to the total. A sector with 180/487 tickers gets 37% of the canvas width. This communicates both the score (color) and the sector's universe weight (size) simultaneously.
+
+**Canvas rendering:** `SectorHeatMap` implements `canvas::Program<Message>`, following the same pattern as `FearGreedGauge` and `PriceChart`. Each cell renders 3 text labels: sector name (truncated at 18 chars), average score, and ticker count. Text color is white for dark backgrounds (low scores) and dark gray for light backgrounds (high scores), using a luminance threshold at score 65.
+
+**Data source:** `fetch_sector_summaries()` queries the `company_metadata` + `astro_scores` + `lagrange_history` tables, grouping by sector. Returns `Vec<SectorSummary>` with sector name, average astro score, average Lagrange score, and ticker count.
+
+**Placement:** The heat map sits at the top of the Universe tab, above the zone filter bar. Canvas height is 100px, full width.
+
+**New file:** `src/dashboard/heatmap.rs` (~130 lines)
+**Modified:** `src/dashboard/main.rs` (mod heatmap), `src/dashboard/db.rs` (SectorSummary struct + fetch_sector_summaries), `src/dashboard/state.rs` (sector_summaries field + SectorSummariesLoaded message), `src/dashboard/update.rs` (handler + initial load), `src/dashboard/view.rs` (heat map in Universe tab)
+**Tests:** 4 passing (no new tests; canvas rendering is visual)
+
+---
+
+### v2.6.1 — Universe Explorer Panel *(completed 2026-04-22)*
+
+**Theme:** A full-featured data explorer for the entire scored universe of 400+ tickers. Paginated table with zone and sector filters, sorted by astro score (astro-first column order). This is where the user discovers what the stars favor across the entire market, not just their watchlist.
+
+**Why a Universe Explorer?** The existing watchlist shows ~10-20 tickers the user manually selected. But the scraper pipeline scores 400+ tickers. The Universe Explorer exposes the full scored universe, letting users discover tickers they might never have considered. "What's the highest astro-scored Healthcare ticker right now?" Previously unanswerable. Now it's one filter click.
+
+**Server-side pagination:** The query uses SQL `LIMIT $4 OFFSET $5` with configurable page size (50 rows). This keeps memory usage constant regardless of universe size. The total count is fetched separately via `fetch_universe_count()` so the UI can show "Page 3 of 10".
+
+**Optional filter pattern:** The SQL uses `$1::text IS NULL OR zone = $1` for both zone and sector filters. This avoids needing separate queries for filtered vs unfiltered states. When the filter is `None`, the `$1::text IS NULL` clause short-circuits and returns all rows.
+
+**11-column table (astro-first ordering):**
+
+| # | Column | Source | Why |
+|---|--------|--------|-----|
+| 1 | Rank | Row number | Position context |
+| 2 | Ticker | company_metadata | Identity |
+| 3 | Sector | company_metadata | Sector grouping |
+| 4 | Astro | astro_scores | THE lead signal |
+| 5 | Zone | astro_scores | Categorized astro signal |
+| 6 | Lagrange | lagrange_history | Composite score |
+| 7 | L-Zone | lagrange_history | Composite category |
+| 8 | Fin | lagrange_history | Financial sub-score |
+| 9 | Macro | lagrange_history | Macro sub-score |
+| 10 | Short | lagrange_history | Short interest sub-score |
+| 11 | Concordance | lagrange_history | Astro-financial agreement |
+
+**Zone filter bar:** 6 buttons (All, Optimal, Favorable, Neutral, Unfavorable, Misaligned) that filter by the astro zone column. Clicking "Optimal" shows only tickers with astro_label = 'Optimal'. Clicking "All" clears the filter.
+
+**Sector filter bar:** Dynamic buttons generated from `fetch_available_sectors()`. Only sectors that exist in the scored universe appear as filter options. This avoids showing empty sector filters.
+
+**State fields:** `universe_rows`, `universe_total`, `universe_page`, `universe_filter_zone`, `universe_filter_sector`, `universe_sectors`. All 8 message handlers delegate to `refresh_universe()` which batches the page fetch and count fetch into a single `Task::batch`.
+
+**Initial load:** Added to the `TickersLoaded` handler's initial batch alongside all other data fetches. The universe loads in the background on dashboard startup.
+
+**New structs:** `UniverseRow` in db.rs (11 fields, all optional except ticker), `SectorSummary` in db.rs
+**New queries:** `fetch_universe_page()`, `fetch_universe_count()`, `fetch_available_sectors()`, `fetch_sector_summaries()`
+**Modified:** `src/dashboard/state.rs` (6 new fields + 8 messages), `src/dashboard/update.rs` (8 handlers + refresh_universe method + initial load), `src/dashboard/view.rs` (full Universe tab rebuild from stub)
+**Tests:** 4 passing (no new tests; pagination is integration-level)
+
+---
+
+### v2.4.3 — Technical Pattern Recognition *(completed 2026-04-22)*
+
+**Theme:** Automated detection of classic chart patterns (Golden Cross, Death Cross, Double Top, Double Bottom, Support, Resistance) displayed in the Overview tab. This gives users an instant read on the technical picture alongside the astrological and fundamental signals.
+
+**Why pattern recognition?** The dashboard already shows RSI, MACD, Bollinger Bands, and moving averages as raw numbers. But experienced traders think in terms of patterns: "Is this a double bottom?" or "Did the golden cross fire?" Automating this detection saves the user from mentally computing crossovers and comparing price levels. It also sets up v3.0's strategy builder, which will let users combine astro + technical patterns into custom buy/sell rules.
+
+**Patterns detected:**
+
+| Pattern | Detection Method | Signal |
+|---------|-----------------|--------|
+| Golden Cross | SMA50 crosses above SMA200 in last 5 bars | Bullish — long-term trend reversal |
+| Death Cross | SMA50 crosses below SMA200 in last 5 bars | Bearish — long-term trend reversal |
+| Double Top | Two peaks within 2% of each other, 5+ bars apart, in last 60 bars | Bearish — price rejected at same level twice |
+| Double Bottom | Two troughs within 2% of each other, 5+ bars apart, in last 60 bars | Bullish — price supported at same level twice |
+| Support | 3+ local lows within 1.5% cluster in last 90 bars | Bullish — floor the price keeps bouncing off |
+| Resistance | 3+ local highs within 1.5% cluster in last 90 bars | Bearish — ceiling the price keeps hitting |
+
+**Detection algorithms:**
+
+*Local extrema identification:* All patterns use 5-bar neighborhoods to find peaks and troughs. A bar is a local high if it's higher than both its 2 left and 2 right neighbors. This avoids noise from single-bar spikes.
+
+*Golden/Death Cross:* The SMA200 was added to the `Indicators` struct (previously only SMA20 and SMA50 existed). The detection checks only the last 5 bars for a crossover event, avoiding stale signals from crossovers months ago. Once a cross is found, the scan stops to avoid duplicate detection.
+
+*Double Top/Bottom:* After identifying all peaks (or troughs) in the last 60 bars, the algorithm checks each pair for: (1) separation of at least 5 bars, and (2) price difference under 2%. The 2% threshold accounts for normal price noise while still catching meaningful double formations.
+
+*Support/Resistance:* Uses a clustering algorithm: sort all local lows (or highs), then slide through the sorted list checking if 3+ consecutive values fall within 1.5% of the base value. Returns the average of the best cluster. This is more robust than simple min/max detection.
+
+**Display:** Patterns appear in the Overview tab's left column, between the indicator row and the macro strip. Bullish patterns show in green (`ZONE_OPTIMAL`) with a ▲ icon, bearish in red (`ZONE_MISALIGNED`) with a ▼ icon. If no patterns are detected, a simple "Patterns: none detected" message displays.
+
+**SMA200 addition:** The `Indicators` struct in `src/indicators.rs` now includes `sma200: Vec<Option<f32>>`, computed via the existing `sma()` function with period 200. This is used by both the pattern detector and will be used by v3.0's chart annotations.
+
+**New file:** `src/dashboard/patterns.rs` (~190 lines) — `Pattern` enum, `detect_patterns()`, `detect_cross()`, `detect_double_patterns()`, `detect_support_resistance()`, `find_cluster()`
+**Modified:** `src/indicators.rs` (added `sma200` field + compute), `src/dashboard/main.rs` (mod patterns), `src/dashboard/view.rs` (patterns section in Overview tab)
+**Tests:** 2 new (test_golden_cross_detected, test_support_cluster), total: 40 passing (38 lib + 4 dashboard)
+
+---
+
+### v2.4.2 — Comparative Analysis *(completed 2026-04-22)*
+
+**Theme:** Side-by-side ticker comparison within the Fundamentals tab. Users can add up to 4 tickers and see their key metrics in a comparison table with astro scores included. This is where the financial verification principle becomes actionable: "The stars say NVDA is favorable and META is misaligned. But what do the numbers say?"
+
+**Why comparative analysis?** Individual ticker analysis is valuable, but investment decisions often involve choosing between alternatives. "Should I buy NVDA or AMD?" requires seeing both side by side. By including astro score and zone in the comparison table, users can see whether the astrological signal and fundamental quality agree across multiple tickers simultaneously.
+
+**How it works:**
+
+The user types a ticker into a text input and clicks "Add" (or presses Enter). Up to 4 tickers can be compared at once. Each ticker appears as a removable chip button (e.g., "AAPL ✕"). Clicking the ✕ removes it from the comparison and refreshes the table.
+
+**SQL: LATERAL JOIN for efficient multi-ticker fetch**
+
+The comparison query uses `UNNEST($1::text[]) AS t(ticker)` with two `LEFT JOIN LATERAL` subqueries to get the latest `fundamental_metrics` row and latest `astro_scores` row for each ticker in a single round-trip. This avoids N+1 queries and preserves the input order via `array_position()`.
+
+```sql
+SELECT f.ticker, f.pe_ratio, f.pb_ratio, ..., a.astro_score, a.astro_label
+FROM UNNEST($1::text[]) AS t(ticker)
+LEFT JOIN LATERAL (
+    SELECT * FROM fundamental_metrics fm
+    WHERE fm.ticker = t.ticker ORDER BY fm.fetch_date DESC LIMIT 1
+) f ON true
+LEFT JOIN LATERAL (
+    SELECT astro_score, astro_label FROM astro_scores asc_
+    WHERE asc_.ticker = t.ticker ORDER BY asc_.score_date DESC LIMIT 1
+) a ON true
+ORDER BY array_position($1::text[], t.ticker)
+```
+
+**12 metrics compared:**
+| Category | Metrics |
+|----------|---------|
+| Valuation | P/E, P/B, P/S, EV/EBITDA, PEG |
+| Profitability | ROE, Net Margin |
+| Health | Debt/Equity, FCF, Market Cap |
+| Astrology | Astro Score, Astro Zone |
+
+**Data types:** `CompareRow` struct in `db.rs` with 12 fields (`Option<f64>` for ratios, `Option<i64>` for monetary values, `Option<String>` for labels). Missing data displays as "---".
+
+**New struct:** `CompareRow` in `src/dashboard/db.rs`
+**New query:** `fetch_compare_data(pool, tickers: Vec<String>)` in `db.rs`
+**Modified:** `src/dashboard/state.rs` (compare_tickers, compare_input, compare_data fields + 4 new messages), `src/dashboard/update.rs` (CompareInput/Add/Remove/DataLoaded handlers + refresh_compare method), `src/dashboard/view.rs` (comparison section in Fundamentals tab)
+**Tests:** 40 passing (no new tests; comparison is UI + query integration)
+
+---
+
+### v2.4.1 — AI Agent Personas *(completed 2026-04-22)*
+
+**Theme:** Four legendary investor personas that review each ticker through their own investment philosophy, including their take on the astrological reading. This is where the three product pillars converge: astrology leads, agents interpret through their philosophical lens, fundamentals verify. Principle #5 (Circle of Competence): each agent stays in their framework. Buffett talks moats, not charts. Graham talks valuation, not growth.
+
+**Why template-based first, not LLM?** Template analysis is: (1) free — no API costs, (2) deterministic — same inputs always produce the same output, (3) instant — no network round-trip, (4) always available — works offline. The LLM path will be added in v2.8 as an optional upgrade when an API key is configured. Templates are not inferior — they encode exactly the investment criteria each philosopher would use, with consistent scoring.
+
+**The four agents:**
+
+| Agent | Philosophy | Key Metrics | Astro Relationship |
+|-------|-----------|-------------|-------------------|
+| **Buffett** | Moat + FCF + Margin of Safety | ROE > 15%, D/E < 0.5, FCF > $10B, P/E < 25, Net Margin > 20% | "When the cosmos and the balance sheet agree, I pay attention." Acknowledges astro when it confirms fundamentals. |
+| **Graham** | Deep Value + Quantitative Discipline | P/E < 15, P/B < 1.5, P/E×P/B < 22.5, Current Ratio > 2.0, Dividend Yield | "My margin of safety analysis doesn't depend on planetary positions." Politely skeptical. Sticks to numbers. |
+| **Lynch** | Growth at Reasonable Price (GARP) | PEG < 1.0, P/E < 20, Revenue size, Net Margin > 15%, D/E < 0.5 | "I see astrology as a proxy for market psychology." Uses it as sentiment indicator, not conviction driver. |
+| **Munger** | Quality + Mental Models + Patience | ROE > 25%, Op Margin > 30%, EV/EBITDA < 10, FCF > $5B, D/E < 0.3 | "I view this the way I view any unfamiliar mental model: with curiosity, not conviction." One data point among many. |
+
+**Internal scoring system:** Each agent evaluates 5 metrics, assigning +3 to -3 points per metric based on their thresholds. The total score maps to a verdict:
+
+```
+AgentVerdict: StrongBuy / Buy / Hold / Sell / StrongSell / InsufficientData
+```
+
+Each agent's score thresholds differ — Buffett is generous (StrongBuy at 5+), Graham is strict (StrongBuy at 7+), reflecting their real-world investment discipline. When fundamentals data is missing, all agents return `InsufficientData` rather than guessing.
+
+**Narrative generation:** Each agent has a `build_*_narrative()` function that constructs 2-4 sentences of analysis. The narrative highlights the most notable metrics (ROE > 20% for Buffett, PEG < 1.0 for Lynch) and provides the agent's overall assessment. Extreme scores (very high or very low) trigger additional commentary.
+
+**Astro take:** Each agent's `astro_take` field provides their philosophical reaction to the astrological signal. This varies based on: (1) the astro score value, (2) the concordance (if available), and (3) the dominant theme (if available). This is the killer feature — seeing how Buffett and Graham react differently to the same astrological reading for the same ticker.
+
+**UI integration:** The Fundamentals tab now has an "Ask the Council" section with 4 persona buttons. The active persona is highlighted with brackets (e.g., `[Buffett]`). Clicking a persona instantly computes and displays their analysis. The verdict is color-coded: green for Buy/StrongBuy, yellow for Hold, red for Sell/StrongSell. Key metrics show the metric name, value, and the agent's assessment in a compact table.
+
+**Recomputation:** When fundamentals data loads for a new ticker (via `FundamentalsLoaded` message), the active agent's analysis is automatically recomputed with the new data. Switching tickers clears the agent analysis (the user can re-select a persona to analyze the new ticker).
+
+**New file:** `src/dashboard/agents.rs` (~815 lines) — `AgentPersona`, `AgentContext`, `AgentAnalysis`, `AgentVerdict`, `analyze()`, 4 analysis functions + 4 narrative builders + `format_large_number()`
+**Modified:** `src/dashboard/main.rs` (mod agents), `src/dashboard/state.rs` (active_agent + agent_analysis fields + AgentSelected message), `src/dashboard/update.rs` (AgentSelected handler + recompute_agent_if_active method), `src/dashboard/view.rs` (agent buttons + analysis display in Fundamentals tab)
+**Tests:** 40 passing (no new tests; agents are template-based with deterministic output)
+
+---
+
+### v2.2.4 — Two-Column Overview Layout *(completed 2026-04-22)*
+
+**Theme:** Optimize the Overview tab's information density by splitting it into a two-column layout. The left column (60% width) shows the price chart, Lagrange sparkline, technical indicators, and macro strip. The right column (40% width) shows signal intelligence bullets and the watchlist ranking. Gauges remain full-width above both columns.
+
+**Why two columns?** The Overview tab had 8 sections stacked vertically, requiring significant scrolling to see signals after the chart. A two-column layout puts the chart and signals side-by-side, so you can see the price action and the system's interpretation simultaneously. This is how Bloomberg and FinceptTerminal arrange their overview panels.
+
+**How it works in Iced 0.13:** The layout uses `Row` with two `container` children, each set to `Length::FillPortion(3)` and `Length::FillPortion(2)` respectively. This gives a 60/40 split that adapts to any window width. The gauges row sits above the two-column `Row` in the outer `Column`.
+
+**Modified:** `src/dashboard/view.rs` (Overview tab refactored from single column to `Row` with `FillPortion`)
+**Tests:** 40 passing (no new tests needed for layout)
+
+---
+
+### v2.2.3 — Circadian Theme System *(completed 2026-04-22)*
+
+**Theme:** Replace the binary Light/Dark toggle with a 3-mode circadian theme system that can automatically adapt to time of day. The button now cycles: Auto -> Light -> Dark -> Auto.
+
+**Why circadian?** A financial dashboard used at 6am looks different from one used at midnight. In Auto mode, the theme follows the user's local time: Dawn (5-8am) and Day (9am-4pm) use the Light theme for high-contrast readability in daylight. Dusk (5-8pm) and Night (9pm-4am) use the Dark theme for reduced eye strain in low-light conditions. The user can always override to permanently Light or Dark.
+
+**How it works:**
+
+The `ThemeMode` enum has 3 states: `Auto`, `AlwaysLight`, `AlwaysDark`. The `CircadianPhase` enum has 4 states: `Dawn`, `Day`, `Dusk`, `Night`. In Auto mode, `CircadianPhase::current()` uses `chrono::Local::now().hour()` to determine the phase. The 30-second `Tick` subscription updates the theme on each tick when in Auto mode, so the dashboard transitions smoothly at phase boundaries.
+
+**4 Circadian Phases:**
+| Phase | Hours | Iced Theme | Character |
+|-------|-------|------------|-----------|
+| Dawn | 05:00-08:59 | Light | Warm, high contrast for early market prep |
+| Day | 09:00-16:59 | Light | Maximum readability during trading hours |
+| Dusk | 17:00-20:59 | Dark | Transition to reduced eye strain |
+| Night | 21:00-04:59 | Dark | Deep navy for after-hours analysis |
+
+**3 User Modes:**
+| Mode | Behavior | Button Label |
+|------|----------|-------------|
+| Auto | Follows local time through 4 phases | "Theme: Auto" |
+| Always Light | Forces Day phase regardless of time | "Theme: Light" |
+| Always Dark | Forces Night phase regardless of time | "Theme: Dark" |
+
+**New types:** `ThemeMode`, `CircadianPhase` enums in `theme.rs`
+**New functions:** `active_phase()`, `iced_theme()`, `CircadianPhase::from_hour()`, `CircadianPhase::current()`
+**Modified:** `src/dashboard/theme.rs` (new types + functions), `src/dashboard/state.rs` (theme_mode field), `src/dashboard/update.rs` (toggle cycles 3 modes, tick updates auto), `src/dashboard/view.rs` (button label shows mode)
+**Tests:** 40 passing
+
+---
+
+### v2.2.2 — DCF Intrinsic Value Calculator *(completed 2026-04-22)*
+
+**Theme:** A two-stage Discounted Cash Flow calculator that computes intrinsic value per share and margin of safety. This is Principle #7 (Margin of Safety) made interactive. The margin of safety percentage is the headline, not the raw intrinsic value. Buffett's language, Buffett's framing.
+
+**What is DCF?** Discounted Cash Flow is the most widely used intrinsic value method. It answers: "If this company generates X dollars of free cash flow, growing at Y% per year, what is the present value of all those future cash flows?" The result is the company's intrinsic value, independent of what the stock market currently prices it at.
+
+**Two-stage model:**
+- **Stage 1 (Growth Period):** FCF grows at the user's specified growth rate (default 10%) for N years (default 5). Each year's projected FCF is discounted back to present value using the WACC.
+- **Stage 2 (Terminal Value):** After the growth period, the company is assumed to grow at a perpetuity rate (default 2.5%) forever. The Gordon Growth Model computes the terminal value: `TV = FCF * (1+g) / (r-g)`, which is then discounted back to present value.
+
+The sum of Stage 1 PVs + Stage 2 PV = Enterprise Value. Divided by shares outstanding = Intrinsic Value Per Share.
+
+**Margin of Safety = (Intrinsic - Price) / Intrinsic x 100**
+- Positive: the stock appears undervalued. "You're paying less than it's worth."
+- Negative: the stock appears overvalued. "You're paying more than it's worth."
+
+**User-editable inputs:**
+| Input | Default | Description |
+|-------|---------|-------------|
+| Growth % | 10 | Annual FCF growth rate for Stage 1 |
+| Years | 5 | Number of growth years |
+| Terminal % | 2.5 | Perpetuity growth rate (GDP proxy) |
+| WACC % | 10 | Discount rate / required return |
+
+The calculator auto-computes when fundamentals data loads (FCF + shares from v2.2.1). Users can adjust inputs and press "Compute" to re-run with different assumptions.
+
+**Color coding:** Margin of safety is green when positive (undervalued) and red when negative (overvalued), using `ZONE_OPTIMAL` and `ZONE_MISALIGNED` from the existing color token system.
+
+**Edge case handling:** If discount rate <= terminal growth rate (which makes the Gordon Growth Model mathematically undefined, producing infinity), the calculator falls back to a 20x multiple on the final-year FCF. If FCF is negative (company is burning cash), the DCF section shows "Requires FCF data" rather than a misleading negative intrinsic value.
+
+**New file:** `src/dashboard/dcf.rs` (~130 lines, `DcfInputs`, `DcfResult`, `compute_dcf()`)
+**Modified:** `src/dashboard/main.rs` (mod dcf), `src/dashboard/state.rs` (DCF input fields + result + 5 new messages), `src/dashboard/update.rs` (DCF handlers + `compute_dcf_if_ready()`), `src/dashboard/view.rs` (DCF section in Fundamentals tab)
+**Tests:** 2 new (test_dcf_basic, test_dcf_margin_of_safety), total: 40 passing
+
+---
+
+### v2.2.1 — Fundamental Analysis Panel + Scraper *(completed 2026-04-22)*
+
+**Theme:** Add fundamental financial metrics to the dashboard. Market cap, P/E, P/B, EV/EBITDA, ROE, debt/equity, FCF, dividend yield, and more. This is the financial verification layer that lets users check whether the astrological signal is supported by the company's actual financial health. Principle #6 (Owner Economics) and Principle #2 (Candor): show the economics plainly.
+
+**Why fundamentals matter for this product:** The astrological score is the lead signal. But a score of 92 means something very different for a company with ROE of 147% and no debt (AAPL) versus a company with negative FCF and 5x debt/equity. The fundamentals panel provides the verification layer. In v2.4, the AI agent personas will interpret these numbers through their investment philosophy.
+
+**Data source: Financial Modeling Prep (FMP)**
+
+Two FMP endpoints provide all the metrics we need:
+- `/v3/key-metrics-ttm/{ticker}` — trailing twelve month valuation ratios (P/E, P/B, EV/EBITDA, etc.)
+- `/v3/ratios-ttm/{ticker}` — profitability margins (net margin, operating margin)
+
+Each ticker costs 2 API calls. With the FMP free tier (250 req/day) shared with the existing IPO enrichment module, we budget 60 tickers per daily run (120 calls). Watchlist tickers are prioritized via `watchlist_priority_sql()`.
+
+**Per-share to absolute conversion:** FMP's TTM endpoint returns some values as per-share figures (FCF per share, revenue per share, etc.). We multiply by `shares_outstanding` to derive absolute dollar values for display. This is more intuitive for users than per-share figures.
+
+**22 metrics stored and displayed, organized in two columns:**
+
+**Left column — Valuation:**
+| Metric | Source | What it tells you |
+|--------|--------|-------------------|
+| Market Cap | key-metrics | Company size |
+| P/E Ratio | key-metrics | Price relative to earnings |
+| P/B Ratio | key-metrics | Price relative to book value |
+| P/S Ratio | key-metrics | Price relative to revenue |
+| EV/EBITDA | key-metrics | Enterprise value relative to operating earnings |
+| PEG Ratio | key-metrics | P/E adjusted for growth rate |
+| P/FCF | key-metrics | Price relative to free cash flow |
+| EPS | derived | Earnings per share |
+| Div Yield | key-metrics | Annual dividend as % of price |
+
+**Right column — Profitability & Health:**
+| Metric | Source | What it tells you |
+|--------|--------|-------------------|
+| ROE | key-metrics | Return on shareholder equity |
+| ROA | key-metrics | Return on total assets |
+| Net Margin | ratios | Profit as % of revenue |
+| Op Margin | ratios | Operating profit as % of revenue |
+| Debt/Equity | key-metrics | Financial leverage |
+| Current Ratio | key-metrics | Short-term liquidity |
+| Revenue | derived | Total annual revenue |
+| Net Income | derived | Total annual profit |
+| FCF | derived | Free cash flow (cash available after capex) |
+
+**Empty state:** When no fundamentals data exists for a ticker, the panel shows an informative message with the data source and instructions to run the scraper with an FMP API key.
+
+**Budget tracking:** The scraper checks `fetch_log` for today's FMP calls before starting. If the budget is exhausted (by IPO enrichment), fundamentals are skipped gracefully with a console message. The module also checks `fundamental_metrics` for today's date to skip tickers already fetched.
+
+**New migration:** `migrations/0024_fundamentals.sql` — `fundamental_metrics` table with 22 columns, unique on (ticker, fetch_date), indexed for fast latest-row lookups.
+**New model:** `FundamentalMetric` struct in `src/models.rs` (22 fields, all `Option` for graceful handling of missing data)
+**New scraper module:** `src/scraper/fundamentals.rs` (~200 lines) — `fetch_fundamentals()` entry point, `FmpKeyMetrics` + `FmpRatios` deserialization, per-share to absolute conversion, upsert with ON CONFLICT
+**Modified:** `src/scraper/main.rs` (mod fundamentals, Phase 2 step 2.7), `src/dashboard/db.rs` (fetch_fundamentals query), `src/dashboard/state.rs` (fundamentals field + FundamentalsLoaded message), `src/dashboard/update.rs` (handler + fetch_all batch), `src/dashboard/view.rs` (two-column metrics grid in Fundamentals tab)
+**Tests:** 40 passing (no new tests for scraper/view, tested via integration)
+
+---
+
+### v2.0.8 — Score Calibration *(completed 2026-04-22)*
+
+**Theme:** Fix the scoring distribution so every ticker gets a meaningful, differentiated score instead of clustering at 0 or 100. Two fixes: sigmoid normalization for the numeric score, and theme-score reconciliation so the narrative theme never contradicts the number.
+
+**The problem:** The old scoring formula was `(50 + delta_sum + moon_mod).clamp(0, 100)`. This looks reasonable until you realize the typical ticker has 53 active aspects, each contributing up to 27 points (base 15 x 1.5 applying x 1.2 dignity). The delta_sum routinely exceeds +/- 200 points. With only 50 points of headroom above and below center, the `.clamp(0, 100)` saturated constantly. Database analysis revealed: 368 tickers (23.4%) scored exactly 0, 225 tickers (14.3%) scored exactly 100. Over a third of the scored universe had no meaningful differentiation. A score of 0 for GOOGL and 0 for a random micro-cap conveys no information.
+
+**Fix 1: Logistic sigmoid normalization (`natal.rs`)**
+
+The new formula replaces linear clamping with a logistic sigmoid:
+
+```
+score = 100 / (1 + e^(-k * x))
+```
+
+where `x = delta_sum + moon_mod` and `k = 0.04`.
+
+**Why a sigmoid?** A sigmoid (S-curve) maps any real number to a bounded range without ever hitting the boundaries. It naturally compresses extreme values while preserving the most resolution in the middle range where differentiation matters most.
+
+The steepness parameter `k = 0.04` was chosen to match the observed delta_sum distribution:
+- At x = 0 (neutral), the score is exactly 50.0
+- At x = +/-50 (moderately bullish/bearish), the score is ~88 / ~12
+- At x = +/-100 (strongly directional), the score is ~98 / ~2
+- The score asymptotically approaches but never reaches 0 or 100
+
+This means every ticker gets a unique score that reflects the actual magnitude of its astrological signal. A ticker with 60 aspects slightly favoring growth will score differently from one with 60 aspects strongly favoring growth.
+
+Mercury retrograde cap (`MERCURY_RX_CAP = 65.0`) is applied after sigmoid: `base_score.min(65.0)`. This preserves the principle that no ticker should score "Optimal" during Mercury retrograde, regardless of how favorable the other aspects are.
+
+**Fix 2: Theme-score reconciliation (`interpretation.rs`)**
+
+The horoscope reading engine has two independent classification systems:
+1. **Numeric score** (natal.rs): sums signed aspect deltas. Jupiter trine natal Venus = positive, Saturn square natal Sun = negative. The sign and magnitude of each aspect delta determines the final number.
+2. **Dominant theme** (interpretation.rs): counts unsigned aspect weights by planet category. Jupiter/Venus aspects feed "Growth & Expansion", Saturn/Pluto aspects feed "Caution & Restructuring", regardless of whether the individual aspect is harmonious or challenging.
+
+These can disagree. Example: a ticker with many Saturn aspects (driving the theme toward "Caution") where most of those Saturn aspects happen to be harmonious trines and sextiles (driving the score upward). Before this fix, ABUS had score 96 + theme "Caution & Restructuring", which is contradictory and confusing.
+
+The reconciliation logic overrides the theme when the numeric score clearly contradicts it:
+- Score >= 65 cannot be "Caution & Restructuring" (overridden to "Growth & Expansion")
+- Score <= 35 cannot be "Growth & Expansion" (overridden to "Caution & Restructuring")
+
+After reconciliation, the theme is further refined with intensity modifiers:
+| Theme | Score Range | Refined Theme |
+|-------|------------|---------------|
+| Growth & Expansion | 76+ | Optimal Growth & Expansion |
+| Growth & Expansion | 56-75 | Growth & Expansion |
+| Growth & Expansion | below 56 | Mild Growth & Expansion |
+| Caution & Restructuring | 0-20 | Extreme Caution & Restructuring |
+| Caution & Restructuring | 21-35 | Caution & Restructuring |
+| Caution & Restructuring | above 35 | Mild Caution & Restructuring |
+| Deep Transformation | score > 50 | Constructive Transformation |
+| Deep Transformation | score <= 50 | Destructive Transformation |
+| Innovation & Disruption | score > 50 | Positive Disruption |
+| Innovation & Disruption | score <= 50 | Volatile Disruption |
+
+**Verification results (1,573 scored tickers):**
+
+Before calibration:
+```
+Exact 0s:   368 (23.4%)    Exact 100s: 225 (14.3%)
+Mean: 42.3    Stddev: 37.3    Range: 0 to 100
+```
+
+After calibration:
+```
+Exact 0s:   0 (0%)         Exact 100s: 0 (0%)
+Mean: 43.7    Stddev: 32.8    Range: 0.1 to 99.9
+```
+
+Well-known ticker differentiation (these were previously clustered at extremes):
+| Ticker | Old Score | New Score | Theme |
+|--------|----------|----------|-------|
+| MSFT | 100 | 98.8 | Optimal Growth & Expansion |
+| NVDA | 100 | 94.9 | Optimal Growth & Expansion |
+| AMZN | 100 | 63.8 | Growth & Expansion |
+| AAPL | 100 | 62.2 | Growth & Expansion |
+| META | 100 | 54.0 | Mild Growth & Expansion |
+| TSLA | 100 | 51.0 | Mild Growth & Expansion |
+| BRK.B | 0 | 24.9 | Caution & Restructuring |
+| V | 0 | 17.7 | Caution & Restructuring |
+| JPM | 0 | 10.5 | Caution & Restructuring |
+| GOOGL | 0 | 5.4 | Extreme Caution & Restructuring |
+
+Concordance verification (Lagrange composite scores with new calibration):
+| Ticker | Lagrange | Label | Concordance |
+|--------|---------|-------|-------------|
+| AAPL | 63.2 | Favorable | Mild Confirm |
+| MSFT | 79.3 | Optimal | Strong Confirm |
+| NVDA | 78.9 | Optimal | Strong Confirm |
+| GOOGL | 38.2 | Unfavorable | Divergence |
+
+**Modified:** `src/astrology/natal.rs` (sigmoid normalization, ~20 lines changed), `src/astrology/interpretation.rs` (theme-score reconciliation, ~25 lines added to `classify_dominant_theme()`)
+**No new migrations.** Score recalibration is purely in the computation layer. Re-running the scraper recomputes all scores with the new formula.
+**Tests:** 35 passing (3 pre-existing Swiss Ephemeris FFI failures unrelated to scoring)
+
+---
+
+### v2.0.7 — Keyboard Navigation *(completed 2026-04-22)*
+
+**Theme:** Power-user keyboard shortcuts that make the dashboard feel like a real terminal. Ctrl+1..6 for instant tab switching, Ctrl+T to jump into the search box, Ctrl+R to refresh, and Escape to clear. No mouse required for the core navigation loop.
+
+**Why keyboard shortcuts?** A Bloomberg-class terminal lives and dies by keyboard efficiency. Traders don't mouse between tabs. With 6 tabs and a search box, the most common navigation actions should be a single keystroke away. This completes the v2.0 "Oracle's Desk" foundation by making the tab system from v2.0.6 actually fast to use.
+
+**How it works in Iced 0.13:** The `subscription()` method now returns a `Subscription::batch` of two subscriptions: the existing 30-second auto-refresh timer and a new `iced::keyboard::on_key_press(handle_key_press)` subscription. Iced's keyboard subscription requires a bare `fn` pointer (not a closure) with signature `fn(Key, Modifiers) -> Option<Message>`. Returning `Some(msg)` fires the message; returning `None` passes the key through to the focused widget (so regular typing in the search box isn't intercepted).
+
+**The `handle_key_press` function** checks `modifiers.control()` first. If Ctrl is held, it matches `Key::Character("1")` through `Key::Character("6")` to dispatch `Message::TabSelected(Tab::*)`, `"t"/"T"` for `Message::FocusSearch`, and `"r"/"R"` for `Message::RefreshNow`. Without Ctrl, `Key::Named(Named::Escape)` dispatches `Message::EscapePressed`.
+
+**Programmatic focus with `text_input::Id`:** The search box now has a stable ID (`"ticker-search"`) assigned via `.id(SEARCH_INPUT_ID)`. When Ctrl+T fires `Message::FocusSearch`, the update handler returns `text_input::focus(SEARCH_INPUT_ID)`, which is an Iced `Task` that programmatically moves keyboard focus to the search box. This is the same pattern Iced uses internally for focus management.
+
+**Shortcut summary:**
+
+| Shortcut | Action | Message |
+|----------|--------|---------|
+| Ctrl+1 | Switch to Astrology tab | `TabSelected(Tab::Astrology)` |
+| Ctrl+2 | Switch to Overview tab | `TabSelected(Tab::Overview)` |
+| Ctrl+3 | Switch to Universe tab | `TabSelected(Tab::Universe)` |
+| Ctrl+4 | Switch to Fundamentals tab | `TabSelected(Tab::Fundamentals)` |
+| Ctrl+5 | Switch to Research tab | `TabSelected(Tab::Research)` |
+| Ctrl+6 | Switch to Portfolio tab | `TabSelected(Tab::Portfolio)` |
+| Ctrl+T | Focus ticker search box | `FocusSearch` |
+| Ctrl+R | Refresh all data | `RefreshNow` |
+| Escape | Clear search input + autocomplete | `EscapePressed` |
+
+**New messages:** `FocusSearch`, `EscapePressed`
+**New constant:** `SEARCH_INPUT_ID` in `update.rs`
+**Modified:** `src/dashboard/update.rs` (keyboard imports, handle_key_press fn, FocusSearch/EscapePressed handlers, subscription batch), `src/dashboard/state.rs` (2 new Message variants), `src/dashboard/view.rs` (search input `.id()`)
+**Tests:** 38 passing (keyboard subscription is integration-tested via Iced's event loop)
+
+---
+
+### v2.0.6 — Tab Navigation System *(completed 2026-04-22)*
+
+**Theme:** Transform the single-page dashboard into a 6-tab interface with Astrology as the flagship first tab. Every section that was previously stacked in one long scroll is now organized into focused tabs, each serving a specific analytical purpose.
+
+**Why tabs?** The dashboard had grown to 18+ sections in one scrollable view. Important information was buried. The astrology reading (the product's core differentiator) was sandwiched between indicator rows and price tables. Tabs solve this by putting Astrology front and center as the default view, with financial data organized into purpose-specific tabs.
+
+**The 6 tabs (in order):**
+
+| Tab | Default | Content | Purpose |
+|-----|---------|---------|---------|
+| **Astrology** | YES | Natal wheel, transits table, moon phase, horoscope | The lead signal |
+| Overview | | Gauges, price chart, sparkline, indicators, signals, watchlist | Quick market pulse |
+| Universe | | Alerts (future: full scored universe explorer) | Cross-ticker view |
+| Fundamentals | | Earnings, price table (future: P/E, DCF, agents) | Financial verification |
+| Research | | News, 8-K filings, insider trades, holdings | Due diligence |
+| Portfolio | | Portfolio positions, macro strip | Portfolio management |
+
+**How it works:** The `Tab` enum lives in `src/dashboard/tabs.rs`. Each tab has a `label()` for display and a `shortcut()` hint (Ctrl+1..6, implemented in v2.0.7). The `Dashboard` struct gained an `active_tab: Tab` field (default: `Tab::Astrology`). The `view()` function renders a shared header (ticker buttons, search bar, recently viewed, refresh button), then a tab bar, then dispatches to tab-specific content via `match self.active_tab`.
+
+**Tab bar UI:** Active tab is visually distinguished with `[brackets]` around the label. All tabs are always visible as buttons. Clicking a tab updates `active_tab` via `Message::TabSelected(Tab)`.
+
+**Zero regression guarantee:** All 18 existing dashboard sections are accessible. Nothing was removed, only reorganized into tabs. The same data loads regardless of which tab is active.
+
+**New file:** `src/dashboard/tabs.rs`
+**Modified:** `src/dashboard/main.rs` (mod tabs), `src/dashboard/state.rs` (active_tab + TabSelected), `src/dashboard/update.rs` (handle TabSelected), `src/dashboard/view.rs` (tab bar + dispatch refactor)
+**Tests:** 38 passing (no new tests needed for UI layout)
+
+---
+
+### v2.0.5 — Lagrange Score Rebalance *(completed 2026-04-22)*
+
+**Theme:** Astrology becomes the lead component in the Lagrange Score. When astrology and financials agree, the system says so with confidence. When they disagree, it flags the divergence plainly. This is Principle #2 (Candor).
+
+**Weight change:**
+| Component | Old Weight | New Weight | Role |
+|-----------|-----------|-----------|------|
+| Astrology | 25% | **40%** | Lead signal |
+| Financial | 35% | **25%** | Verification |
+| Macro | 25% | **20%** | Context |
+| Short Squeeze | 15% | **15%** | Unchanged |
+
+**Why 40% for astrology?** The astrological signal is the product differentiator. Financial data verifies or challenges it. The old 25/35 split treated astrology as a secondary input. The new 40/25 split reflects the core philosophy: astrology leads, financials verify. When they agree, you have high confidence. When they disagree, the Concordance indicator tells you.
+
+**Concordance indicator:** A new enum computed alongside the Lagrange Score that measures whether astrology and financials point in the same direction:
+
+| Concordance | Astro Score | Financial Score | Meaning |
+|-------------|------------|----------------|---------|
+| Strong Confirm (++) | > 60 | > 60 | Both signals agree favorably. High confidence. |
+| Mild Confirm (+) | > 60 | 40-60 | Astro favorable, financials neutral. Moderate confidence. |
+| Divergence (!) | > 60 AND < 40 | Opposite direction | Signals disagree. Flag for review. |
+| Mild Deny (-) | < 40 | 40-60 | Astro unfavorable, financials neutral. Moderate caution. |
+| Strong Deny (--) | < 40 | < 40 | Both signals agree unfavorably. High conviction to avoid. |
+
+**How it works in the pipeline:** After the Lagrange Score is computed (Phase 4), `compute_concordance(astro, fin)` compares the two sub-scores. The result is stored in the `concordance` column of `lagrange_history` alongside the score. The dashboard reads this column and will display it as a badge next to the Lagrange score (implemented in v2.0.6 tab UI).
+
+**New migration:** `migrations/0023_concordance.sql` (adds `concordance TEXT` to `lagrange_history`)
+**Modified:** `src/indicators.rs` (weights + Concordance enum + compute_concordance), `src/models.rs` (concordance field), `src/scraper/lagrange.rs` (store concordance), `src/dashboard/db.rs` (query concordance)
+**Tests:** 38 passing (concordance is deterministic logic, tested implicitly through Lagrange score computation)
+
+---
+
+### v2.0.4 — Astro-First Scraper Pipeline *(completed 2026-04-22)*
+
+**Theme:** Restructure the scraper pipeline so astrology runs FIRST, before any financial data fetching. This is the architectural expression of the core product philosophy: astrology is THE differentiator, everything else verifies the astrological signal.
+
+**Why this matters:** The old pipeline fetched financial data for all tickers equally, then ran astrology last. This was backward. Astrology computation requires zero API calls (Swiss Ephemeris is compiled into the binary), so it's instant and free. Financial data fetching burns API budget (Alpha Vantage: 5/min, FMP: 120/day, Finnhub: 60/min). By running astrology first, we know which tickers the stars favor BEFORE spending any API budget, so we can prioritize the most astrologically interesting tickers for financial verification.
+
+**The 4-phase pipeline:**
+
+```
+PHASE 1: ASTROLOGY (zero API calls, local computation)
+  1.1 Seed natal charts (any new tickers with IPO dates)
+  1.2 Compute daily planetary transits (Swiss Ephemeris, all 13 bodies)
+  1.3 Compute astro scores + generate horoscope readings for all tickers
+  1.4 Compute astro rankings: Top 5 Favorable + Bottom 5 Misaligned
+      -> Log the rankings to console with box-drawing characters
+
+PHASE 2: TARGETED FINANCIAL VERIFICATION (guided by astro rankings)
+  2.1 Watchlist price data (Alpha Vantage)
+  2.2 Sentiment (Alpha Vantage)
+  2.3 News, earnings, ratings (Finnhub)
+  2.4 Macroeconomic data (FRED)
+  2.5 Short interest (FINRA)
+  2.6 Options flow (Polygon.io)
+
+PHASE 3: BULK DATA (universe + history + enrichment)
+  3.1 Ticker universe seeding (Polygon)
+  3.2 Ticker universe seeding (FMP)
+  3.3 Bulk price history (Tiingo, up to 490/day)
+  3.4 EDGAR insider trades + 8-K filings
+  3.5 13F institutional holdings
+  3.6-3.9 IPO date enrichment (AV, FMP, Wikidata, SEC EDGAR)
+
+PHASE 4: COMPOSITE SCORING
+  4.1 Lagrange Score computation (astro-informed)
+```
+
+**AstroRanking struct:** After Phase 1, the `compute_astro_ranking()` function queries the DB for today's scores, returns the top 5 and bottom 5 tickers with their scores and dominant themes, and logs them in a formatted box to the console. The `priority_tickers()` method returns a combined list for future use by Phase 2 functions (when they are enhanced to accept priority ordering).
+
+**Console output during Phase 1:**
+```
+══════════════════════════════════════════════════════════
+  ASTRO RANKINGS — 2026-04-22
+══════════════════════════════════════════════════════════
+  TOP 5 FAVORABLE:
+    1. NVDA   87  Optimal Growth & Expansion
+    2. AAPL   82  Growth & Expansion
+    ...
+  BOTTOM 5 MISALIGNED:
+    1. META   22  Extreme Caution & Restructuring
+    2. TSLA   31  Caution & Restructuring
+    ...
+  Total scored: 487
+══════════════════════════════════════════════════════════
+```
+
+**Modified:** `src/scraper/main.rs` (major pipeline restructure), `src/scraper/astrology.rs` (AstroRanking + compute_astro_ranking)
+**Tests:** 38 passing (no new tests needed for pipeline ordering, existing tests still pass)
+
+---
+
+### v2.0.3 — Horoscope Reading Engine *(completed 2026-04-22)*
+
+**Theme:** Generate written "horoscope readings" for each ticker. Not just a number, but a narrative interpretation that explains what the stars say and what it means for the company. This is the killer feature that turns raw astrological data into actionable financial intelligence.
+
+**How it works:** The engine is entirely template-based. No AI, no API calls, no network requests. Every planet-aspect-planet combination maps to a pre-written financial interpretation stored in Rust match arms. When you ask "what does Jupiter trine natal Venus mean for AAPL?", the engine looks up:
+
+1. **Planet-aspect-planet template:** Jupiter (expansion) + trine (harmonious flow) + Venus (value/partnerships) = "Partnership expansion, revenue growth, favorable M&A conditions."
+2. **Dignity enrichment:** If Jupiter is in Sagittarius (domicile), append "Jupiter is in domicile (strongest expression), amplifying this transit."
+3. **Strength assessment:** Combine orb tightness (exact = "Very strong", 5+ degrees = "Mild") with applying/separating status.
+
+The reading generation pipeline:
+
+```
+TransitScore (from v2.0.2)
+  -> Pick top 5 aspects by |score_delta|
+  -> Map each to TransitInterpretation (meaning + financial implication + strength)
+  -> Classify dominant theme (Growth/Caution/Transformation/Innovation)
+  -> Interpret moon phase in financial context (8 phases)
+  -> Mercury Rx warning if active (3 combined scenarios)
+  -> Compute timing window (applying = energy building vs separating = energy fading)
+  -> Calculate confidence (strong aspect count + directional agreement + score extremity)
+  -> Synthesize overall_outlook narrative (2-3 sentences combining all signals)
+  -> Serialize to JSONB and store in horoscope_readings table
+```
+
+**Dominant theme classifier:** Categorizes the overall reading into one of 8 refined themes by weighting each planet's contribution to growth, caution, transformation, and innovation scores. Jupiter aspects feed "Growth & Expansion", Saturn feeds "Caution & Restructuring", Pluto feeds "Deep Transformation", Uranus feeds "Innovation & Disruption". The theme is further refined by the overall score (e.g., "Growth & Expansion" at score 80+ becomes "Optimal Growth & Expansion").
+
+**Timing window logic:** Counts applying vs separating aspects and checks for tight-orb (< 2 degrees) favorable aspects. A score of 70+ with 2+ tight favorable applying aspects = "Strong favorable window active NOW." A score below 45 with many applying aspects = "Challenging energy intensifying. Defensive positioning recommended."
+
+**Confidence scoring:** Three factors, weighted 0-100:
+- Strong aspect count (|delta| > 5.0): up to 50 points
+- Directional agreement (do most aspects point the same way?): up to 30 points
+- Score extremity (distance from 50): up to 20 points
+
+**Moon phase interpretations (8 phases, financial context):**
+| Phase | Angle | Financial Meaning |
+|-------|-------|-------------------|
+| New Moon | 0-29 degrees | Initiation window. Plant seeds. Bold beginnings supported. |
+| Waxing Crescent | 30-89 degrees | Momentum building. Commit resources. Market rewards forward movement. |
+| First Quarter | 90-134 degrees | Decision point. Cut losers, double down on winners. |
+| Waxing Gibbous | 135-179 degrees | Refine and perfect. Optimization phase. |
+| Full Moon | 180-209 degrees | Peak volatility. Reversals common. Take profits. |
+| Disseminating | 210-269 degrees | Harvest phase. Share results. Reduce momentum exposure. |
+| Last Quarter | 270-314 degrees | Re-evaluate and release. Defensive positioning. |
+| Balsamic | 315-359 degrees | Endings and clearing. Close losing positions. Prepare for renewal. |
+
+**Mercury Rx interpretation:** When Mercury is retrograde, the engine produces a warning that combines the retrograde caution ("NOT a time to sign major contracts") with the current moon phase for nuanced timing. Full Moon + Mercury Rx = "volatility and confusion peak. Maximum caution advised."
+
+**New file:** `src/astrology/interpretation.rs` (~600 lines)
+**New migration:** `migrations/0022_horoscope_readings.sql`
+**Modified:** `src/astrology/mod.rs` (export), `src/scraper/astrology.rs` (generate + store after scoring)
+**Tests:** 8 new tests (total: 38 passing)
+
+---
+
+### v2.0.2 — Extended Aspect System *(completed 2026-04-22)*
+**Theme:** Expand the aspect detection engine from 5 major aspects to 9 (adding 4 minor aspects), implement applying/separating distinction, and add planetary dignity/detriment scoring. This makes the astrological scoring engine production-grade.
+
+**Why this matters:** The v0.5.0-v2.0.1 engine only detected 5 major aspects. This missed important astrological signals. A Quincunx (150 degrees) between transiting Saturn and natal Jupiter often signals "forced restructuring" in financial charts, but our engine was blind to it. The applying/separating distinction is even more impactful: two charts with the same aspects can have completely different readings depending on whether the energy is building or fading. And a transit planet's dignity in its current sign tells you how strong that planet's influence actually is.
+
+**How applying/separating detection works:**
+
+In astrology, an "applying" aspect is one where the transit planet is moving toward the exact angle with the natal planet. A "separating" aspect is one where the transit planet has passed the exact angle and is moving away. Think of it like a wave: applying = the wave is still building, separating = the wave has crested and is receding.
+
+Our implementation uses `longitude_speed` (degrees/day) from Swiss Ephemeris. We project the transit planet's position 0.1 days forward and check whether the angular distance to the exact aspect angle is decreasing (applying) or increasing (separating). This is more accurate than the common "compare yesterday vs today" approach because it uses instantaneous velocity rather than a 24-hour average.
+
+Score multipliers: applying aspects get 1.5x their base score (building energy), separating aspects get 0.7x (fading energy). An applying Jupiter trine scores 50% more than a separating one.
+
+**How planetary dignity works:**
+
+Each planet has signs where it's strongest (Domicile, Exaltation) and weakest (Detriment, Fall). This is one of the oldest systems in astrology, dating back to Hellenistic-era practitioners. The dignity table:
+
+| Planet | Domicile | Exaltation | Detriment | Fall |
+|--------|----------|------------|-----------|------|
+| Sun | Leo | Aries | Aquarius | Libra |
+| Moon | Cancer | Taurus | Capricorn | Scorpio |
+| Mercury | Gemini, Virgo | Virgo | Sagittarius | Pisces |
+| Venus | Taurus, Libra | Pisces | Aries, Scorpio | Virgo |
+| Mars | Aries, Scorpio | Capricorn | Taurus, Libra | Cancer |
+| Jupiter | Sagittarius | Cancer | Gemini | Capricorn |
+| Saturn | Capricorn, Aquarius | Libra | Cancer | Aries |
+
+A dignified planet (Domicile or Exaltation) gets a +20% score modifier. A debilitated planet (Detriment or Fall) gets a -20% modifier. Outer planets (Uranus, Neptune, Pluto) and nodes/Chiron have no traditional dignity, so they always score at baseline (Peregrine, 1.0x).
+
+**New aspect types (4 minor, bringing total to 9):**
+
+| Aspect | Angle | Orb | Nature | Financial meaning |
+|--------|-------|-----|--------|-------------------|
+| Semi-sextile | 30 degrees | 2 degrees | Mildly harmonious | Slight opportunity, incremental growth |
+| Semi-square | 45 degrees | 2 degrees | Challenging | Internal friction, organizational tension |
+| Sesquiquadrate | 135 degrees | 2 degrees | Challenging | External agitation, market pressure |
+| Quincunx (Inconjunct) | 150 degrees | 3 degrees | Stressful adjustment | Forced pivots, uncomfortable restructuring |
+
+Minor aspects score at 0.5x the base magnitude of major aspects. This reflects their subtler energy. A minor semi-square from Saturn carries about half the weight of a major square from Saturn.
+
+**Scoring pipeline (4 layers, up from 2):**
+
+```
+score = base_magnitude                    [planet natures: 5-15 points]
+      x direction                         [harmonious +1, challenging -1, conjunction depends]
+      x orb_modifier                      [1.0 at exact, 0.25 at max orb]
+      x minor_aspect_modifier             [1.0 for major, 0.5 for minor]
+      x dignity_modifier                  [1.2 dignified, 0.8 debilitated, 1.0 peregrine]
+      x applying_separating_modifier      [1.5 applying, 0.7 separating]
+```
+
+**Changes to `src/astrology/aspects.rs` (major expansion, ~510 lines total):**
+
+- `AspectType` enum expanded: 5 variants to 9
+- New methods: `is_major()`, `all()` returning all 9 types
+- `find_aspect()` now checks all 9 types, returns tightest orb on overlap
+- `aspect_nature()` updated for minor aspects (SemiSextile = harmonious, others = challenging)
+- New function `is_applying()` using longitude_speed projection
+- New enum `DignityState` (Domicile, Exaltation, Detriment, Fall, Peregrine) with `name()` and `symbol()`
+- New function `planetary_dignity(planet, sign)` -- full lookup table for Sun through Saturn
+- New function `dignity_modifier(state)` -- 1.2 / 0.8 / 1.0
+- New function `score_aspect_full()` -- full scoring with dignity + minor aspect reduction
+- `score_aspect()` retained as backward-compatible wrapper (delegates to `score_aspect_full` with None defaults)
+- `ActiveAspect` struct expanded: added `applying: bool` and `dignity: DignityState` fields
+
+**Changes to `src/astrology/natal.rs`:**
+
+- `compute_transit_score()` now collects `longitude_speed` for all transit planets via Swiss Eph bridge
+- Computes `is_applying()` for each aspect using instantaneous speed
+- Computes `planetary_dignity()` for each transit planet in its current sign
+- Applies `APPLYING_MULTIPLIER` (1.5) or `SEPARATING_MULTIPLIER` (0.7) to each aspect score
+- `aspects_to_json()` now serializes `applying` and `dignity` fields
+- `aspects_from_json()` parses them back (backward-compatible: defaults to applying=true, dignity=Peregrine for old data)
+
+**Changes to `src/dashboard/astrology.rs`:**
+
+- Transits table header expanded: added "A/S" column (Applying/Separating indicator)
+- Each row now shows "A" or "S" for applying/separating
+- Transit planet name shows dignity suffix: "+" for Domicile/Exalted, "-" for Detriment/Fall
+
+**Test results (30 tests, all passing):**
+
+New tests added:
+- `test_all_9_aspects_detectable` -- every aspect detected at exact angle
+- `test_applying_detection` -- applying/separating correctly identified from speed direction
+- `test_dignity_venus_pisces_exalted` -- Venus in Pisces = Exaltation, 1.2x modifier
+- `test_dignity_venus_virgo_fall` -- Venus in Virgo = Fall, 0.8x modifier
+- `test_dignity_affects_score` -- exalted Venus scores higher than debilitated Venus
+- `test_find_minor_aspect_quincunx` -- Quincunx detected at 150 degrees
+- `test_find_minor_aspect_semisextile` -- Semi-sextile detected at 30 degrees
+- `test_minor_aspect_scores_less_than_major` -- minor aspects score ~50% of major
+
+**Files modified:** `src/astrology/aspects.rs` (major expansion), `src/astrology/natal.rs`, `src/dashboard/astrology.rs`
+
+---
+
+### v2.0.1 — Swiss Ephemeris Accuracy Upgrade *(completed 2026-04-22)*
+**Theme:** Replace the Jean Meeus approximate ephemeris with the Swiss Ephemeris (sub-arcsecond accuracy), expand from 10 to 13 celestial bodies, and lay the foundation for production-grade financial astrology.
+
+**Why this matters:** The Meeus engine we shipped in v0.5.0 was a pure-Rust implementation of simplified astronomical formulas from Jean Meeus' *Astronomical Algorithms*. It was good enough to get the astrology layer working, but testing against Swiss Ephemeris revealed a critical problem: **the Meeus heliocentric-to-geocentric conversion was producing errors of 20-150 degrees for most planets.** Only the Sun and Moon (which use dedicated formulas, not the generic conversion) were accurate. Every planet position displayed in the dashboard from Mercury through Pluto was significantly wrong. Swiss Ephemeris fixes all of them to sub-arcsecond precision.
+
+**How Swiss Ephemeris works (technical explanation):**
+
+Swiss Ephemeris is NOT a web API. It makes zero network calls. It is a C library (written by Astrodienst, Switzerland) that gets compiled directly into our Rust binary via FFI (Foreign Function Interface). When you run `cargo build`, the C compiler on your machine compiles the Swiss Ephemeris C source alongside our Rust code into a single executable. No downloads, no servers, no API keys at runtime.
+
+The library implements VSOP87 planetary theory (a set of mathematical series with thousands of terms) to compute where any planet is at any given Julian Day. A single call to `swe::calc(jdn, Planet::Sun, flags)` executes in microseconds, returning longitude, latitude, distance, and speed. All pure math, computed locally.
+
+There are three accuracy tiers, all running locally on the user's machine:
+
+| Tier | What it is | Accuracy | Data source |
+|------|-----------|----------|-------------|
+| **Swiss Ephemeris** | Interpolation from embedded coefficient files | Sub-arcsecond (~0.001 degrees) | `.se1` files compiled into binary via `embedded-ephe` feature |
+| **Moshier** | Analytical math formulas in C code | Sub-arcminute (~0.01 degrees) | Pure code, no external files needed |
+| **Meeus (old)** | Simplified Rust formulas | 1-150 degree error for planets, < 1 degree for Sun/Moon | Pure code |
+
+The `embedded-ephe` Cargo feature bakes the Swiss Ephemeris data files directly into the compiled binary. These files contain pre-computed coefficients (not raw positions, but the mathematical parameters that let the library interpolate positions for any date from 3000 BC to 3000 AD). Without this feature, you'd need to download `.se1` files separately.
+
+The one important caveat: Swiss Ephemeris is a C library with global internal buffers, so it is not thread-safe. Two threads calling it simultaneously can corrupt results. We protect against this with a `SWE_LOCK` mutex in `natal.rs`. The scraper runs sequentially anyway, so this only affects parallel unit tests (which we run with `--test-threads=1`).
+
+**New celestial bodies (13 total, up from 10):**
+
+| Body | Symbol | Glyph | Swiss Eph constant | Financial astrology meaning |
+|------|--------|-------|--------------------|-----------------------------|
+| North Node (Rahu) | NN | ☊ | `TrueNode` (SE_TRUE_NODE = 11) | Destiny/growth direction. Where karmic expansion aligns with a company's trajectory. |
+| South Node (Ketu) | SN | ☋ | Computed as NorthNode + 180 degrees | What's being released or left behind. Past patterns the company is outgrowing. |
+| Chiron | Ch | ⚷ | `Chiron` (SE_CHIRON = 15) | The "wounded healer." Areas of vulnerability that, when addressed, become the company's greatest strength. |
+
+Chiron note: Chiron is classified as an asteroid in Swiss Ephemeris and requires the asteroid ephemeris file (`seas_18.se1`), which is not included in the `embedded-ephe` feature. We fall back to the Moshier analytical ephemeris for Chiron (still sub-arcminute accuracy). If neither works, Chiron is gracefully skipped, giving 12 bodies instead of 13.
+
+**New module -- `src/astrology/swisseph_bridge.rs` (~200 lines):**
+
+Adapter layer between our `Planet`/`PlanetSnapshot` types and the `swiss-eph` crate's safe API. Key functions:
+
+- `snapshot_all_precise(jdn)` -- compute all 13 bodies with sub-arcsecond accuracy. Falls back to Meeus for any planet where Swiss Eph fails.
+- `longitude_speed(planet, jdn)` -- degrees/day speed for a planet. Positive = direct, negative = retrograde. Critical for v2.0.2's applying/separating aspect detection (no need to compute yesterday's positions separately).
+- `compute_houses(jdn, lat, lon)` -- Whole Sign house cusps + Ascendant + Midheaven for a given location. Defaults to NYSE (40.7128 degrees N, 74.0060 degrees W) for US equity charts.
+- `compute_houses_nyse(jdn)` -- convenience wrapper for NYSE location.
+- `swe_julday(year, month, day, hour)` -- Swiss Eph's own Julian Day computation (verified to agree with our `date_to_jdn()` to within milliseconds).
+
+**Planet enum expansion in `ephemeris.rs`:**
+
+- Added `NorthNode`, `SouthNode`, `Chiron` variants to `Planet` enum
+- `Planet::all()` returns all 13 bodies; `Planet::all_classical()` returns the original 10
+- `Planet::needs_swiss_eph()` returns true for the 3 new bodies (prevents accidental use with Meeus)
+- `planet_longitude()` and `is_retrograde()` panic with helpful messages if called for nodes/Chiron (forces use of Swiss Eph bridge)
+- `norm360()` made public for use by the bridge module
+
+**NatalChart + TransitScore wiring (`natal.rs`):**
+
+- `NatalChart::compute()` now uses `snapshot_all_precise()` instead of `snapshot_all()`. Charts now contain 12-13 bodies at sub-arcsecond accuracy.
+- `compute_transit_score()` uses Swiss Eph for all transit positions. Moon phase computed from Swiss Eph Moon/Sun longitudes (not Meeus formulas). Mercury retrograde detected from snapshot speed (not separate `is_retrograde()` call).
+- Global `SWE_LOCK` mutex protects all Swiss Eph calls from concurrent access.
+- Fallback: if Swiss Eph returns fewer than 10 bodies (catastrophic failure), falls back to Meeus `snapshot_all()`.
+
+**Scraper updates (`src/scraper/astrology.rs`):**
+
+- `compute_daily_transits()` uses `snapshot_all_precise()` and stores `longitude_speed` (degrees/day) for each planet. This enables the v2.0.2 applying/separating distinction without requiring a separate "yesterday's positions" query.
+- `seed_natal_charts()` now also computes and stores natal angles (Ascendant + MC) in the new `natal_angles` table using NYSE location. Logs body count per chart.
+
+**Dashboard updates (`src/dashboard/astrology.rs`):**
+
+- `planet_abbrev()` and `planet_glyph()` extended for NorthNode (NN / ☊), SouthNode (SN / ☋), and Chiron (Ch / ⚷).
+
+**Migration 0021 -- `natal_extended.sql`:**
+
+- New table `natal_angles`: stores Ascendant and MC longitude per ticker (keyed on ticker, references `company_metadata`)
+- New column `daily_transits.longitude_speed`: degrees/day for applying/separating detection
+- No existing data modified. All new columns are nullable for backward compatibility.
+- Optional: uncomment `DELETE FROM natal_positions` to force a full re-seed with Swiss Eph accuracy.
+
+**New dependency:**
+```toml
+swiss-eph = { version = "0.2", features = ["embedded-ephe"] }
+```
+The `embedded-ephe` feature compiles the main planetary ephemeris data into the binary (adds ~2MB to binary size). No runtime file management needed.
+
+**Test results (22 tests, all passing):**
+
+- `test_swe_sun_position` -- Sun at J2000 (Jan 1, 2000) returns ~280 degrees (Capricorn). Correct.
+- `test_swe_vs_meeus_sun_moon` -- Sun and Moon agree between Meeus and Swiss Eph to < 1 degree.
+- `test_swe_nodes` -- North Node and South Node are exactly 180 degrees apart.
+- `test_swe_chiron_optional` -- Chiron gracefully handled whether or not asteroid files are available.
+- `test_swe_julday_agreement` -- Our JDN and Swiss Eph's JDN agree to < 0.001.
+- `test_houses_nyse` -- Valid Ascendant, MC, and 12 house cusps at NYSE location.
+- `test_snapshot_all_precise_count` -- Returns 12-13 bodies, all classical planets and nodes present.
+- All pre-existing natal chart and aspect tests continue to pass.
+
+Note: Tests must run single-threaded (`--test-threads=1`) due to Swiss Ephemeris C library thread-safety limitation. The scraper runs sequentially, so this only affects the test harness.
+
+**Files created:** `src/astrology/swisseph_bridge.rs`, `migrations/0021_natal_extended.sql`
+**Files modified:** `src/astrology/ephemeris.rs`, `src/astrology/mod.rs`, `src/astrology/natal.rs`, `src/scraper/astrology.rs`, `src/dashboard/astrology.rs`, `Cargo.toml`
+
+---
 
 ### v1.0.0 — Enrichment Pipeline + Tiingo + Codebase Refactor *(completed 2026-04-20)*
 **Theme:** Scale the scoring engine beyond the 10-ticker watchlist. Multi-source IPO date enrichment, bulk price history via Tiingo, DRY codebase cleanup, and critical data fixes that unlock Lagrange scores at scale.
@@ -265,12 +1353,14 @@ pursuit_week4_automation/
 ├── src/
 │   ├── lib.rs                        shared types (models, astrology, indicators)
 │   ├── models.rs                     SQLx FromRow structs
-│   ├── indicators.rs                 SMA/EMA/RSI/MACD/BB + Lagrange Score (shared lib)
+│   ├── indicators.rs                 SMA/EMA/RSI/MACD/BB/SMA200 + Lagrange Score     ← MOD v2.4.3
 │   ├── astrology/                    planetary calculation engine
 │   │   ├── mod.rs
-│   │   ├── ephemeris.rs
-│   │   ├── aspects.rs
-│   │   └── natal.rs
+│   │   ├── ephemeris.rs              Planet enum (13 bodies), Meeus fallback, JDN conversion
+│   │   ├── aspects.rs                aspect detection + scoring (9 types, dignity, applying/separating)
+│   │   ├── interpretation.rs         horoscope reading engine + theme-score reconciliation  ← MOD v2.0.8
+│   │   ├── natal.rs                  NatalChart + TransitScore (sigmoid scoring)  ← MOD v2.0.8
+│   │   └── swisseph_bridge.rs        Swiss Ephemeris adapter: sub-arcsecond positions, houses  ← NEW v2.0.1
 │   ├── scraper/
 │   │   ├── main.rs                   entry point + WATCHLIST + scheduler
 │   │   ├── prices.rs                 Alpha Vantage daily OHLCV (watchlist)
@@ -289,19 +1379,28 @@ pursuit_week4_automation/
 │   │   ├── fmp_enrich.rs             FMP ticker universe + IPO date enrichment       ← NEW v1.0
 │   │   ├── company_enrich.rs         Alpha Vantage OVERVIEW IPO enrichment
 │   │   ├── wikidata_enrich.rs        Wikidata SPARQL founding dates                  ← NEW v1.0
+│   │   ├── fundamentals.rs            FMP key-metrics + ratios scraper              ← NEW v2.2.1
 │   │   └── enrich_common.rs          shared: seed_one_natal_chart + watchlist SQL    ← NEW v1.0
 │   └── dashboard/
 │       ├── main.rs                   entry point + mod declarations
-│       ├── state.rs                  Dashboard struct + Message enum
+│       ├── state.rs                  Dashboard struct + Message enum + all features   ← MOD v3.0
 │       ├── indicators.rs             local indicator helpers
 │       ├── signals.rs                plain-English signal bullet generator
 │       ├── helpers.rs                formatting utilities
-│       ├── db.rs                     async DB + API fetch functions
+│       ├── agents.rs                 AI agent personas (Buffett/Graham/Lynch/Munger) ← NEW v2.4.1
+│       ├── patterns.rs               technical pattern recognition (6 patterns)      ← NEW v2.4.3
+│       ├── backtest.rs                astro-driven backtesting engine                 ← NEW v2.8.1
+│       ├── strategy.rs               composable condition chains + strategy backtest  ← NEW v3.0.2
+│       ├── calendar.rs               astro calendar canvas widget (monthly heat map)  ← NEW v3.0.5
+│       ├── heatmap.rs                sector heat map canvas widget                   ← NEW v2.6.2
+│       ├── db.rs                     async DB + transactions + settings + calendar  ← MOD v3.0
+│       ├── dcf.rs                    DCF intrinsic value calculator                ← NEW v2.2.2
 │       ├── gauges.rs                 FearGreedGauge canvas widget
-│       ├── charts.rs                 PriceChart canvas widget with hover
-│       ├── theme.rs                  color tokens, type scale, theme-aware helpers  ← NEW v1.1.0-design
-│       ├── update.rs                 update() + new() + subscription()
-│       ├── view.rs                   view() layout
+│       ├── charts.rs                 PriceChart canvas (volume bars, astro markers)  ← MOD v3.0.1
+│       ├── tabs.rs                   Tab enum (7 tabs, Astrology first)              ← MOD v3.0.4
+│       ├── theme.rs                  color tokens + circadian phase + ThemeMode     ← MOD v2.2.3
+│       ├── update.rs                 update() + strategy + calendar + settings + tx   ← MOD v3.0
+│       ├── view.rs                   view() strategy + calendar + settings + tx log  ← MOD v3.0
 │       └── astrology.rs              natal wheel canvas + transits table
 ├── migrations/
 │   ├── 0001_initial_schema.sql
@@ -323,7 +1422,14 @@ pursuit_week4_automation/
 │   ├── 0017_nullable_ipo_date.sql
 │   ├── 0018_drop_price_data_fk.sql
 │   ├── 0019_scoring_active.sql
-│   └── 0020_sector_industry.sql
+│   ├── 0020_sector_industry.sql
+│   ├── 0021_natal_extended.sql           natal_angles table + longitude_speed column  ← NEW v2.0.1
+│   ├── 0022_horoscope_readings.sql      horoscope readings JSONB storage             ← NEW v2.0.3
+│   ├── 0023_concordance.sql             concordance column on lagrange_history        ← NEW v2.0.5
+│   ├── 0024_fundamentals.sql           fundamental_metrics table (22 columns)        ← NEW v2.2.1
+│   ├── 0025_named_watchlists.sql      watchlists + watchlist_members tables          ← NEW v2.6.3
+│   ├── 0026_transactions.sql         buy/sell transaction log with CHECK constraints  ← NEW v3.0.3
+│   └── 0027_settings.sql             key-value settings store with seeded defaults    ← NEW v3.0.4
 ├── Cargo.toml
 ├── .env                              secrets (never committed)
 ├── .gitignore
@@ -348,24 +1454,34 @@ alternative.me      ──┘
 PostgreSQL  ──►  dashboard binary (SQLx async)  ──►  Iced 0.13 UI
 ```
 
-### Lagrange Score formula
+### Lagrange Score formula (v2.0.5)
 
 ```
-Lagrange Score = Financial(35%) + Astrology(25%) + Macro(25%) + Short Squeeze(15%)
+Lagrange Score = Astrology(40%) + Financial(25%) + Macro(20%) + Short Squeeze(15%)
 
-Financial:
-  RSI(14) normalized 0-100                   × 0.30
-  Price vs SMA50 momentum (±10% → 0-100)     × 0.30
-  MACD histogram (±0.2% of price → 0-100)    × 0.20
-  AV sentiment (-1..+1 → 0-100)              × 0.20
+Astrology (lead signal, 40%):
+  Today's astro_score from Swiss Ephemeris transit scoring (0-100)
 
-Macro:
-  VIX score: (90 - (vix - 10) × 1.4) clamped 0-100   × 0.60
-  Yield spread T10Y2Y: ((spread+1)×20+30) clamped      × 0.40
+Financial (verification, 25%):
+  RSI(14) normalized 0-100                   x 0.30
+  Price vs SMA50 momentum (+/-10% -> 0-100)  x 0.30
+  MACD histogram (+/-0.2% of price -> 0-100) x 0.20
+  AV sentiment (-1..+1 -> 0-100)             x 0.20
 
-Short Squeeze:
-  base: pct>30% → 75, pct>20% → 65, pct>10% → 50, else 40
+Macro (context, 20%):
+  VIX score: (90 - (vix - 10) x 1.4) clamped 0-100   x 0.60
+  Yield spread T10Y2Y: ((spread+1)x20+30) clamped     x 0.40
+
+Short Squeeze (15%):
+  base: pct>30% -> 75, pct>20% -> 65, pct>10% -> 50, else 40
   bonus: +15 if price rising AND short% > 15%
+
+Concordance = compare(astro_score, fin_score):
+  Strong Confirm (++) = astro > 60 AND fin > 60
+  Mild Confirm (+)    = astro > 60 AND fin 40-60
+  Divergence (!)      = astro and fin point opposite directions
+  Mild Deny (-)       = astro < 40 AND fin 40-60
+  Strong Deny (--)    = astro < 40 AND fin < 40
 
 Labels: Misaligned (0-24) / Unfavorable (25-44) / Neutral (45-55) /
         Favorable (56-75) / Optimal (76-100)
@@ -701,16 +1817,472 @@ Tiingo budget: 490/day  ·  Today's usage: 312/490
 
 ---
 
+### v2.0 Roadmap — "The Oracle's Desk"
+
+**Theme:** Astrology is THE product differentiator. Everything else verifies the astrological signal.
+
+- [x] v2.0.1 — Swiss Ephemeris accuracy upgrade (13 bodies, sub-arcsecond, houses)
+- [x] v2.0.2 — Extended aspect system (9 types, applying/separating, planetary dignity)
+- [x] v2.0.3 — Horoscope reading engine (narrative interpretation per ticker)
+- [x] v2.0.4 — Astro-first scraper pipeline (astro Phase 1, financial Phase 2)
+- [x] v2.0.5 — Lagrange Score rebalance (Astro 40%, Financial 25%, Macro 20%, Short 15%)
+- [x] v2.0.6 — Tab navigation system (Astrology as first tab, 6 tabs total)
+- [x] v2.0.7 — Keyboard navigation (Ctrl+1..6 tabs, Ctrl+T search, Ctrl+R refresh, Escape clear)
+- [x] v2.0.8 — Score calibration (sigmoid normalization, theme-score reconciliation)
+
+### v2.2 Roadmap — "The Owner's Lens"
+
+**Theme:** Fundamentals panel, DCF calculator, circadian theming. Financial data to verify the astro signal.
+
+- [x] v2.2.1 — Fundamental analysis panel + FMP scraper (22 metrics, two-column grid)
+- [x] v2.2.2 — DCF intrinsic value calculator (two-stage model, margin of safety)
+- [x] v2.2.3 — Circadian theme system (4 phases, 3 modes: Auto/Light/Dark)
+- [x] v2.2.4 — Two-column Overview layout (FillPortion 3:2 split)
+
+### v2.4 Roadmap — "The Council"
+
+**Theme:** AI agent personas that review the astrological reading. Comparative analysis. Technical pattern detection. Three product pillars converge.
+
+- [x] v2.4.1 — AI agent personas (Buffett/Graham/Lynch/Munger template analysis)
+- [x] v2.4.2 — Comparative analysis (up to 4 tickers, LATERAL JOIN, astro + fundamentals)
+- [x] v2.4.3 — Technical pattern recognition (Golden/Death Cross, Double Top/Bottom, Support/Resistance, SMA200)
+
+### v2.6 Roadmap — "The Explorer"
+
+**Theme:** Universe Explorer, sector heat map, multiple watchlists. Navigate the full scored universe with astro rankings front and center.
+
+- [x] v2.6.1 — Universe Explorer panel (paginated table, zone/sector filters, 11 columns, astro-first)
+- [x] v2.6.2 — Sector heat map (canvas widget, proportional cells, two-phase color interpolation)
+- [x] v2.6.3 — Multiple watchlists + CSV export (CRUD, named watchlists, rfd file dialog)
+
+### v2.8 Roadmap — "The Strategist"
+
+**Theme:** Backtesting (astro-driven strategies), portfolio gain/loss tracking. Empirical validation of the astro signal.
+
+- [x] v2.8.1 — Astro-driven backtesting engine (configurable thresholds, signal accuracy metric, trade log)
+- [x] v2.8.2 — Portfolio gain/loss tracking (unrealized P&L, color coding, astro score per holding)
+
+### v3.0 Roadmap — "The Terminal"
+
+**Theme:** Terminal-grade polish. Advanced charting, strategy builder, transaction log, settings persistence, astro calendar. All 7 Berkshire principles in final form.
+
+- [x] v3.0.1 — Advanced charting (volume bars, timeframe selector 1M/3M/6M/1Y/ALL, astro event markers)
+- [x] v3.0.2 — Strategy builder (8 condition types, AND/OR logic, quick-add buttons, backtest integration)
+- [x] v3.0.3 — Portfolio transaction log (BUY/SELL CRUD, CHECK constraints, color-coded action labels)
+- [x] v3.0.4 — Settings panel (DB-backed key-value store, theme/refresh persistence, dashboard info)
+- [x] v3.0.5 — Astro calendar (monthly canvas heat map, score-colored days, prev/next navigation)
+- [x] v3.0.6 — Post-release bugfix patch (3 bugs + 16 compiler warnings)
+- [ ] v3.0.7 — Dashboard UI review (6 bugs + 6 UX improvements from video review)
+
+### v3.1 Roadmap — "The Network"
+
+**Theme:** New data integrations ported from FinceptTerminal (C++20/Qt6). Three free, no-API-key data sources that expand our coverage: international economics, 60+ news feeds, and prediction market sentiment. Each integration follows the existing scraper module pattern (`src/scraper/*.rs`).
+
+**Reference:** `reference/fincept_terminal_api_catalog.md` (full API catalog), `reference/fincept_src/` (C++ source files for translation)
+
+- [ ] v3.1.0 — DBnomics international economics (free REST API, 70+ data providers, supplements FRED)
+- [ ] v3.1.1 — RSS news aggregation (60+ financial feeds, native XML parsing, parallel fetch)
+- [ ] v3.1.2 — Polymarket prediction markets (sentiment signal from probability markets, 3 API bases)
+- [ ] v3.1.3 — Dashboard wiring (new Economics tab section, news expansion, Polymarket sentiment gauge)
+
+See master plan: `.claude/plans/delegated-dazzling-globe.md` for full v2.0-v3.1 roadmap with dependency chain.
+
+#### v3.0.6 Bugfix Patch (Post-Release Review)
+
+Three bugs identified from scraper/dashboard output review, plus 16 compiler warnings cleaned.
+
+**Bug 1 (CRITICAL): Score Polarization**
+Astro scores clustered bimodally at 0-5 and 95-100 across 1642 tickers. Root cause: the logistic sigmoid in `natal.rs` fed raw `delta_sum` (range +/-300 with 50-70 aspects per ticker) into a sigmoid with k=0.04, which saturated to extremes. Fix: normalize `delta_sum` by `sqrt(aspect_count)` before the sigmoid, and increase k from 0.04 to 0.10. The sqrt normalization preserves the signal that "more aligned aspects = stronger" while preventing linear scaling from saturating. With sqrt(50) = 7.07, raw +/-300 becomes +/-42, and k=0.10 maps that through a properly-shaped bell curve centered at 50.
+
+**Bug 2 (MODERATE): Theme-Score Mismatch**
+Tickers like AG scored 64 ("Greed") but had theme "Mild Caution & Restructuring". Root cause: the theme classifier in `interpretation.rs` counts aspect frequencies by planet type (how many Saturn aspects), while the score sums signed deltas (magnitude). These independent pathways can disagree. The reconciliation logic only overrode themes at extremes (score 65+ or 0-35), leaving scores 36-64 unreconciled. Fix: expand reconciliation window to 56+/0-44, aligning with the score label boundaries (Neutral = 45-55).
+
+**Bug 3 (MINOR): AstroRanking Not Consumed**
+The `AstroRanking` struct was built in Phase 1 but stored as `_ranking` (underscore = intentionally unused). Phase 2 functions used the hardcoded `WATCHLIST` constant, ignoring the astro-prioritized tickers. Fix: renamed to `ranking`, added `fetch_priority_prices()` to `prices.rs` that fetches price data for top/bottom astro tickers before the watchlist. Priority tickers already in the watchlist are skipped to avoid wasting API calls.
+
+**Compiler Warnings (16 total, all resolved):**
+- 5 true dead code removed: unused `Theme` import, unused `Logic` import, unused variable `n`, unused `shortcut()` method, unused `TEXT_XL` constant
+- 9 incomplete feature fields suppressed with `#[allow(dead_code)]`: AgentContext (6 fields), CalendarDay.label, DcfResult (3 fields), SectorSummary.avg_lagrange, PortfolioPnlRow.notes, TransactionRow.notes, AstroRanking.total_scored, FmpKeyMetrics.earnings_yield_ttm
+- 2 partially wired strategy features suppressed: MacdCrossUp/MacdCrossDown variants, all_options(), Strategy.name
+
+---
+
+#### v3.0.7 Implementation Plan
+
+**Phase 1 (highest impact):**
+1. Bug 5+6: Rewrite `fetch_universe_page()` in `db.rs:575-615` to use `astro_scores` as primary table with LEFT JOIN on `lagrange_history`. Universe goes from 3 tickers to ~1675. Astro scores come from source table.
+2. Bug 4: Fix search autocomplete race condition. Add `autocomplete_just_selected` guard in `state.rs`, check in `TickerSearchInput` handler. Add click-outside dismiss via mouse_area in `view.rs`.
+
+**Phase 2 (features):**
+3. Bug 7: Wire horoscope reading display. Add `fetch_horoscope()` to `db.rs`, load in `update.rs` on ticker selection, render in `view.rs` astrology section.
+4. Bug 9: Add `fetch_ticker_earnings()` to `db.rs` filtered by current ticker. Relabel watchlist section.
+
+**Phase 3 (scraper):**
+5. Bug 8: Replace AV `bail!` on "Information" response with sleep(60s) + retry in `prices.rs:92-94`.
+
+**Phase 4 (UX polish):**
+6. UX-1: Natal wheel 240px to 300px (`view.rs:665`). UX-2: Astro calendar color legend. UX-3: Deduplicate institutional holders. UX-4: Tab-contextual title bar. UX-5: Agent graceful empty state. UX-6: Verify recently viewed overflow.
+
+---
+
+### v3.1 Implementation Plan — "The Network" (FinceptTerminal Integrations)
+
+**Source material:** FinceptTerminal C++20/Qt6 codebase, cataloged at `reference/fincept_terminal_api_catalog.md`. Key source files saved locally at `reference/fincept_src/` for direct Rust translation.
+
+**Design principle:** Each integration follows the existing scraper pattern: an async function in `src/scraper/*.rs` that fetches data via `reqwest`, stores in PostgreSQL via `sqlx`, and logs via `log_fetch()`. No new architectural patterns needed for the scraper side. Dashboard wiring follows the standard state/update/view/db cycle.
+
+#### v3.1.0 — DBnomics International Economics
+
+**What:** DBnomics (`https://api.dbnomics.org`) aggregates 70+ economic data providers (FRED, ECB, BIS, Eurostat, World Bank, OECD, etc.) into a single free REST API. No API key required. This supplements our existing FRED integration with international economics data.
+
+**Why this first:** Simplest integration. Pure REST + JSON. Their C++ implementation (`reference/fincept_src/services/dbnomics/DBnomicsService.cpp`, 372 lines) maps 1:1 to our `reqwest` + `serde_json` pattern. No new crate dependencies.
+
+**Porting from FinceptTerminal:**
+- `DBnomicsService::fetch_providers()` -> `fetch_dbnomics_providers()` in Rust
+- `DBnomicsService::fetch_datasets()` -> `fetch_dbnomics_datasets()` in Rust
+- `DBnomicsService::fetch_series()` -> `fetch_dbnomics_series()` in Rust
+- `DBnomicsService::fetch_observations()` -> `fetch_dbnomics_observations()` in Rust
+- `DBnomicsService::global_search()` -> `search_dbnomics()` in Rust
+- Their pagination pattern (offset-based, 50 per page) translates directly
+- Their debounce timer (300ms) maps to a simple `tokio::time::sleep` guard
+
+**REST Endpoints (from their C++ source):**
+```
+GET /providers                                    -- list all 70+ data providers
+GET /datasets/{provider}?limit=50&offset=N        -- datasets per provider
+GET /series/{provider}/{dataset}?limit=50&offset=N&observations=false  -- series listing
+GET /series/{provider}/{dataset}/{series}?observations=1&format=json   -- actual data points
+GET /search?q={query}&limit=20&offset=N           -- global search across all providers
+```
+
+**Pre-selected series for our macro dashboard (replacing/supplementing FRED):**
+| Series ID | Provider | Description | Replaces |
+|-----------|----------|-------------|----------|
+| `FRED/DGS10` | FRED | 10-Year Treasury Yield | Already have via FRED |
+| `ECB/FM/M.U2.EUR.RT.MM.EURIBOR3MD_.HSTA` | ECB | Euribor 3M | New: EU rates |
+| `BIS/WS_CBPOL/M.CN.CNY.N.O` | BIS | PBoC policy rate | New: China rates |
+| `IMF/WEO/USA.NGDP_RPCH` | IMF | US GDP growth forecast | New: IMF projections |
+| `Eurostat/prc_hicp_manr/M.I15.CP00.EA` | Eurostat | Eurozone CPI | New: EU inflation |
+| `OECD/MEI_CLI/LOLITOAA.USA.M` | OECD | US Leading Indicator | New: OECD CLI |
+
+**New files:**
+- `src/scraper/dbnomics.rs` -- scraper module (~150 lines)
+- `migrations/0021_dbnomics_series.sql` -- storage table
+
+**Migration:**
+```sql
+CREATE TABLE IF NOT EXISTS dbnomics_series (
+    id SERIAL PRIMARY KEY,
+    provider TEXT NOT NULL,       -- e.g., 'ECB', 'BIS', 'OECD'
+    dataset TEXT NOT NULL,        -- e.g., 'FM', 'WS_CBPOL'
+    series_code TEXT NOT NULL,    -- e.g., 'M.U2.EUR.RT.MM.EURIBOR3MD_.HSTA'
+    obs_date DATE NOT NULL,
+    value DOUBLE PRECISION,
+    label TEXT,                   -- human-readable name
+    fetched_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (provider, dataset, series_code, obs_date)
+);
+```
+
+**Scraper implementation checklist:**
+- [ ] Create `src/scraper/dbnomics.rs` with `fetch_dbnomics()` entry point
+- [ ] Define `DbnomicsResponse` and `DbnomicsObservation` serde structs
+- [ ] Implement `fetch_series_observations(client, provider, dataset, series)` for each pre-selected series
+- [ ] Rate limit: 3 req/s (matching FinceptTerminal's rate limit)
+- [ ] Store observations in `dbnomics_series` table via upsert
+- [ ] Wire into `src/scraper/main.rs` Phase 3 (bulk data, after astro + financial)
+- [ ] Add `mod dbnomics;` to main.rs
+- [ ] Log via `log_fetch(pool, "dbnomics", None, series_id, "ok", None)`
+
+**Dashboard wiring:**
+- [ ] `db.rs`: `fetch_dbnomics_latest(pool)` -- latest observation per series
+- [ ] `state.rs`: `pub international_macro: Vec<DbnomicsSeries>`
+- [ ] `update.rs`: load on startup alongside existing macro_data
+- [ ] `view.rs`: Add "International" subsection to macro strip (Euribor, PBoC rate, EU CPI, OECD CLI)
+
+---
+
+#### v3.1.1 — RSS News Aggregation
+
+**What:** Parallel fetching of 60+ financial RSS/Atom feeds, parsed natively with no API key. Supplements our existing Finnhub news (which is limited to ~50 articles/day on free tier).
+
+**Why:** FinceptTerminal's `NewsService.cpp` (1,327 lines) fetches 80+ feeds in parallel with XML parsing, tiered priority, and deduplication. We'll port the top 60 financial feeds (skipping regional/niche ones). This gives us always-fresh news from Reuters, WSJ, CNBC, Bloomberg, SEC, Federal Reserve, and more.
+
+**Porting from FinceptTerminal:**
+- `NewsService::default_feeds()` -> hardcoded `Vec<RssFeed>` constant in Rust
+- `NewsService::fetch_all_news()` -> `fetch_rss_news()` with `tokio::join!` parallelism
+- `NewsService::parse_rss_items()` -> `parse_feed()` using `feed-rs` crate
+- Their parallel fetch + shared state + atomic counter pattern maps to `futures::join_all` in Rust
+- Their tier system (1-4) for feed priority, we'll keep as a simple integer field
+- Their deduplication (by link URL) maps to a SQL UNIQUE constraint
+
+**Feed selection (60 feeds from their 80+, organized by tier):**
+
+**Tier 1 (Wire services, regulatory -- always fetch first):**
+```
+Reuters Business:    https://feeds.reuters.com/reuters/businessNews
+Reuters Markets:     https://feeds.reuters.com/reuters/financialsNews
+AP Top News:         https://rsshub.app/apnews/topics/ap-top-news
+SEC Press Releases:  https://www.sec.gov/news/pressreleases.rss
+Federal Reserve:     https://www.federalreserve.gov/feeds/press_all.xml
+IMF News:            https://www.imf.org/en/News/rss?language=eng
+ECB Press:           https://www.ecb.europa.eu/rss/press.html
+Bank of England:     https://www.bankofengland.co.uk/rss/news
+```
+
+**Tier 2 (Major financial media):**
+```
+Bloomberg Markets:   https://feeds.bloomberg.com/markets/news.rss
+WSJ Markets:         https://feeds.a.dj.com/rss/RSSMarketsMain.xml
+MarketWatch:         https://feeds.marketwatch.com/marketwatch/topstories/
+CNBC Top News:       https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114
+Seeking Alpha:       https://seekingalpha.com/market_currents.xml
+BBC Business:        http://feeds.bbci.co.uk/news/business/rss.xml
+Benzinga:            https://www.benzinga.com/feed
+Investing.com:       https://www.investing.com/rss/news.rss
+FXStreet:            https://www.fxstreet.com/rss/news
+OilPrice:            https://oilprice.com/rss/main
+Kitco Gold:          https://www.kitco.com/rss/news/
+CoinDesk:            https://www.coindesk.com/arc/outboundfeeds/rss/
+```
+
+**Tier 3 (Specialized/analysis):**
+```
+ZeroHedge:           https://feeds.feedburner.com/zerohedge/feed
+Calculated Risk:     https://feeds.feedburner.com/CalculatedRisk
+Wolf Street:         https://wolfstreet.com/feed/
+TechCrunch:          https://techcrunch.com/feed/
+Ars Technica:        https://feeds.arstechnica.com/arstechnica/index
+(+35 more from FinceptTerminal's feed list)
+```
+
+**New crate dependency:** `feed-rs = "2"` (unified RSS 2.0 / Atom / JSON Feed parser)
+
+**New files:**
+- `src/scraper/rss_news.rs` -- scraper module (~200 lines)
+- `migrations/0022_rss_articles.sql` -- storage table
+
+**Migration:**
+```sql
+CREATE TABLE IF NOT EXISTS rss_articles (
+    id SERIAL PRIMARY KEY,
+    feed_id TEXT NOT NULL,          -- e.g., 'reuters-biz', 'wsj-markets'
+    title TEXT NOT NULL,
+    link TEXT NOT NULL UNIQUE,      -- dedup key
+    summary TEXT,
+    published_at TIMESTAMPTZ,
+    source_name TEXT NOT NULL,      -- e.g., 'Reuters', 'WSJ'
+    category TEXT,                  -- 'MARKETS', 'REGULATORY', 'ECONOMIC', 'TECH', 'CRYPTO'
+    region TEXT DEFAULT 'GLOBAL',   -- 'US', 'EU', 'ASIA', 'GLOBAL'
+    tier INT DEFAULT 2,
+    fetched_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_rss_articles_published ON rss_articles(published_at DESC);
+CREATE INDEX idx_rss_articles_category ON rss_articles(category);
+```
+
+**Scraper implementation checklist:**
+- [ ] Add `feed-rs = "2"` to `Cargo.toml`
+- [ ] Create `src/scraper/rss_news.rs` with `fetch_rss_news()` entry point
+- [ ] Define `RssFeed { id, name, url, category, region, source, tier }` struct
+- [ ] Hardcode 60 feeds as `const RSS_FEEDS: &[RssFeed]`
+- [ ] Implement `fetch_single_feed(client, feed) -> Vec<RssArticle>` with 5s timeout per feed
+- [ ] Parallel fetch all feeds using `futures::join_all` (like FinceptTerminal's parallel QNetworkAccessManager)
+- [ ] Parse via `feed_rs::parser::parse()`, extract title/link/summary/date
+- [ ] Dedup by link URL (SQL UNIQUE constraint handles this)
+- [ ] Rate limit: no limit needed (RSS feeds are designed for polling)
+- [ ] Wire into `src/scraper/main.rs` Phase 3, run once per scraper invocation
+- [ ] Prune articles older than 30 days on each run
+- [ ] Log via `log_fetch(pool, "rss", None, feed_id, "ok", Some(count))`
+
+**Dashboard wiring:**
+- [ ] `db.rs`: `fetch_recent_news(pool, limit)` -- latest articles across all feeds, merged with Finnhub
+- [ ] `models.rs`: Add `source: String` field to `NewsArticle` if not already present
+- [ ] `view.rs`: News section shows both Finnhub and RSS articles, sorted by date, with source badge
+- [ ] Add category filter (Markets / Regulatory / Economic / Tech / Crypto) to Research tab
+
+---
+
+#### v3.1.2 — Polymarket Prediction Markets
+
+**What:** Polymarket is a prediction market where users bet on real-world outcomes (Fed rate decisions, elections, corporate events). The probability prices are a crowd-sourced sentiment signal. No API key required for read-only access.
+
+**Why:** Novel signal that no other financial terminal integrates as a market indicator. "What does the market think the probability of a rate cut is?" directly informs macro analysis. FinceptTerminal's `PolymarketService.cpp` (843 lines) implements all three Polymarket APIs.
+
+**Porting from FinceptTerminal:**
+- `PolymarketService::fetch_markets()` -> `fetch_polymarkets()` in Rust
+- `PolymarketService::fetch_events()` -> `fetch_poly_events()` in Rust
+- `PolymarketService::search_markets()` -> `search_polymarkets()` in Rust
+- `PolymarketService::fetch_price_history()` -> `fetch_poly_prices()` in Rust
+- Their three-base-URL pattern (Gamma for discovery, CLOB for pricing, Data for analytics)
+- Their `num_or_str()` JSON helper (CLOB returns numbers as strings)
+
+**Three API bases (from their C++ source):**
+```
+Gamma (discovery): https://gamma-api.polymarket.com
+  GET /markets?closed=false&limit=50&offset=N&order=volume  -- list markets
+  GET /markets/{id}                                          -- market detail
+  GET /markets?_q={query}&limit=20                          -- search
+  GET /events?closed=false&limit=50&offset=N                -- events
+  GET /tags                                                  -- categories
+
+CLOB (pricing):    https://clob.polymarket.com
+  GET /book?token_id={id}                                   -- order book
+  GET /prices-history?market={id}&interval=1d&fidelity=100  -- price history
+  GET /midpoint?token_id={id}                               -- current probability
+
+Data (analytics):  https://data-api.polymarket.com
+  GET /trades?market={id}&limit=100                         -- recent trades
+  GET /v1/leaderboard?category=OVERALL&orderBy=PNL&limit=20 -- top traders
+```
+
+**Pre-selected markets for macro sentiment:**
+| Market Question | Signal Type | How We Use It |
+|----------------|-------------|---------------|
+| "Will the Fed cut rates in [month]?" | Monetary policy probability | Macro indicator: rate cut odds |
+| "US Recession in 2026?" | Recession probability | Macro fear/greed input |
+| "Will S&P 500 reach [level] by [date]?" | Market direction | Bull/bear sentiment |
+| "Will inflation be above 3% in [month]?" | Inflation expectations | Macro indicator |
+
+**New files:**
+- `src/scraper/polymarket.rs` -- scraper module (~250 lines)
+- `migrations/0023_polymarket.sql` -- storage tables
+
+**Migration:**
+```sql
+CREATE TABLE IF NOT EXISTS polymarket_events (
+    id SERIAL PRIMARY KEY,
+    poly_id INT NOT NULL UNIQUE,
+    question TEXT NOT NULL,
+    slug TEXT,
+    volume DOUBLE PRECISION,
+    liquidity DOUBLE PRECISION,
+    end_date TIMESTAMPTZ,
+    active BOOLEAN DEFAULT TRUE,
+    category TEXT,              -- matched to our signal types
+    fetched_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS polymarket_prices (
+    id SERIAL PRIMARY KEY,
+    poly_market_id INT NOT NULL,
+    token_id TEXT NOT NULL,
+    probability DOUBLE PRECISION NOT NULL,  -- 0.0 to 1.0
+    price_date DATE NOT NULL,
+    fetched_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (poly_market_id, token_id, price_date)
+);
+CREATE INDEX idx_polymarket_prices_date ON polymarket_prices(price_date DESC);
+```
+
+**Scraper implementation checklist:**
+- [ ] Create `src/scraper/polymarket.rs` with `fetch_polymarket()` entry point
+- [ ] Define `PolyMarket`, `PolyEvent`, `PolyPrice` serde structs
+- [ ] Implement Gamma API: `fetch_markets(client, query)` for keyword search
+- [ ] Implement CLOB API: `fetch_midpoint(client, token_id)` for current probability
+- [ ] Implement CLOB API: `fetch_price_history(client, token_id)` for trend
+- [ ] Search for pre-selected macro-relevant markets on each run
+- [ ] Store events + latest probabilities in DB
+- [ ] Rate limit: 10 req/s (matching FinceptTerminal)
+- [ ] Wire into `src/scraper/main.rs` Phase 3
+- [ ] Handle FinceptTerminal's `num_or_str()` pattern: CLOB returns numbers as JSON strings
+
+**Dashboard wiring:**
+- [ ] `db.rs`: `fetch_polymarket_sentiment(pool)` -- latest probabilities for tracked markets
+- [ ] `state.rs`: `pub polymarket_signals: Vec<PolymarketSignal>`
+- [ ] `view.rs`: Add "Prediction Markets" section to Overview tab, showing probabilities as gauges
+- [ ] Optional: integrate rate-cut probability into Lagrange macro sub-score as a new input
+
+---
+
+#### v3.1.3 — Dashboard Integration & New Tab Sections
+
+**What:** Wire all three new data sources into the dashboard UI. Add an "International Economics" subsection to the macro strip, expand the news section with RSS feeds, and add a Polymarket sentiment gauge.
+
+**Checklist:**
+- [ ] Macro strip: add international indicators row (Euribor, PBoC rate, OECD CLI, EU CPI)
+- [ ] News section: merge Finnhub + RSS articles, sort by date, show source badge with tier color
+- [ ] Research tab: add category filter buttons (Markets / Regulatory / Economic / Tech / Crypto)
+- [ ] Overview tab: add Polymarket probability gauges for tracked macro events
+- [ ] Settings tab: add toggles for enabling/disabling each new data source
+- [ ] Consider: Polymarket rate-cut probability as input to Lagrange macro sub-score
+
+---
+
+#### v3.1 Dependency Chain
+
+```
+v3.0.7 (bug fixes) -- must complete first
+ +-- v3.1.0 (DBnomics) -- standalone, no dependencies on other v3.1.x
+ +-- v3.1.1 (RSS News) -- standalone, no dependencies on other v3.1.x
+ +-- v3.1.2 (Polymarket) -- standalone, no dependencies on other v3.1.x
+ +-- v3.1.3 (Dashboard wiring) -- requires all three above
+```
+
+v3.1.0, v3.1.1, and v3.1.2 can be implemented in parallel. Each is an independent scraper module. v3.1.3 wires them all into the dashboard.
+
+#### v3.1 Estimated Effort
+
+| Version | New Files | New Crates | Migration | Lines |
+|---------|-----------|------------|-----------|-------|
+| v3.1.0 DBnomics | `scraper/dbnomics.rs` | None | 0021 | ~150 |
+| v3.1.1 RSS News | `scraper/rss_news.rs` | `feed-rs` | 0022 | ~200 |
+| v3.1.2 Polymarket | `scraper/polymarket.rs` | None | 0023 | ~250 |
+| v3.1.3 Dashboard | -- | -- | -- | ~100 |
+| **Total** | **3 new files** | **1 crate** | **3 migrations** | **~700 lines** |
+
+---
+
+### External Reference: FinceptTerminal
+
+**Source:** https://github.com/Fincept-Corporation/FinceptTerminal (C++20/Qt6, ~13k stars)
+**Local catalog:** `reference/fincept_terminal_api_catalog.md`
+**Local source:** `reference/fincept_src/` (key files fetched for Rust porting reference)
+
+FinceptTerminal integrates 13 API providers via a DataHub pub/sub architecture. Key integrations relevant to our project:
+
+| Provider | API Key | Cost | Priority | What We'd Gain |
+|----------|---------|------|----------|----------------|
+| DBnomics | None | Free | HIGH | 70+ economic data providers, supplements FRED |
+| RSS Feeds (80+) | None | Free | MEDIUM | Massive news coverage, supplements Finnhub |
+| Polymarket | None | Free | MEDIUM | Prediction market probabilities as sentiment signal |
+| Databento | Required | Paid | LOW | Institutional derivatives data (v4.x) |
+| WebSockets | Varies | Varies | LOW | Real-time streaming (v4.x) |
+| Broker APIs | Required | Varies | LOW | Trading execution (v5.x) |
+
+**Architecture pattern:** Their DataHub pub/sub with per-topic TTL, rate limits, and request coalescing is worth porting. Maps to `tokio::broadcast` + `governor` crate in Rust.
+
+---
+
 ### Backlog (no version assigned yet)
 
 - [ ] `docker-compose.yml` — reproducible local PostgreSQL setup
 - [ ] FINRA API token refresh — current key expires when session does; need OAuth2 refresh flow
 - [ ] Polygon.io Starter plan ($29/mo) — full options snapshot endpoint
-- [ ] Swiss Ephemeris (`swisseph` FFI) — sub-arcsecond planetary accuracy
 - [ ] One-click installer / packaged binary for distribution
+- [ ] Databento derivatives data — institutional-grade options vol surfaces, Greeks (paid API, v4.x)
+- [ ] WebSocket real-time streaming — Alpaca/Polygon live price feeds via `tokio-tungstenite` (v4.x)
+- [ ] Broker trading integration — Alpaca REST API for order execution (v5.x)
+- [ ] DataHub pub/sub architecture — FinceptTerminal-style topic routing with per-producer rate limits (v4.x)
 
 ### Completed
 
+- [x] Post-release bugfix — score polarization fix, theme reconciliation, AstroRanking wiring, 16 warnings cleaned — v3.0.6
+- [x] Advanced charting — volume bars, timeframe selector, astro event markers on chart — v3.0.1
+- [x] Strategy builder — composable condition chains with AND/OR logic, backtest integration — v3.0.2
+- [x] Transaction log — BUY/SELL CRUD with CHECK constraints, color-coded display — v3.0.3
+- [x] Settings panel — DB-persisted key-value store, theme/refresh persistence — v3.0.4
+- [x] Astro calendar — monthly canvas heat map colored by daily astro score — v3.0.5
+- [x] Astro-driven backtesting — configurable thresholds, signal accuracy, trade log — v2.8.1
+- [x] Portfolio gain/loss tracking — unrealized P&L with astro scores per holding — v2.8.2
+- [x] Universe Explorer — full scored universe with pagination, zone/sector filters, 11 columns — v2.6.1
+- [x] Sector heat map — canvas-rendered proportional heat map by average astro score — v2.6.2
+- [x] Multiple watchlists + CSV export — named watchlists CRUD + native file dialog export — v2.6.3
+- [x] AI agent personas (Buffett/Graham/Lynch/Munger) — template analysis through 4 investment lenses — v2.4.1
+- [x] Comparative analysis — side-by-side multi-ticker comparison with astro scores — v2.4.2
+- [x] Technical pattern recognition — Golden/Death Cross, Double Top/Bottom, Support/Resistance — v2.4.3
+- [x] Horoscope reading engine — template-based narrative interpretations per ticker — v2.0.3
+- [x] Swiss Ephemeris (`swiss-eph` FFI) — sub-arcsecond planetary accuracy — v2.0.1
 - [x] CPI display: YoY% via SQL CTE — v0.7.0
 - [x] Lagrange Score history accumulation — v0.7.0
 - [x] Universal ticker seed + birth chart database — v0.8.0
@@ -722,26 +2294,56 @@ Tiingo budget: 490/day  ·  Today's usage: 312/490
 
 ---
 
-## Appendix: v0.5.0 Astrology Implementation Detail
-
-*(kept for reference — implementation is complete)*
+## Appendix: Astrology Engine Implementation Detail
 
 ### Calculation Engine
 
-No external API. No new crates. Pure Rust math using Jean Meeus *Astronomical Algorithms* formulas.
-**Planets:** Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn, Uranus, Neptune, Pluto.
+**v2.0.1+:** Swiss Ephemeris (C library compiled into binary via FFI). Sub-arcsecond accuracy. No external API, no network calls. The `embedded-ephe` feature bakes coefficient files into the binary.
+**Planets (13 bodies):** Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn, Uranus, Neptune, Pluto, North Node, South Node, Chiron.
+**Houses:** Whole Sign house system computed at NYSE location (40.7128 degrees N, 74.0060 degrees W). Ascendant + Midheaven stored in `natal_angles` table.
 
-### Aspect Scoring
+**Legacy (v0.5.0-v1.1.0):** Pure Rust math using Jean Meeus *Astronomical Algorithms* formulas. 10 planets only (no nodes or Chiron). Accurate for Sun and Moon, but 20-150 degree errors for all other planets due to simplified heliocentric-to-geocentric conversion. Retained as fallback if Swiss Eph fails.
 
-| Aspect | Angle | Orb |
-|--------|-------|-----|
-| Conjunction | 0° | ±8° |
-| Sextile | 60° | ±6° |
-| Square | 90° | ±8° |
-| Trine | 120° | ±8° |
-| Opposition | 180° | ±8° |
+### Aspect Scoring (v2.0.2)
 
-Score formula: `clamp(50 + Σ aspect_deltas + moon_modifier, 0, mercury_rx_cap)`
+**9 aspect types (5 major + 4 minor):**
+
+| Aspect | Angle | Orb | Nature | Major/Minor |
+|--------|-------|-----|--------|-------------|
+| Conjunction | 0 degrees | 8 degrees | Neutral (depends on planets) | Major |
+| Semi-sextile | 30 degrees | 2 degrees | Harmonious | Minor |
+| Semi-square | 45 degrees | 2 degrees | Challenging | Minor |
+| Sextile | 60 degrees | 6 degrees | Harmonious | Major |
+| Square | 90 degrees | 8 degrees | Challenging | Major |
+| Trine | 120 degrees | 8 degrees | Harmonious | Major |
+| Sesquiquadrate | 135 degrees | 2 degrees | Challenging | Minor |
+| Quincunx | 150 degrees | 3 degrees | Stressful adjustment | Minor |
+| Opposition | 180 degrees | 8 degrees | Challenging | Major |
+
+**Score formula (v3.0.6, sqrt-normalized sigmoid):**
+```
+aspect_delta  = base_magnitude x direction x orb_mod x minor_mod x dignity_mod
+final_delta   = aspect_delta x applying_mod
+raw_x         = sum(final_deltas) + moon_modifier
+normalized_x  = raw_x / sqrt(aspect_count)
+astro_score   = 100 / (1 + e^(-0.10 x normalized_x))
+if mercury_rx: astro_score = min(astro_score, 65)
+
+Where:
+  base_magnitude: 5-15 based on planet natures (Benefic/Malefic/Neutral)
+  direction: +1 (harmonious), -1 (challenging), depends on planets (conjunction)
+  orb_mod: 1.0 (exact) to 0.25 (at max orb), linear
+  minor_mod: 1.0 (major), 0.5 (minor)
+  dignity_mod: 1.2 (Domicile/Exalted), 0.8 (Detriment/Fall), 1.0 (Peregrine)
+  applying_mod: 1.5 (applying), 0.7 (separating)
+  aspect_count: number of active transit-to-natal aspects (min 1)
+
+Score distribution: bell-shaped centered at 50.
+  normalized_x = 0 -> score 50
+  normalized_x = +/-3 -> score ~57/~43
+  normalized_x = +/-6 -> score ~65/~35
+  normalized_x = +/-10 -> score ~73/~27
+```
 
 ### IPO Seed Data
 

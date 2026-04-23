@@ -1,6 +1,10 @@
 use chrono::{Datelike, NaiveDate, Utc};
-use pursuit_week4_automation::astrology::ephemeris::{date_to_jdn, snapshot_all};
+use pursuit_week4_automation::astrology::ephemeris::date_to_jdn;
+use pursuit_week4_automation::astrology::interpretation::{generate_horoscope, horoscope_to_json};
 use pursuit_week4_automation::astrology::natal::{aspects_to_json, compute_transit_score, NatalChart};
+use pursuit_week4_automation::astrology::swisseph_bridge::{
+    snapshot_all_precise, longitude_speed, compute_houses_nyse,
+};
 use std::sync::Arc;
 
 // ---------------------------------------------------------------------------
@@ -54,7 +58,24 @@ pub async fn seed_natal_charts(pool: Arc<sqlx::PgPool>) {
                 eprintln!("Failed to insert natal position for {ticker}/{}: {e}", pos.planet.name());
             }
         }
-        println!("  Natal chart seeded: {ticker} (IPO: {ipo_date})");
+
+        // Store natal angles (Ascendant + MC) using NYSE location
+        let jdn = date_to_jdn(ipo_date.year(), ipo_date.month(), ipo_date.day(), 14.5);
+        if let Ok(houses) = compute_houses_nyse(jdn) {
+            let _ = sqlx::query(
+                "INSERT INTO natal_angles (ticker, ascendant, mc) \
+                 VALUES ($1, $2, $3) \
+                 ON CONFLICT (ticker) DO UPDATE \
+                 SET ascendant = EXCLUDED.ascendant, mc = EXCLUDED.mc",
+            )
+            .bind(ticker)
+            .bind(houses.ascendant)
+            .bind(houses.mc)
+            .execute(pool.as_ref())
+            .await;
+        }
+
+        println!("  Natal chart seeded: {ticker} (IPO: {ipo_date}, {} bodies)", chart.positions.len());
     }
 
     println!("Natal chart seeding complete.");
@@ -81,23 +102,27 @@ pub async fn compute_daily_transits(pool: Arc<sqlx::PgPool>) {
     }
 
     let jdn       = date_to_jdn(today.year(), today.month(), today.day(), 14.5);
-    let snapshots = snapshot_all(jdn);
+    let snapshots = snapshot_all_precise(jdn);
 
-    println!("Storing {} planetary positions for {today}...", snapshots.len());
+    println!("Storing {} planetary positions for {today} (Swiss Eph)...", snapshots.len());
 
     for snap in &snapshots {
+        // Get speed for applying/separating detection
+        let speed = longitude_speed(snap.planet, jdn);
+
         let result = sqlx::query(
-            "INSERT INTO daily_transits (fetch_date, planet, longitude, sign, retrograde) \
-             VALUES ($1, $2, $3, $4, $5) \
+            "INSERT INTO daily_transits (fetch_date, planet, longitude, sign, retrograde, longitude_speed) \
+             VALUES ($1, $2, $3, $4, $5, $6) \
              ON CONFLICT (fetch_date, planet) DO UPDATE \
              SET longitude = EXCLUDED.longitude, sign = EXCLUDED.sign, \
-                 retrograde = EXCLUDED.retrograde",
+                 retrograde = EXCLUDED.retrograde, longitude_speed = EXCLUDED.longitude_speed",
         )
         .bind(today)
         .bind(snap.planet.name())
         .bind(snap.longitude)
         .bind(snap.sign)
         .bind(snap.retrograde)
+        .bind(speed)
         .execute(pool.as_ref())
         .await;
 
@@ -106,7 +131,7 @@ pub async fn compute_daily_transits(pool: Arc<sqlx::PgPool>) {
         }
     }
 
-    println!("Daily transits stored.");
+    println!("Daily transits stored (Swiss Ephemeris, sub-arcsecond).");
 }
 
 // ---------------------------------------------------------------------------
@@ -165,17 +190,132 @@ pub async fn compute_astro_scores(pool: Arc<sqlx::PgPool>) {
         .await;
 
         match result {
-            Ok(_) => println!(
-                "  {ticker}: {:.0} ({}) — {} aspects, Moon: {}{}",
-                score.astro_score,
-                score.astro_label,
-                score.active_aspects.len(),
-                score.moon_phase,
-                if score.mercury_rx { ", Mercury Rx" } else { "" },
-            ),
+            Ok(_) => {
+                // Generate and store horoscope reading
+                let reading = generate_horoscope(&score);
+                let reading_json = horoscope_to_json(&reading);
+
+                let horo_result = sqlx::query(
+                    "INSERT INTO horoscope_readings \
+                     (ticker, reading_date, reading, dominant_theme, confidence) \
+                     VALUES ($1, $2, $3, $4, $5) \
+                     ON CONFLICT (ticker, reading_date) DO UPDATE \
+                     SET reading        = EXCLUDED.reading, \
+                         dominant_theme  = EXCLUDED.dominant_theme, \
+                         confidence      = EXCLUDED.confidence",
+                )
+                .bind(ticker)
+                .bind(today)
+                .bind(&reading_json)
+                .bind(&reading.dominant_theme)
+                .bind(reading.confidence as f64)
+                .execute(pool.as_ref())
+                .await;
+
+                let horo_status = match horo_result {
+                    Ok(_) => format!("horoscope: {}", reading.dominant_theme),
+                    Err(e) => format!("horoscope err: {e}"),
+                };
+
+                println!(
+                    "  {ticker}: {:.0} ({}) — {} aspects, Moon: {}{} | {}",
+                    score.astro_score,
+                    score.astro_label,
+                    score.active_aspects.len(),
+                    score.moon_phase,
+                    if score.mercury_rx { ", Mercury Rx" } else { "" },
+                    horo_status,
+                );
+            }
             Err(e) => eprintln!("Failed to store astro score for {ticker}: {e}"),
         }
     }
 
-    println!("Astrological scoring complete.");
+    println!("Astrological scoring and horoscope generation complete.");
+}
+
+// ---------------------------------------------------------------------------
+// Astro ranking — Top 5 Favorable + Bottom 5 Misaligned
+// ---------------------------------------------------------------------------
+
+/// Ranking of tickers by astrological score, used to prioritize financial data fetching.
+#[allow(dead_code)] // `total_scored` logged in future scraper summary output
+pub struct AstroRanking {
+    /// Top 5 most favorably aligned tickers: (ticker, score, dominant_theme)
+    pub top_favorable: Vec<(String, f64, String)>,
+    /// Bottom 5 most misaligned tickers: (ticker, score, dominant_theme)
+    pub bottom_misaligned: Vec<(String, f64, String)>,
+    /// Total number of scored tickers
+    pub total_scored: usize,
+}
+
+impl AstroRanking {
+    /// Returns a combined list of priority tickers (top + bottom, for financial data fetching).
+    pub fn priority_tickers(&self) -> Vec<String> {
+        let mut tickers: Vec<String> = self.top_favorable.iter().map(|(t, _, _)| t.clone()).collect();
+        tickers.extend(self.bottom_misaligned.iter().map(|(t, _, _)| t.clone()));
+        tickers
+    }
+}
+
+/// Query the DB for today's astro scores and return the top 5 + bottom 5 rankings.
+pub async fn compute_astro_ranking(pool: Arc<sqlx::PgPool>) -> AstroRanking {
+    let today = chrono::Utc::now().date_naive();
+
+    let top: Vec<(String, f64, String)> = sqlx::query_as(
+        "SELECT a.ticker, a.astro_score, COALESCE(h.dominant_theme, a.astro_label) \
+         FROM astro_scores a \
+         LEFT JOIN horoscope_readings h ON h.ticker = a.ticker AND h.reading_date = a.score_date \
+         WHERE a.score_date = $1 \
+         ORDER BY a.astro_score DESC \
+         LIMIT 5",
+    )
+    .bind(today)
+    .fetch_all(pool.as_ref())
+    .await
+    .unwrap_or_default();
+
+    let bottom: Vec<(String, f64, String)> = sqlx::query_as(
+        "SELECT a.ticker, a.astro_score, COALESCE(h.dominant_theme, a.astro_label) \
+         FROM astro_scores a \
+         LEFT JOIN horoscope_readings h ON h.ticker = a.ticker AND h.reading_date = a.score_date \
+         WHERE a.score_date = $1 \
+         ORDER BY a.astro_score ASC \
+         LIMIT 5",
+    )
+    .bind(today)
+    .fetch_all(pool.as_ref())
+    .await
+    .unwrap_or_default();
+
+    let total: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM astro_scores WHERE score_date = $1",
+    )
+    .bind(today)
+    .fetch_one(pool.as_ref())
+    .await
+    .unwrap_or(0);
+
+    // Log the rankings
+    if !top.is_empty() || !bottom.is_empty() {
+        println!("\n══════════════════════════════════════════════════════════");
+        println!("  ASTRO RANKINGS — {}", today);
+        println!("══════════════════════════════════════════════════════════");
+        println!("  TOP 5 FAVORABLE:");
+        for (i, (ticker, score, theme)) in top.iter().enumerate() {
+            println!("    {}. {:<6} {:.0}  {}", i + 1, ticker, score, theme);
+        }
+        println!("  BOTTOM 5 MISALIGNED:");
+        for (i, (ticker, score, theme)) in bottom.iter().enumerate() {
+            println!("    {}. {:<6} {:.0}  {}", i + 1, ticker, score, theme);
+        }
+        println!("  Total scored: {}", total);
+        println!("══════════════════════════════════════════════════════════\n");
+    }
+
+    AstroRanking {
+        top_favorable: top,
+        bottom_misaligned: bottom,
+        total_scored: total as usize,
+    }
 }

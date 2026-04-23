@@ -21,33 +21,39 @@ use crate::theme;
 
 fn planet_abbrev(name: &str) -> &'static str {
     match name {
-        "Sun"     => "Su",
-        "Moon"    => "Mo",
-        "Mercury" => "Me",
-        "Venus"   => "Ve",
-        "Mars"    => "Ma",
-        "Jupiter" => "Ju",
-        "Saturn"  => "Sa",
-        "Uranus"  => "Ur",
-        "Neptune" => "Ne",
-        "Pluto"   => "Pl",
-        _         => "?",
+        "Sun"       => "Su",
+        "Moon"      => "Mo",
+        "Mercury"   => "Me",
+        "Venus"     => "Ve",
+        "Mars"      => "Ma",
+        "Jupiter"   => "Ju",
+        "Saturn"    => "Sa",
+        "Uranus"    => "Ur",
+        "Neptune"   => "Ne",
+        "Pluto"     => "Pl",
+        "NorthNode" => "NN",
+        "SouthNode" => "SN",
+        "Chiron"    => "Ch",
+        _           => "?",
     }
 }
 
 fn planet_glyph(name: &str) -> &'static str {
     match name {
-        "Sun"     => "☉",
-        "Moon"    => "☽",
-        "Mercury" => "☿",
-        "Venus"   => "♀",
-        "Mars"    => "♂",
-        "Jupiter" => "♃",
-        "Saturn"  => "♄",
-        "Uranus"  => "♅",
-        "Neptune" => "♆",
-        "Pluto"   => "♇",
-        _         => "?",
+        "Sun"       => "☉",
+        "Moon"      => "☽",
+        "Mercury"   => "☿",
+        "Venus"     => "♀",
+        "Mars"      => "♂",
+        "Jupiter"   => "♃",
+        "Saturn"    => "♄",
+        "Uranus"    => "♅",
+        "Neptune"   => "♆",
+        "Pluto"     => "♇",
+        "NorthNode" => "☊",
+        "SouthNode" => "☋",
+        "Chiron"    => "⚷",
+        _           => "?",
     }
 }
 
@@ -289,8 +295,9 @@ pub fn build_transits_section<'a>(
     let col_hdr = row![
         text("Transit").size(theme::TEXT_SM).width(Length::Fixed(110.0)),
         text("Natal").size(theme::TEXT_SM).width(Length::Fixed(110.0)),
-        text("Aspect").size(theme::TEXT_SM).width(Length::Fixed(80.0)),
+        text("Aspect").size(theme::TEXT_SM).width(Length::Fixed(90.0)),
         text("Orb").size(theme::TEXT_SM).width(Length::Fixed(45.0)),
+        text("A/S").size(theme::TEXT_SM).width(Length::Fixed(30.0)),
         text("Effect").size(theme::TEXT_SM).width(Length::Fill),
     ].spacing(6);
 
@@ -304,18 +311,32 @@ pub fn build_transits_section<'a>(
         let orb            = obj["orb"].as_f64().unwrap_or(0.0);
         let effect         = obj["effect"].as_str().unwrap_or("—");
         let delta          = obj["score_delta"].as_f64().unwrap_or(0.0);
+        let applying       = obj["applying"].as_bool().unwrap_or(true);
+        let dignity        = obj["dignity"].as_str().unwrap_or("");
 
         let effect_color_hint = if delta > 4.0 { "+" } else if delta < -4.0 { "-" } else { " " };
 
+        // Applying/separating indicator
+        let apply_indicator = if applying { "A" } else { "S" };
+
+        // Dignity suffix for transit planet
+        let dignity_suffix = match dignity {
+            "Domicile" | "Exalted" => "+",
+            "Detriment" | "Fall"   => "-",
+            _                      => "",
+        };
+
         Some(row![
-            text(format!("{} {} ({})", planet_glyph(transit_planet), transit_planet, transit_sign))
+            text(format!("{} {}{} ({})", planet_glyph(transit_planet), transit_planet, dignity_suffix, transit_sign))
                 .size(theme::TEXT_SM).width(Length::Fixed(110.0)),
             text(format!("{} {} ({})", planet_glyph(natal_planet), natal_planet, natal_sign))
                 .size(theme::TEXT_SM).width(Length::Fixed(110.0)),
             text(format!("{} {}", symbol, aspect))
-                .size(theme::TEXT_SM).width(Length::Fixed(80.0)),
+                .size(theme::TEXT_SM).width(Length::Fixed(90.0)),
             text(format!("{:.1}°", orb))
                 .size(theme::TEXT_SM).width(Length::Fixed(45.0)),
+            text(apply_indicator)
+                .size(theme::TEXT_SM).width(Length::Fixed(30.0)),
             text(format!("{}{}", effect_color_hint, effect))
                 .size(theme::TEXT_SM).width(Length::Fill),
         ].spacing(6).into())

@@ -136,10 +136,12 @@ async fn score_one_ticker(
         &short_interest,
     );
 
+    let concordance_name = components.concordance.name();
+
     sqlx::query(
         "INSERT INTO lagrange_history
-            (ticker, score_date, score, label, fin_score, astro_score, macro_score, short_score)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            (ticker, score_date, score, label, fin_score, astro_score, macro_score, short_score, concordance)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (ticker, score_date) DO NOTHING"
     )
     .bind(ticker)
@@ -150,6 +152,7 @@ async fn score_one_ticker(
     .bind(components.astro_score)
     .bind(components.macro_score)
     .bind(components.short_score)
+    .bind(concordance_name)
     .execute(pool)
     .await?;
 
@@ -158,7 +161,7 @@ async fn score_one_ticker(
     // don't create spurious null gaps.
     check_alert_crossing(pool, ticker, today, score, &label).await;
 
-    println!("  {ticker}: {score:.1} ({label})");
+    println!("  {ticker}: {score:.1} ({label}) [{}]", concordance_name);
     Ok(())
 }
 

@@ -25,6 +25,38 @@ pub async fn fetch_all_tickers(
     }
 }
 
+/// Fetch price data for astro-priority tickers (top/bottom ranked by astro score).
+/// Called before `fetch_all_tickers` so the most astrologically interesting tickers
+/// get financial data first, before API budget is exhausted.
+pub async fn fetch_priority_prices(
+    pool: Arc<sqlx::PgPool>,
+    client: Arc<reqwest::Client>,
+    api_key: Arc<String>,
+    limiter: Arc<governor::DefaultDirectRateLimiter>,
+    priority_tickers: &[String],
+) {
+    let watchlist_set: std::collections::HashSet<&str> =
+        crate::WATCHLIST.iter().copied().collect();
+
+    for ticker in priority_tickers {
+        // Skip tickers already in the watchlist (they'll be fetched by fetch_all_tickers)
+        if watchlist_set.contains(ticker.as_str()) {
+            continue;
+        }
+        limiter.until_ready().await;
+        match fetch_and_store(ticker, &pool, &client, &api_key).await {
+            Ok(inserted) => {
+                println!("[{ticker}] (astro priority) Inserted {inserted} new price rows");
+                crate::log_fetch(&pool, "alpha_vantage", Some(ticker), "price_data", "ok", None).await;
+            }
+            Err(e) => {
+                eprintln!("[{ticker}] (astro priority) Price error: {e:#}");
+                crate::log_fetch(&pool, "alpha_vantage", Some(ticker), "price_data", "error", Some(&e.to_string())).await;
+            }
+        }
+    }
+}
+
 async fn fetch_and_store(
     ticker: &str,
     pool: &sqlx::PgPool,

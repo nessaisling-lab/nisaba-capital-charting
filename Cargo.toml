@@ -28,3 +28,6 @@ anyhow = "1"
 open = "5"
 notify-rust = "4"
 roxmltree = "0.20"
+swiss-eph = { version = "0.2", features = ["embedded-ephe"] }
+rfd = "0.15"
+csv = "1"

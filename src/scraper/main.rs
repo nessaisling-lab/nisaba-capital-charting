@@ -5,6 +5,7 @@ mod edgar_enrich;
 mod enrich_common;
 mod fmp_enrich;
 mod finnhub;
+mod fundamentals;
 mod holdings;
 mod lagrange;
 mod macro_data;
@@ -251,85 +252,164 @@ async fn run_all_fetches(
     tiingo_key: Option<Arc<String>>,
     user_agent: Arc<String>,
 ) {
-    // --- Ticker universe seeding -------------------------------------------
-    // Polygon: paginated US CS universe (list_date when available)
-    if let Some(ref polygon_k) = polygon_key {
-        ticker_seed::run(Arc::clone(&pool), Arc::clone(&client), Arc::clone(polygon_k)).await;
-    }
-    // FMP: full Robinhood / Bloomberg tradeable universe (one call, all stocks)
-    if let Some(ref fmp_k) = fmp_key {
-        fmp_enrich::seed_ticker_universe(Arc::clone(&pool), Arc::clone(&client), Arc::clone(fmp_k)).await;
+    // =========================================================================
+    // PHASE 1: ASTROLOGY (runs FIRST — zero API calls, local computation)
+    // =========================================================================
+    // Astrology is THE product differentiator. It runs before any financial
+    // data fetching because it requires zero network calls (Swiss Ephemeris is
+    // compiled into the binary). After Phase 1, we know which tickers the
+    // stars favor and which are misaligned, so Phase 2 can prioritize them.
+    // =========================================================================
+
+    println!("\n╔══════════════════════════════════════════════════════════╗");
+    println!("║  PHASE 1: ASTROLOGY (local computation, no API calls)  ║");
+    println!("╚══════════════════════════════════════════════════════════╝\n");
+
+    println!("1.1 Seeding natal charts (any missing companies)...");
+    astrology::seed_natal_charts(Arc::clone(&pool)).await;
+
+    println!("1.2 Computing daily planetary transits (Swiss Ephemeris)...");
+    astrology::compute_daily_transits(Arc::clone(&pool)).await;
+
+    println!("1.3 Computing astrological scores + horoscope readings...");
+    astrology::compute_astro_scores(Arc::clone(&pool)).await;
+
+    println!("1.4 Computing astro rankings (Top 5 / Bottom 5)...");
+    let ranking = astrology::compute_astro_ranking(Arc::clone(&pool)).await;
+
+    let priority = ranking.priority_tickers();
+    if !priority.is_empty() {
+        println!("\n  ★ Astro-priority tickers ({} total):", priority.len());
+        for (t, s, theme) in &ranking.top_favorable {
+            println!("    ▲ {t:>6}  {s:5.1}  {theme}");
+        }
+        for (t, s, theme) in &ranking.bottom_misaligned {
+            println!("    ▼ {t:>6}  {s:5.1}  {theme}");
+        }
     }
 
-    println!("Running price fetch...");
+    // =========================================================================
+    // PHASE 2: TARGETED FINANCIAL VERIFICATION (guided by astro rankings)
+    // =========================================================================
+    // The astro-prioritized tickers get financial data first. With limited API
+    // budgets (AV: 5/min, FMP: 120/day), this ensures the most astrologically
+    // interesting tickers are verified before budget is exhausted.
+    // =========================================================================
+
+    println!("\n╔══════════════════════════════════════════════════════════╗");
+    println!("║  PHASE 2: FINANCIAL DATA (astro-prioritized first)     ║");
+    println!("╚══════════════════════════════════════════════════════════╝\n");
+
+    if !priority.is_empty() {
+        println!("2.0 Fetching price data for astro-priority tickers...");
+        prices::fetch_priority_prices(
+            Arc::clone(&pool), Arc::clone(&client), Arc::clone(&api_key),
+            Arc::clone(&av_limiter), &priority,
+        ).await;
+    }
+
+    println!("2.1 Fetching watchlist price data (Alpha Vantage)...");
     prices::fetch_all_tickers(
         Arc::clone(&pool), Arc::clone(&client), Arc::clone(&api_key), Arc::clone(&av_limiter),
     ).await;
 
-    if let Some(ref tiingo_k) = tiingo_key {
-        println!("Fetching bulk price history via Tiingo...");
-        tiingo::fetch_all_prices_tiingo(Arc::clone(&pool), Arc::clone(&client), Arc::clone(tiingo_k)).await;
-    }
+    println!("2.2 Fetching Alpha Vantage sentiment (budget-aware)...");
+    sentiment::fetch_av_sentiment_all(Arc::clone(&pool), Arc::clone(&client), Arc::clone(&api_key)).await;
 
-    println!("Fetching EDGAR insider trades and 8-K filings...");
-    edgar::fetch_all_edgar(Arc::clone(&pool), Arc::clone(&client)).await;
-
-    println!("Fetching 13F institutional holdings...");
-    holdings::fetch_all_13f(Arc::clone(&pool), Arc::clone(&client)).await;
-
-    if let Some(fh_key) = finnhub_key {
-        println!("Fetching Finnhub data (news, earnings, analyst ratings)...");
+    if let Some(ref fh_key) = finnhub_key {
+        println!("2.3 Fetching Finnhub data (news, earnings, ratings)...");
         finnhub::fetch_all_finnhub(
-            Arc::clone(&pool), Arc::clone(&client), fh_key, fh_limiter,
+            Arc::clone(&pool), Arc::clone(&client), Arc::clone(fh_key), Arc::clone(&fh_limiter),
         ).await;
     }
 
-    println!("Fetching Alpha Vantage sentiment (budget-aware)...");
-    sentiment::fetch_av_sentiment_all(Arc::clone(&pool), Arc::clone(&client), Arc::clone(&api_key)).await;
-
-    if let Some(fred_k) = fred_key {
-        println!("Fetching FRED macroeconomic data...");
-        macro_data::fetch_all_macro(Arc::clone(&pool), Arc::clone(&client), fred_k).await;
+    if let Some(ref fred_k) = fred_key {
+        println!("2.4 Fetching FRED macroeconomic data...");
+        macro_data::fetch_all_macro(Arc::clone(&pool), Arc::clone(&client), Arc::clone(fred_k)).await;
     }
 
-    if let Some(finra_k) = finra_key {
-        println!("Fetching short interest (FINRA API)...");
-        short_interest::fetch_all_short_interest(Arc::clone(&pool), Arc::clone(&client), finra_k).await;
+    if let Some(ref finra_k) = finra_key {
+        println!("2.5 Fetching short interest (FINRA API)...");
+        short_interest::fetch_all_short_interest(Arc::clone(&pool), Arc::clone(&client), Arc::clone(finra_k)).await;
     }
 
-    if let Some(polygon_k) = polygon_key {
-        println!("Fetching options flow (Polygon.io)...");
-        options::fetch_all_options_flow(Arc::clone(&pool), Arc::clone(&client), polygon_k).await;
+    if let Some(ref polygon_k) = polygon_key {
+        println!("2.6 Fetching options flow (Polygon.io)...");
+        options::fetch_all_options_flow(Arc::clone(&pool), Arc::clone(&client), Arc::clone(polygon_k)).await;
     }
 
-    // Enrich missing IPO dates — AV OVERVIEW first (watchlist priority), then FMP bulk
-    println!("Enriching missing IPO dates via AV OVERVIEW...");
+    if let Some(ref fmp_k) = fmp_key {
+        println!("2.7 Fetching fundamental metrics (FMP key-metrics + ratios)...");
+        fundamentals::fetch_fundamentals(Arc::clone(&pool), Arc::clone(&client), Arc::clone(fmp_k)).await;
+    }
+
+    // =========================================================================
+    // PHASE 3: BULK DATA (ticker universe + price history + enrichment)
+    // =========================================================================
+    // These are the heavy, high-volume fetches: ticker universe seeding,
+    // bulk price history (Tiingo 490/day), EDGAR filings, and IPO enrichment
+    // from multiple sources. Runs after targeted fetches so priority tickers
+    // already have fresh data.
+    // =========================================================================
+
+    println!("\n╔══════════════════════════════════════════════════════════╗");
+    println!("║  PHASE 3: BULK DATA (universe + history + enrichment)  ║");
+    println!("╚══════════════════════════════════════════════════════════╝\n");
+
+    // Ticker universe seeding
+    if let Some(ref polygon_k) = polygon_key {
+        println!("3.1 Seeding ticker universe (Polygon)...");
+        ticker_seed::run(Arc::clone(&pool), Arc::clone(&client), Arc::clone(polygon_k)).await;
+    }
+    if let Some(ref fmp_k) = fmp_key {
+        println!("3.2 Seeding ticker universe (FMP)...");
+        fmp_enrich::seed_ticker_universe(Arc::clone(&pool), Arc::clone(&client), Arc::clone(fmp_k)).await;
+    }
+
+    // Bulk price history
+    if let Some(ref tiingo_k) = tiingo_key {
+        println!("3.3 Fetching bulk price history (Tiingo, up to 490/day)...");
+        tiingo::fetch_all_prices_tiingo(Arc::clone(&pool), Arc::clone(&client), Arc::clone(tiingo_k)).await;
+    }
+
+    // EDGAR filings
+    println!("3.4 Fetching EDGAR insider trades and 8-K filings...");
+    edgar::fetch_all_edgar(Arc::clone(&pool), Arc::clone(&client)).await;
+
+    println!("3.5 Fetching 13F institutional holdings...");
+    holdings::fetch_all_13f(Arc::clone(&pool), Arc::clone(&client)).await;
+
+    // IPO date enrichment pipeline (4 sources)
+    println!("3.6 Enriching missing IPO dates (AV OVERVIEW)...");
     company_enrich::enrich_missing_ipo_dates(
         Arc::clone(&pool), Arc::clone(&client), Arc::clone(&api_key),
     ).await;
 
     if let Some(ref fmp_k) = fmp_key {
-        println!("Enriching missing IPO dates via FMP profile...");
+        println!("3.7 Enriching missing IPO dates (FMP profile)...");
         fmp_enrich::enrich_ipo_dates(Arc::clone(&pool), Arc::clone(&client), Arc::clone(fmp_k)).await;
     }
 
-    println!("Enriching founding dates via Wikidata SPARQL...");
+    println!("3.8 Enriching founding dates (Wikidata SPARQL)...");
     wikidata_enrich::enrich_founding_dates(
         Arc::clone(&pool), Arc::clone(&client), Arc::clone(&user_agent),
     ).await;
 
-    println!("Enriching first-filing dates via SEC EDGAR...");
+    println!("3.9 Enriching first-filing dates (SEC EDGAR)...");
     edgar_enrich::enrich_first_filing_dates(
         Arc::clone(&pool), Arc::clone(&client), Arc::clone(&user_agent),
     ).await;
 
-    println!("Seeding natal charts (any missing companies)...");
-    astrology::seed_natal_charts(Arc::clone(&pool)).await;
-    println!("Computing daily planetary transits...");
-    astrology::compute_daily_transits(Arc::clone(&pool)).await;
-    println!("Computing astrological scores...");
-    astrology::compute_astro_scores(Arc::clone(&pool)).await;
+    // =========================================================================
+    // PHASE 4: COMPOSITE SCORING (astro-informed Lagrange Score)
+    // =========================================================================
 
-    println!("Computing Lagrange scores...");
+    println!("\n╔══════════════════════════════════════════════════════════╗");
+    println!("║  PHASE 4: LAGRANGE SCORING (astro-informed composite)  ║");
+    println!("╚══════════════════════════════════════════════════════════╝\n");
+
+    println!("4.1 Computing Lagrange scores...");
     lagrange::compute_all_scores(pool).await;
+
+    println!("\n Pipeline complete.\n");
 }

@@ -104,6 +104,7 @@ pub fn macd(prices: &[f32]) -> (Vec<Option<f32>>, Vec<Option<f32>>) {
 pub struct Indicators {
     pub sma20:     Vec<Option<f32>>,
     pub sma50:     Vec<Option<f32>>,
+    pub sma200:    Vec<Option<f32>>,
     pub bb_upper:  Vec<Option<f32>>,
     pub bb_lower:  Vec<Option<f32>>,
     pub rsi_vals:  Vec<Option<f32>>,
@@ -115,10 +116,11 @@ impl Indicators {
     pub fn compute(prices: &[f32]) -> Self {
         let sma20 = sma(prices, 20);
         let sma50 = sma(prices, 50);
+        let sma200 = sma(prices, 200);
         let (_, bb_upper, bb_lower) = bollinger_bands(prices, 20);
         let rsi_vals = rsi(prices, 14);
         let (macd_line, macd_sig) = macd(prices);
-        Self { sma20, sma50, bb_upper, bb_lower, rsi_vals, macd_line, macd_sig }
+        Self { sma20, sma50, sma200, bb_upper, bb_lower, rsi_vals, macd_line, macd_sig }
     }
 
     pub fn last<T: Copy>(v: &[Option<T>]) -> Option<T> {
@@ -130,10 +132,10 @@ impl Indicators {
 // Lagrange Score — shared computation used by both scraper and dashboard
 // ---------------------------------------------------------------------------
 //
-// Component weights:
-//   Financial    35%  (RSI + momentum + MACD + sentiment)
-//   Astrology    25%  (today's astro_score)
-//   Macro        25%  (VIX + yield curve)
+// Component weights (v2.0.5 rebalance — astrology leads):
+//   Astrology    40%  (today's astro_score — lead signal)
+//   Financial    25%  (RSI + momentum + MACD + sentiment — verification)
+//   Macro        20%  (VIX + yield curve)
 //   Short Squeeze 15% (short % × price direction)
 //
 // Labels: Misaligned / Unfavorable / Neutral / Favorable / Optimal
@@ -202,7 +204,8 @@ pub fn compute_lagrange_score(
         Some((base + bonus).clamp(0.0, 100.0))
     }).unwrap_or(50.0);
 
-    let score = (fin_score * 0.35 + astro * 0.25 + macro_score * 0.25 + short_score * 0.15)
+    // v2.0.5: Astrology leads (40%), Financial verifies (25%), Macro context (20%), Short squeeze (15%)
+    let score = (astro * 0.40 + fin_score * 0.25 + macro_score * 0.20 + short_score * 0.15)
         .clamp(0.0, 100.0);
 
     let label = match score as u32 {
@@ -213,11 +216,14 @@ pub fn compute_lagrange_score(
         _       => "Optimal",
     }.to_string();
 
+    let concordance = compute_concordance(astro, fin_score);
+
     let components = LagrangeComponents {
         fin_score,
         astro_score: astro,
         macro_score,
         short_score,
+        concordance,
     };
 
     (score, label, components)
@@ -225,8 +231,71 @@ pub fn compute_lagrange_score(
 
 /// Breakdown of each Lagrange component — stored in lagrange_history for debugging.
 pub struct LagrangeComponents {
-    pub fin_score:   f32,
-    pub astro_score: f32,
-    pub macro_score: f32,
-    pub short_score: f32,
+    pub fin_score:    f32,
+    pub astro_score:  f32,
+    pub macro_score:  f32,
+    pub short_score:  f32,
+    pub concordance:  Concordance,
+}
+
+// ---------------------------------------------------------------------------
+// Concordance — astro vs financial agreement indicator
+// ---------------------------------------------------------------------------
+//
+// When astrology and financials agree, confidence is high.
+// When they disagree, the system flags it for review.
+// This is Principle #2 (Candor): when data conflicts, say so plainly.
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Concordance {
+    /// Astro favorable (>60) AND financials strong (>60). High confidence.
+    StrongConfirm,
+    /// Astro favorable (>60) AND financials neutral (40-60). Moderate confidence.
+    MildConfirm,
+    /// Astro and financials point in different directions. Flag for review.
+    Divergence,
+    /// Astro unfavorable (<40) AND financials neutral (40-60). Moderate caution.
+    MildDeny,
+    /// Astro unfavorable (<40) AND financials weak (<40). High conviction to avoid.
+    StrongDeny,
+}
+
+impl Concordance {
+    pub fn name(self) -> &'static str {
+        match self {
+            Concordance::StrongConfirm => "Strong Confirm",
+            Concordance::MildConfirm   => "Mild Confirm",
+            Concordance::Divergence    => "Divergence",
+            Concordance::MildDeny      => "Mild Deny",
+            Concordance::StrongDeny    => "Strong Deny",
+        }
+    }
+
+    pub fn symbol(self) -> &'static str {
+        match self {
+            Concordance::StrongConfirm => "++",
+            Concordance::MildConfirm   => "+",
+            Concordance::Divergence    => "!",
+            Concordance::MildDeny      => "-",
+            Concordance::StrongDeny    => "--",
+        }
+    }
+}
+
+/// Compute concordance between astrology and financial scores.
+pub fn compute_concordance(astro: f32, fin: f32) -> Concordance {
+    let astro_favorable = astro > 60.0;
+    let astro_unfavorable = astro < 40.0;
+    let fin_strong = fin > 60.0;
+    let fin_weak = fin < 40.0;
+
+    match (astro_favorable, astro_unfavorable, fin_strong, fin_weak) {
+        (true, _, true, _)  => Concordance::StrongConfirm,
+        (true, _, _, true)  => Concordance::Divergence,  // Astro says buy, financials say sell
+        (true, _, _, _)     => Concordance::MildConfirm, // Astro favorable, financials neutral
+        (_, true, true, _)  => Concordance::Divergence,  // Astro says sell, financials say buy
+        (_, true, _, true)  => Concordance::StrongDeny,
+        (_, true, _, _)     => Concordance::MildDeny,    // Astro unfavorable, financials neutral
+        _                   => Concordance::MildConfirm, // Both neutral
+    }
 }

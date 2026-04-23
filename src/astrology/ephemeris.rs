@@ -24,10 +24,14 @@ pub enum Planet {
     Uranus,
     Neptune,
     Pluto,
+    NorthNode,
+    SouthNode,
+    Chiron,
 }
 
 impl Planet {
-    pub fn all() -> &'static [Planet] {
+    /// The 10 classical planets used by the Meeus fallback engine.
+    pub fn all_classical() -> &'static [Planet] {
         &[
             Planet::Sun, Planet::Moon, Planet::Mercury, Planet::Venus,
             Planet::Mars, Planet::Jupiter, Planet::Saturn,
@@ -35,35 +39,58 @@ impl Planet {
         ]
     }
 
+    /// All 13 bodies: 10 classical + NorthNode, SouthNode, Chiron.
+    /// Requires Swiss Ephemeris for the last 3.
+    pub fn all() -> &'static [Planet] {
+        &[
+            Planet::Sun, Planet::Moon, Planet::Mercury, Planet::Venus,
+            Planet::Mars, Planet::Jupiter, Planet::Saturn,
+            Planet::Uranus, Planet::Neptune, Planet::Pluto,
+            Planet::NorthNode, Planet::SouthNode, Planet::Chiron,
+        ]
+    }
+
     pub fn name(self) -> &'static str {
         match self {
-            Planet::Sun     => "Sun",
-            Planet::Moon    => "Moon",
-            Planet::Mercury => "Mercury",
-            Planet::Venus   => "Venus",
-            Planet::Mars    => "Mars",
-            Planet::Jupiter => "Jupiter",
-            Planet::Saturn  => "Saturn",
-            Planet::Uranus  => "Uranus",
-            Planet::Neptune => "Neptune",
-            Planet::Pluto   => "Pluto",
+            Planet::Sun       => "Sun",
+            Planet::Moon      => "Moon",
+            Planet::Mercury   => "Mercury",
+            Planet::Venus     => "Venus",
+            Planet::Mars      => "Mars",
+            Planet::Jupiter   => "Jupiter",
+            Planet::Saturn    => "Saturn",
+            Planet::Uranus    => "Uranus",
+            Planet::Neptune   => "Neptune",
+            Planet::Pluto     => "Pluto",
+            Planet::NorthNode => "NorthNode",
+            Planet::SouthNode => "SouthNode",
+            Planet::Chiron    => "Chiron",
         }
     }
 
     pub fn from_name(s: &str) -> Option<Planet> {
         match s {
-            "Sun"     => Some(Planet::Sun),
-            "Moon"    => Some(Planet::Moon),
-            "Mercury" => Some(Planet::Mercury),
-            "Venus"   => Some(Planet::Venus),
-            "Mars"    => Some(Planet::Mars),
-            "Jupiter" => Some(Planet::Jupiter),
-            "Saturn"  => Some(Planet::Saturn),
-            "Uranus"  => Some(Planet::Uranus),
-            "Neptune" => Some(Planet::Neptune),
-            "Pluto"   => Some(Planet::Pluto),
-            _         => None,
+            "Sun"       => Some(Planet::Sun),
+            "Moon"      => Some(Planet::Moon),
+            "Mercury"   => Some(Planet::Mercury),
+            "Venus"     => Some(Planet::Venus),
+            "Mars"      => Some(Planet::Mars),
+            "Jupiter"   => Some(Planet::Jupiter),
+            "Saturn"    => Some(Planet::Saturn),
+            "Uranus"    => Some(Planet::Uranus),
+            "Neptune"   => Some(Planet::Neptune),
+            "Pluto"     => Some(Planet::Pluto),
+            "NorthNode" => Some(Planet::NorthNode),
+            "SouthNode" => Some(Planet::SouthNode),
+            "Chiron"    => Some(Planet::Chiron),
+            _           => None,
         }
+    }
+
+    /// Whether this planet can be computed by the Meeus fallback engine.
+    /// NorthNode, SouthNode, and Chiron require Swiss Ephemeris.
+    pub fn needs_swiss_eph(self) -> bool {
+        matches!(self, Planet::NorthNode | Planet::SouthNode | Planet::Chiron)
     }
 }
 
@@ -93,7 +120,7 @@ pub fn jdn_to_t(jdn: f64) -> f64 {
 }
 
 /// Normalize angle to [0, 360)
-fn norm360(deg: f64) -> f64 {
+pub fn norm360(deg: f64) -> f64 {
     deg - 360.0 * (deg / 360.0).floor()
 }
 
@@ -281,8 +308,8 @@ fn elements(planet: Planet) -> PlanetElements {
             w: (224.06676, -132.25),
             o: (110.30347, -37.33),
         },
-        // Sun and Moon handled separately
-        _ => unreachable!(),
+        // Sun and Moon handled separately; nodes + Chiron require Swiss Ephemeris
+        _ => unreachable!("elements() called for {:?} — use Swiss Ephemeris bridge", planet),
     }
 }
 
@@ -351,6 +378,9 @@ pub fn planet_longitude(planet: Planet, t: f64) -> f64 {
     match planet {
         Planet::Sun  => sun_longitude(t),
         Planet::Moon => moon_longitude(t),
+        Planet::NorthNode | Planet::SouthNode | Planet::Chiron => {
+            panic!("planet_longitude() cannot compute {:?} — use Swiss Ephemeris bridge", planet);
+        }
         other => {
             let helio = heliocentric_longitude(other, t);
             helio_to_geo(other, t, helio)
@@ -364,7 +394,14 @@ pub fn planet_longitude(planet: Planet, t: f64) -> f64 {
 
 /// Returns true if the planet is moving retrograde (longitude decreasing).
 /// Compares longitude today vs 1 day ago. Handles 0°/360° wraparound.
+/// Returns true if the planet is moving retrograde (longitude decreasing).
+/// Compares longitude today vs 1 day ago. Handles 0°/360° wraparound.
+/// For NorthNode, SouthNode, and Chiron, use the Swiss Ephemeris bridge
+/// (which gets speed directly from `Position.longitude_speed`).
 pub fn is_retrograde(planet: Planet, jdn: f64) -> bool {
+    if planet.needs_swiss_eph() {
+        panic!("is_retrograde() cannot compute {:?} — use Swiss Ephemeris bridge", planet);
+    }
     let t_now  = jdn_to_t(jdn);
     let t_prev = jdn_to_t(jdn - 1.0);
     let lon_now  = planet_longitude(planet, t_now);
@@ -431,9 +468,11 @@ pub struct PlanetSnapshot {
     pub retrograde: bool,
 }
 
+/// Snapshot the 10 classical planets using the Meeus fallback engine.
+/// For all 13 bodies (including nodes + Chiron), use the Swiss Ephemeris bridge.
 pub fn snapshot_all(jdn: f64) -> Vec<PlanetSnapshot> {
     let t = jdn_to_t(jdn);
-    Planet::all().iter().map(|&planet| {
+    Planet::all_classical().iter().map(|&planet| {
         let longitude  = planet_longitude(planet, t);
         let (sign, degree) = longitude_to_sign(longitude);
         let retrograde = match planet {

@@ -1,9 +1,91 @@
 use iced::Color;
 
+// ---------------------------------------------------------------------------
+// Circadian theme system — 4 phases, 3 user modes
+// ---------------------------------------------------------------------------
+
+/// User-selectable theme mode. Cycles: Auto → Light → Dark → Auto.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ThemeMode {
+    /// Automatically select phase based on local time of day.
+    Auto,
+    /// Always use the Day (light) phase.
+    AlwaysLight,
+    /// Always use the Night (dark) phase.
+    AlwaysDark,
+}
+
+impl ThemeMode {
+    pub fn next(self) -> Self {
+        match self {
+            Self::Auto => Self::AlwaysLight,
+            Self::AlwaysLight => Self::AlwaysDark,
+            Self::AlwaysDark => Self::Auto,
+        }
+    }
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Auto => "Auto",
+            Self::AlwaysLight => "Light",
+            Self::AlwaysDark => "Dark",
+        }
+    }
+}
+
+impl Default for ThemeMode {
+    fn default() -> Self { Self::Auto }
+}
+
+/// 4 circadian phases based on time of day.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CircadianPhase {
+    Dawn,   // 05:00 - 08:59  warm cream tones
+    Day,    // 09:00 - 16:59  bright, high contrast
+    Dusk,   // 17:00 - 20:59  amber/warm tones
+    Night,  // 21:00 - 04:59  deep navy
+}
+
+impl CircadianPhase {
+    /// Determine phase from local hour (0-23).
+    pub fn from_hour(hour: u32) -> Self {
+        match hour {
+            5..=8   => Self::Dawn,
+            9..=16  => Self::Day,
+            17..=20 => Self::Dusk,
+            _       => Self::Night,
+        }
+    }
+
+    /// Get the current phase based on system clock.
+    pub fn current() -> Self {
+        let hour = chrono::Local::now().hour();
+        Self::from_hour(hour)
+    }
+}
+
+/// Resolve the active phase from the user's mode selection.
+pub fn active_phase(mode: ThemeMode) -> CircadianPhase {
+    match mode {
+        ThemeMode::Auto => CircadianPhase::current(),
+        ThemeMode::AlwaysLight => CircadianPhase::Day,
+        ThemeMode::AlwaysDark => CircadianPhase::Night,
+    }
+}
+
+/// Map a circadian phase to an Iced Theme.
+pub fn iced_theme(mode: ThemeMode) -> iced::Theme {
+    match active_phase(mode) {
+        CircadianPhase::Dawn | CircadianPhase::Day => iced::Theme::Light,
+        CircadianPhase::Dusk | CircadianPhase::Night => iced::Theme::Dark,
+    }
+}
+
 /// Whether the active theme is dark.
 pub fn is_dark(theme: &iced::Theme) -> bool {
     *theme != iced::Theme::Light
 }
+
+use chrono::Timelike;
 
 // ---------------------------------------------------------------------------
 // Type scale — 1.2x (minor third) based on 12px body
@@ -15,7 +97,6 @@ pub const TEXT_SM: f32 = 10.0;     // table headers, gauge labels, captions
 pub const TEXT_BASE: f32 = 12.0;   // body text, data values
 pub const TEXT_MD: f32 = 14.0;     // secondary section headings
 pub const TEXT_LG: f32 = 17.0;     // primary section headings
-pub const TEXT_XL: f32 = 20.0;     // panel titles
 pub const TEXT_2XL: f32 = 24.0;    // page title
 
 // ---------------------------------------------------------------------------

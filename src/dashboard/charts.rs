@@ -11,14 +11,24 @@ use crate::theme;
 // Price chart — Iced canvas widget with indicator overlays and hover tooltip
 // ---------------------------------------------------------------------------
 
+/// Represents an astro event marker to draw on the price chart.
+#[derive(Debug, Clone)]
+pub struct AstroMarker {
+    pub bar_index: usize,
+    pub label: String,
+    pub favorable: bool, // true = green line, false = red line
+}
+
 pub struct PriceChart {
-    pub data:        Vec<f32>,
-    pub ticker:      String,
-    pub sma20:       Vec<Option<f32>>,
-    pub sma50:       Vec<Option<f32>>,
-    pub bb_upper:    Vec<Option<f32>>,
-    pub bb_lower:    Vec<Option<f32>>,
-    pub rows_chrono: Vec<PriceRow>,
+    pub data:          Vec<f32>,
+    pub ticker:        String,
+    pub sma20:         Vec<Option<f32>>,
+    pub sma50:         Vec<Option<f32>>,
+    pub bb_upper:      Vec<Option<f32>>,
+    pub bb_lower:      Vec<Option<f32>>,
+    pub rows_chrono:   Vec<PriceRow>,
+    pub volumes:       Vec<i64>,
+    pub astro_markers: Vec<AstroMarker>,
 }
 
 impl PriceChart {
@@ -108,8 +118,9 @@ impl canvas::Program<Message> for PriceChart {
         let pad_right  = 15.0_f32;
         let pad_top    = 15.0_f32;
         let pad_bottom = 30.0_f32;
+        let vol_height = (bounds.height - pad_top - pad_bottom) * 0.18; // 18% for volume
         let w = bounds.width  - pad_left - pad_right;
-        let h = bounds.height - pad_top  - pad_bottom;
+        let h = bounds.height - pad_top  - pad_bottom - vol_height;
         let n = self.data.len();
 
         let x_of = |i: usize| pad_left + (i as f32 / (n - 1) as f32) * w;
@@ -226,6 +237,63 @@ impl canvas::Program<Message> for PriceChart {
                 horizontal_alignment: iced::alignment::Horizontal::Center,
                 ..canvas::Text::default()
             });
+        }
+
+        // Volume bars (bottom strip)
+        if self.volumes.len() == n {
+            let max_vol = self.volumes.iter().cloned().max().unwrap_or(1) as f32;
+            let vol_top = pad_top + h;
+            let bar_w = (w / n as f32).max(1.0);
+            for (i, &vol) in self.volumes.iter().enumerate() {
+                let bar_h = (vol as f32 / max_vol) * vol_height;
+                let bx = x_of(i) - bar_w / 2.0;
+                let by = vol_top + vol_height - bar_h;
+                let vol_color = if i > 0 && self.data[i] >= self.data[i - 1] {
+                    Color::from_rgba(0.3, 0.7, 0.4, 0.5) // green = up day
+                } else {
+                    Color::from_rgba(0.7, 0.3, 0.3, 0.5) // red = down day
+                };
+                frame.fill_rectangle(
+                    Point::new(bx, by),
+                    Size::new(bar_w.min(6.0), bar_h),
+                    vol_color,
+                );
+            }
+        }
+
+        // Astro event markers (vertical dashed lines)
+        for marker in &self.astro_markers {
+            if marker.bar_index < n {
+                let mx = x_of(marker.bar_index);
+                let marker_color = if marker.favorable {
+                    Color::from_rgba(0.3, 0.8, 0.4, 0.6)
+                } else {
+                    Color::from_rgba(0.8, 0.3, 0.3, 0.6)
+                };
+                // Draw dashed vertical line (4px on, 4px off)
+                let segments = ((h / 8.0) as usize).max(1);
+                for s in 0..segments {
+                    let sy = pad_top + s as f32 * 8.0;
+                    let ey = (sy + 4.0).min(pad_top + h);
+                    let seg = canvas::Path::new(|b| {
+                        b.move_to(Point::new(mx, sy));
+                        b.line_to(Point::new(mx, ey));
+                    });
+                    frame.stroke(&seg, canvas::Stroke {
+                        style: canvas::Style::Solid(marker_color),
+                        width: 1.0,
+                        ..canvas::Stroke::default()
+                    });
+                }
+                // Small label at top
+                frame.fill_text(canvas::Text {
+                    content: marker.label.clone(),
+                    position: Point::new(mx + 2.0, pad_top - 2.0),
+                    color: marker_color,
+                    size: iced::Pixels(7.0),
+                    ..canvas::Text::default()
+                });
+            }
         }
 
         // Hover crosshair + OHLCV tooltip
