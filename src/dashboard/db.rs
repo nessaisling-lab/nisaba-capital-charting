@@ -101,6 +101,15 @@ pub async fn fetch_news(pool: Arc<PgPool>, ticker: String) -> Result<Vec<NewsArt
     .bind(&ticker).fetch_all(pool.as_ref()).await.map_err(|e| e.to_string())
 }
 
+pub async fn fetch_polymarket(pool: Arc<PgPool>) -> Result<Vec<pursuit_week4_automation::models::PolymarketMarket>, String> {
+    sqlx::query_as::<_, pursuit_week4_automation::models::PolymarketMarket>(
+        "SELECT question, category, outcome_yes, outcome_no, volume, active \
+         FROM polymarket_markets WHERE active = true \
+         ORDER BY volume DESC NULLS LAST LIMIT 10",
+    )
+    .fetch_all(pool.as_ref()).await.map_err(|e| e.to_string())
+}
+
 pub async fn fetch_rss_articles(pool: Arc<PgPool>) -> Result<Vec<pursuit_week4_automation::models::RssArticle>, String> {
     sqlx::query_as::<_, pursuit_week4_automation::models::RssArticle>(
         "SELECT feed_source, category, headline, summary, link, published_at \

@@ -67,6 +67,17 @@ pub struct RssArticle {
     pub published_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// One row from polymarket_markets (prediction market probabilities)
+#[derive(Debug, Clone, FromRow)]
+pub struct PolymarketMarket {
+    pub question:    String,
+    pub category:    Option<String>,
+    pub outcome_yes: Option<rust_decimal::Decimal>,
+    pub outcome_no:  Option<rust_decimal::Decimal>,
+    pub volume:      Option<rust_decimal::Decimal>,
+    pub active:      bool,
+}
+
 /// One row from earnings_dates (Finnhub earnings calendar)
 #[derive(Debug, Clone, FromRow)]
 pub struct EarningsDate {

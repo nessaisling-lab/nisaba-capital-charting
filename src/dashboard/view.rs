@@ -1148,10 +1148,45 @@ impl Dashboard {
                     container(right_col).width(Length::FillPortion(2)),
                 ].spacing(12);
 
+                // Polymarket prediction markets
+                let polymarket_section: Element<'_, Message> = if self.polymarket.is_empty() {
+                    column![
+                        text("Prediction Markets (Polymarket)").size(theme::TEXT_MD),
+                        text("No prediction market data yet. Run the scraper to fetch top markets.").size(theme::TEXT_SM),
+                    ].spacing(4).into()
+                } else {
+                    let pm_items: Vec<Element<Message>> = self.polymarket.iter().take(8).map(|m| {
+                        let yes_pct = m.outcome_yes.as_ref()
+                            .map(|d| format!("{:.0}%", d.to_string().parse::<f64>().unwrap_or(0.0) * 100.0))
+                            .unwrap_or_else(|| "—".into());
+                        let vol = m.volume.as_ref()
+                            .map(|d| {
+                                let v = d.to_string().parse::<f64>().unwrap_or(0.0);
+                                if v >= 1_000_000.0 { format!("${:.1}M", v / 1_000_000.0) }
+                                else if v >= 1_000.0 { format!("${:.0}K", v / 1_000.0) }
+                                else { format!("${v:.0}") }
+                            })
+                            .unwrap_or_else(|| "—".into());
+                        let cat = m.category.as_deref().unwrap_or("—");
+                        row![
+                            text(yes_pct).size(theme::TEXT_BASE).width(Length::Fixed(48.0)),
+                            text(cat.to_string()).size(theme::TEXT_XS).width(Length::Fixed(70.0)),
+                            text(m.question.clone()).size(theme::TEXT_SM).width(Length::Fill),
+                            text(vol).size(theme::TEXT_XS).width(Length::Fixed(70.0)),
+                        ].spacing(6).align_y(Alignment::Center).into()
+                    }).collect();
+                    column![
+                        text("Prediction Markets (Polymarket)").size(theme::TEXT_MD),
+                        scrollable(Column::with_children(pm_items).spacing(3)).height(Length::Fixed(140.0)),
+                    ].spacing(4).into()
+                };
+
                 column![
                     gauges_row,
                     horizontal_rule(1),
                     two_col,
+                    horizontal_rule(1),
+                    polymarket_section,
                 ].spacing(10).into()
             }
             Tab::Universe => {
