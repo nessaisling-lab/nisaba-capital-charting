@@ -18,7 +18,7 @@ use crate::db::{
     fetch_astro_score, fetch_available_sectors, fetch_compare_data, fetch_daily_transits,
     fetch_fear_greed, fetch_fundamentals, fetch_holdings, fetch_insider_trades, fetch_ticker_earnings,
     fetch_lagrange_history, fetch_macro_indicators, fetch_market_fear_greed, fetch_natal_chart,
-    fetch_named_watchlists, fetch_news, fetch_portfolio, fetch_prices, fetch_recently_viewed,
+    fetch_named_watchlists, fetch_news, fetch_portfolio, fetch_prices, fetch_recently_viewed, fetch_rss_articles,
     fetch_sector_summaries, fetch_sentiment, fetch_short_interest, fetch_universe_count,
     fetch_universe_page, fetch_watchlist_summaries, fetch_watchlist_tickers, load_tickers,
     mark_alert_read, remove_from_watchlist, search_tickers, upsert_recently_viewed,
@@ -105,6 +105,7 @@ impl Dashboard {
                         Task::perform(fetch_portfolio_pnl(Arc::clone(pool)), Message::PortfolioPnlLoaded),
                         Task::perform(fetch_transactions(Arc::clone(pool)), Message::TransactionsLoaded),
                         Task::perform(fetch_settings(Arc::clone(pool)), Message::SettingsLoaded),
+                        Task::perform(fetch_rss_articles(Arc::clone(pool)), Message::RssArticlesLoaded),
                         {
                             let now = chrono::Local::now().date_naive();
                             let start = chrono::NaiveDate::from_ymd_opt(now.year(), now.month(), 1).unwrap();
@@ -241,6 +242,8 @@ impl Dashboard {
             Message::HoldingsLoaded(Err(_))          => Task::none(),
             Message::NewsLoaded(Ok(n))              => { self.news = n;             Task::none() }
             Message::NewsLoaded(Err(_))              => Task::none(),
+            Message::RssArticlesLoaded(Ok(a))       => { self.rss_articles = a;     Task::none() }
+            Message::RssArticlesLoaded(Err(_))       => Task::none(),
             Message::EarningsLoaded(Ok(e))          => { self.earnings = e;         Task::none() }
             Message::EarningsLoaded(Err(_))          => Task::none(),
             Message::AnalystRatingLoaded(Ok(r))     => { self.analyst_rating = r;   Task::none() }

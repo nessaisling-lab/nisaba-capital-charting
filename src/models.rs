@@ -56,6 +56,17 @@ pub struct NewsArticle {
     pub published_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// One row from rss_articles (RSS/Atom feed aggregation)
+#[derive(Debug, Clone, FromRow)]
+pub struct RssArticle {
+    pub feed_source:  String,
+    pub category:     String,
+    pub headline:     String,
+    pub summary:      Option<String>,
+    pub link:         String,
+    pub published_at: chrono::DateTime<chrono::Utc>,
+}
+
 /// One row from earnings_dates (Finnhub earnings calendar)
 #[derive(Debug, Clone, FromRow)]
 pub struct EarningsDate {

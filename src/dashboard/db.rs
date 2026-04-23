@@ -101,6 +101,14 @@ pub async fn fetch_news(pool: Arc<PgPool>, ticker: String) -> Result<Vec<NewsArt
     .bind(&ticker).fetch_all(pool.as_ref()).await.map_err(|e| e.to_string())
 }
 
+pub async fn fetch_rss_articles(pool: Arc<PgPool>) -> Result<Vec<pursuit_week4_automation::models::RssArticle>, String> {
+    sqlx::query_as::<_, pursuit_week4_automation::models::RssArticle>(
+        "SELECT feed_source, category, headline, summary, link, published_at \
+         FROM rss_articles ORDER BY published_at DESC LIMIT 50",
+    )
+    .fetch_all(pool.as_ref()).await.map_err(|e| e.to_string())
+}
+
 pub async fn fetch_analyst_rating(pool: Arc<PgPool>, ticker: String) -> Result<Option<AnalystRating>, String> {
     sqlx::query_as::<_, AnalystRating>(
         "SELECT ticker, period, strong_buy, buy, hold, sell, strong_sell \

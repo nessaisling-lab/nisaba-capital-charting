@@ -31,3 +31,4 @@ roxmltree = "0.20"
 swiss-eph = { version = "0.2", features = ["embedded-ephe"] }
 rfd = "0.15"
 csv = "1"
+feed-rs = "2"

@@ -1572,9 +1572,35 @@ impl Dashboard {
                 ].spacing(10).into()
             }
             Tab::Research => {
-                // Research tab: news + filings + insider trades + holdings
+                // RSS market news section (global, not per-ticker)
+                let rss_section = if self.rss_articles.is_empty() {
+                    column![
+                        text("Market News (RSS)").size(theme::TEXT_MD),
+                        text("No RSS articles loaded yet. Run the scraper to fetch headlines from 25+ sources.").size(theme::TEXT_SM),
+                    ].spacing(4)
+                } else {
+                    let rss_items: Vec<Element<Message>> = self.rss_articles.iter().map(|a| {
+                        let date = a.published_at.format("%b %d").to_string();
+                        let link = a.link.clone();
+                        row![
+                            text(format!("[{date}]")).size(theme::TEXT_BASE).width(Length::Fixed(52.0)),
+                            text(&a.feed_source).size(theme::TEXT_BASE).width(Length::Fixed(90.0)),
+                            text(&a.category).size(theme::TEXT_XS).width(Length::Fixed(60.0)),
+                            text(&a.headline).size(theme::TEXT_BASE).width(Length::Fill),
+                            button(text("Open").size(theme::TEXT_SM)).on_press(Message::OpenUrl(link)),
+                        ].spacing(6).align_y(Alignment::Center).into()
+                    }).collect();
+                    column![
+                        text("Market News (RSS — 25 sources)").size(theme::TEXT_MD),
+                        scrollable(Column::with_children(rss_items).spacing(4)).height(Length::Fixed(180.0)),
+                    ].spacing(4)
+                };
+
+                // Research tab: news + filings + RSS + insider trades + holdings
                 column![
                     news_filings_row,
+                    horizontal_rule(1),
+                    rss_section,
                     horizontal_rule(1),
                     insider_section,
                     horizontal_rule(1),
