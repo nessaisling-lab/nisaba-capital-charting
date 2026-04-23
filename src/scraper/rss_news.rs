@@ -18,9 +18,7 @@ use std::sync::Arc;
 // Categories: wire, markets, central_bank, analysis, tech, energy, crypto
 
 const RSS_FEEDS: &[(&str, &str, &str)] = &[
-    // Tier 1: Wire services & regulators
-    ("https://feeds.reuters.com/reuters/businessNews",     "Reuters",       "wire"),
-    ("https://feeds.reuters.com/reuters/financialsNews",   "Reuters",       "markets"),
+    // Tier 1: Wire services & regulators (Reuters feeds retired 2023, replaced)
     ("https://www.sec.gov/news/pressreleases.rss",         "SEC",           "central_bank"),
     ("https://www.federalreserve.gov/feeds/press_all.xml", "Federal Reserve","central_bank"),
     ("https://www.ecb.europa.eu/rss/press.html",           "ECB",           "central_bank"),
@@ -31,11 +29,12 @@ const RSS_FEEDS: &[(&str, &str, &str)] = &[
     ("https://feeds.marketwatch.com/marketwatch/topstories/","MarketWatch", "markets"),
     ("https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114", "CNBC", "markets"),
     ("https://seekingalpha.com/market_currents.xml",       "Seeking Alpha", "analysis"),
+    ("https://finance.yahoo.com/news/rssindex",            "Yahoo Finance", "markets"),
 
-    // Tier 2: World news (macro context)
+    // Tier 2: World news (macro context) (NYT feed retired, replaced)
     ("http://feeds.bbci.co.uk/news/business/rss.xml",      "BBC",          "wire"),
-    ("https://rss.nytimes.com/services/xml/rss/World.xml",  "NYT",         "wire"),
     ("https://www.aljazeera.com/xml/rss/all.xml",           "Al Jazeera",  "wire"),
+    ("https://www.ft.com/?format=rss",                      "FT",          "wire"),
 
     // Energy & commodities
     ("https://oilprice.com/rss/main",                       "OilPrice",    "energy"),
@@ -52,14 +51,15 @@ const RSS_FEEDS: &[(&str, &str, &str)] = &[
     ("https://www.economist.com/finance-and-economics/rss.xml", "Economist","analysis"),
     ("https://feeds.feedburner.com/CalculatedRisk",         "Calculated Risk","analysis"),
     ("https://wolfstreet.com/feed/",                        "Wolf Street",  "analysis"),
+    ("https://www.nakedcapitalism.com/feed",                "Naked Capitalism","analysis"),
 
     // Crypto
     ("https://www.coindesk.com/arc/outboundfeeds/rss/",     "CoinDesk",    "crypto"),
     ("https://cointelegraph.com/rss",                       "CoinTelegraph","crypto"),
 
-    // Geopolitics
+    // Geopolitics (Defense News feed retired, replaced)
     ("https://foreignpolicy.com/feed/",                     "Foreign Policy","wire"),
-    ("https://www.defensenews.com/rss/",                    "Defense News", "wire"),
+    ("https://www.politico.com/rss/economy.xml",            "Politico",     "wire"),
 ];
 
 /// Maximum summary length (chars) — matches C++ kSummaryMaxChars

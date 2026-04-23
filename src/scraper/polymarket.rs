@@ -25,7 +25,9 @@ const MARKET_TAGS: &[&str] = &[
     "inflation",
     "recession",
     "crypto",
-    "elections",
+    "stocks",
+    "interest-rates",
+    "markets",
 ];
 
 // ---------------------------------------------------------------------------
@@ -113,16 +115,7 @@ pub async fn fetch_all_polymarket(
         }
     }
 
-    // Also fetch top markets by volume regardless of tag
-    match fetch_top_markets(&pool, &client).await {
-        Ok(n) => {
-            total_inserted += n;
-            println!("[Polymarket] top volume: {n} markets upserted");
-        }
-        Err(e) => eprintln!("[Polymarket] top volume error: {e:#}"),
-    }
-
-    println!("[Polymarket] Done. {total_inserted} total upserts.");
+    println!("[Polymarket] Done. {total_inserted} total upserts across {} tags.", MARKET_TAGS.len());
     crate::log_fetch(&pool, "polymarket", None, "polymarket_markets", "ok", None).await;
 }
 
@@ -139,16 +132,6 @@ async fn fetch_markets_by_tag(
         "{GAMMA_BASE}/markets?tag={tag}&closed=false&limit=10&order=volume&ascending=false"
     );
     fetch_and_upsert(&url, Some(tag), pool, client).await
-}
-
-async fn fetch_top_markets(
-    pool: &sqlx::PgPool,
-    client: &reqwest::Client,
-) -> Result<u64> {
-    let url = format!(
-        "{GAMMA_BASE}/markets?closed=false&limit=20&order=volume&ascending=false"
-    );
-    fetch_and_upsert(&url, None, pool, client).await
 }
 
 async fn fetch_and_upsert(

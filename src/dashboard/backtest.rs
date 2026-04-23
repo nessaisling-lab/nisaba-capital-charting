@@ -61,6 +61,8 @@ pub struct BacktestResult {
     pub num_trades: usize,
     pub days_tested: usize,
     pub final_capital: f64,
+    /// Minimum-data guard: None = sufficient data, Some(msg) = insufficient.
+    pub insufficient_data: Option<String>,
 }
 
 /// Run the backtest on a time-ordered series of joined astro + price data.
@@ -73,21 +75,23 @@ pub fn run_backtest(
     data: &[BacktestDay],
     config: &BacktestConfig,
 ) -> BacktestResult {
-    let empty = BacktestResult {
-        ticker: ticker.to_string(),
-        trades: vec![],
-        total_return_pct: 0.0,
-        buy_hold_return_pct: 0.0,
-        max_drawdown_pct: 0.0,
-        win_rate_pct: 0.0,
-        signal_accuracy_pct: 0.0,
-        num_trades: 0,
-        days_tested: data.len(),
-        final_capital: config.initial_capital,
-    };
-
-    if data.len() < 2 {
-        return empty;
+    if data.len() < 30 {
+        return BacktestResult {
+            ticker: ticker.to_string(),
+            trades: vec![],
+            total_return_pct: 0.0,
+            buy_hold_return_pct: 0.0,
+            max_drawdown_pct: 0.0,
+            win_rate_pct: 0.0,
+            signal_accuracy_pct: 0.0,
+            num_trades: 0,
+            days_tested: data.len(),
+            final_capital: config.initial_capital,
+            insufficient_data: Some(format!(
+                "Need 30+ days of astro + price data to backtest. Currently have {} day(s) for {}.",
+                data.len(), ticker,
+            )),
+        };
     }
 
     let mut capital = config.initial_capital;
@@ -174,6 +178,7 @@ pub fn run_backtest(
         num_trades,
         days_tested: data.len(),
         final_capital: capital,
+        insufficient_data: None,
     }
 }
 
@@ -219,20 +224,47 @@ mod tests {
     }
 
     #[test]
-    fn test_basic_backtest() {
-        // Scenario: astro goes high (buy), then low (sell) at a higher price
+    fn test_insufficient_data() {
+        // 5 days is below the 30-day minimum
         let data = vec![
-            make_day(2025, 1, 1, 100.0, 50.0),  // neutral, no action
-            make_day(2025, 1, 2, 101.0, 70.0),  // above 65 -> BUY
-            make_day(2025, 1, 3, 105.0, 60.0),  // still holding
-            make_day(2025, 1, 4, 110.0, 30.0),  // below 35 -> SELL at 110
-            make_day(2025, 1, 5, 108.0, 40.0),  // out of market
+            make_day(2025, 1, 1, 100.0, 50.0),
+            make_day(2025, 1, 2, 101.0, 70.0),
+            make_day(2025, 1, 3, 105.0, 60.0),
+            make_day(2025, 1, 4, 110.0, 30.0),
+            make_day(2025, 1, 5, 108.0, 40.0),
         ];
         let config = BacktestConfig::default();
         let result = run_backtest("TEST", &data, &config);
+        assert!(result.insufficient_data.is_some());
+        assert_eq!(result.trades.len(), 0);
+    }
 
+    #[test]
+    fn test_basic_backtest() {
+        // Generate 35 days: neutral -> buy signal -> hold -> sell signal -> neutral
+        let mut data = Vec::new();
+        for i in 0..10 {
+            data.push(make_day(2025, 1, 1 + i, 100.0 + i as f64 * 0.2, 50.0));
+        }
+        // Day 10: astro goes high -> BUY
+        data.push(make_day(2025, 1, 11, 101.0, 70.0));
+        for i in 12..=20 {
+            data.push(make_day(2025, 1, i, 101.0 + (i - 11) as f64, 60.0));
+        }
+        // Day ~21: astro drops -> SELL at higher price
+        data.push(make_day(2025, 1, 21, 110.0, 30.0));
+        for i in 22..=31 {
+            data.push(make_day(2025, 1, i, 108.0, 40.0));
+        }
+        // Pad to > 31 days
+        data.push(make_day(2025, 2, 1, 107.0, 45.0));
+
+        let config = BacktestConfig::default();
+        let result = run_backtest("TEST", &data, &config);
+
+        assert!(result.insufficient_data.is_none());
         assert_eq!(result.trades.len(), 1);
-        assert!(result.trades[0].return_pct > 0.0); // 101 -> 110 = ~8.9%
+        assert!(result.trades[0].return_pct > 0.0); // bought at ~101, sold at 110
         assert!(result.total_return_pct > 0.0);
         assert!(result.win_rate_pct > 99.0); // 1/1 = 100%
     }

@@ -376,9 +376,19 @@ async fn run_all_fetches(
         tiingo::fetch_all_prices_tiingo(Arc::clone(&pool), Arc::clone(&client), Arc::clone(tiingo_k)).await;
     }
 
-    // EDGAR filings
-    println!("3.4 Fetching EDGAR insider trades and 8-K filings...");
-    edgar::fetch_all_edgar(Arc::clone(&pool), Arc::clone(&client)).await;
+    // EDGAR filings (dynamic CIK lookup, priority tickers first)
+    println!("3.4 Fetching SEC CIK map + EDGAR filings (priority + watchlist)...");
+    let cik_map = match edgar_enrich::fetch_cik_map(&client, &user_agent).await {
+        Ok(m) => {
+            println!("     CIK map loaded ({} companies)", m.len());
+            m
+        }
+        Err(e) => {
+            eprintln!("     CIK map fetch failed ({e:#}), falling back to hardcoded CIK_MAP");
+            std::collections::HashMap::new()
+        }
+    };
+    edgar::fetch_all_edgar(Arc::clone(&pool), Arc::clone(&client), &cik_map, &priority).await;
 
     println!("3.5 Fetching 13F institutional holdings...");
     holdings::fetch_all_13f(Arc::clone(&pool), Arc::clone(&client)).await;
@@ -410,8 +420,9 @@ async fn run_all_fetches(
     ).await;
 
     println!("3.12 Enriching first-filing dates (SEC EDGAR)...");
-    edgar_enrich::enrich_first_filing_dates(
+    edgar_enrich::enrich_first_filing_dates_with_cik(
         Arc::clone(&pool), Arc::clone(&client), Arc::clone(&user_agent),
+        if cik_map.is_empty() { None } else { Some(&cik_map) },
     ).await;
 
     // =========================================================================

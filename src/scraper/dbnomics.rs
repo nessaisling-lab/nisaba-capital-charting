@@ -1,6 +1,6 @@
 //! DBnomics international economics data fetcher.
 //!
-//! Fetches key macro series from DBnomics (api.dbnomics.org), a free
+//! Fetches key macro series from DBnomics (api.db.nomics.world), a free
 //! aggregator of 70+ statistical providers (ECB, BIS, IMF, Eurostat, OECD).
 //! No API key required. Rate limit: ~3 requests/second.
 //!
@@ -99,9 +99,9 @@ async fn fetch_dbn_series(
     pool: &sqlx::PgPool,
     client: &reqwest::Client,
 ) -> Result<u64> {
-    // DBnomics v22 observations endpoint
+    // DBnomics v22 observations endpoint (official domain: api.db.nomics.world)
     let url = format!(
-        "https://api.dbnomics.org/v22/series/{provider}/{dataset}/{series_code}\
+        "https://api.db.nomics.world/v22/series/{provider}/{dataset}/{series_code}\
          ?observations=1&format=json"
     );
 

@@ -3,11 +3,463 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v3.1.4
+**Current version:** v3.1.9
+**Next milestone:** v4.0.0 "The Forge" (approved 2026-04-23)
 
 ---
 
 ## Changelog
+
+### v3.1.9 — "New Tools" (2026-04-23)
+
+**Theme:** Feature additions building on the polished v3.1.8 base. New chart overlays, alert management, CSV export, portfolio import, and peer comparison.
+
+1. **News sentiment coloring** — news headlines in the Research tab now carry color-coded sentiment badges. "Bullish" (green) and "Bearish" (red) labels appear next to the section header based on the ticker's latest sentiment score. Headlines from sentiment-scored RSS feeds are tinted accordingly.
+   - *Files:* `view/research.rs` (sentiment badge from `self.sentiment`, conditional headline color)
+
+2. **Export Universe CSV** — "Export CSV" button on the Universe tab exports the current filtered/searched universe view to a CSV file via native file dialog. Includes all 10 columns: ticker, company, sector, score, label, astro, fin, macro, short, concordance.
+   - *Files:* `state.rs` (+ExportUniverseCsv message), `update/mod.rs` (+handler dispatching to helper), `update/helpers.rs` (+export_universe_csv async fn), `view/universe.rs` (+button)
+
+3. **Portfolio import from watchlist** — "Import to Portfolio" button in the Portfolio tab's watchlist manager inserts all tickers from the active named watchlist as portfolio positions (1 share at $0 avg cost). Uses `INSERT ... ON CONFLICT DO NOTHING` to avoid duplicates.
+   - *Files:* `state.rs` (+ImportWatchlistToPortfolio message), `update/mod.rs` (+handler), `db/portfolio.rs` (+import_tickers_to_portfolio fn), `view/portfolio_tab.rs` (+button)
+
+4. **Comparative auto-suggest peers** — the Fundamentals tab now shows up to 6 sector peers below the comparison table. One-click "+" buttons add peers directly via `CompareAddDirect(String)`, separate from the text-input flow. Peers are fetched via a `company_metadata` self-join on sector.
+   - *Files:* `state.rs` (+sector_peers field, +CompareAddDirect/SectorPeersLoaded messages), `db/universe.rs` (+fetch_sector_peers fn), `update/mod.rs` (+handlers, wire into TickerSelected), `view/fundamentals.rs` (+peer suggestion row)
+
+5. **Chart astro event overlay** — the price chart canvas now renders two types of vertical markers: (a) extreme astro scores from lagrange_history (★ green at >=75, ⚠ red at <=25), and (b) retrograde station events (☿Rx, ♃D, etc.) from a new `fetch_retrograde_events()` query. The query uses `LAG()` window function on the `daily_transits` table to detect retrograde status transitions across the last year. Markers render as dashed vertical lines with glyph labels.
+   - *Files:* `db/astro.rs` (+RetroEvent struct, +fetch_retrograde_events fn), `state.rs` (+retrograde_events field, +RetroEventsLoaded message), `update/mod.rs` (+handler, +load on startup), `view/overview.rs` (merge retrograde markers into astro_markers vec)
+
+6. **Alert management UI** — alerts panel now has "Ack" (acknowledge/mark-read) and "✕" (dismiss/delete) buttons per alert. "Mark All Read" batch button appears when unread alerts exist. Dismissing permanently deletes from DB. Settings tab shows alert threshold info.
+   - *Files:* `db/universe.rs` (+mark_all_alerts_read, +dismiss_alert fns), `state.rs` (+MarkAllAlertsRead, +DismissAlert messages), `update/mod.rs` (+handlers), `view/universe.rs` (redesigned alerts panel with action buttons), `view/settings.rs` (+alert threshold section)
+
+*Note: "Fetch this ticker" button was deferred — requires scraper-side work beyond dashboard scope.*
+
+### v3.1.7-3 — EDGAR Prioritization (2026-04-23)
+
+**Backfill:** This item was deferred from v3.1.7 due to CIK lookup infrastructure requirements. Now implemented.
+
+- **Dynamic CIK lookup** — `fetch_cik_map()` in `edgar_enrich.rs` made public. Downloads SEC's `company_tickers.json` (~14,000 companies) once per scraper run and reuses across both EDGAR filing fetch and IPO date enrichment.
+- **Priority-first EDGAR fetching** — `fetch_all_edgar()` now accepts a `&HashMap<String, u64>` CIK map and `&[String]` priority tickers. Processes astro-ranked tickers (Top 5 + Bottom 5) first, then watchlist tickers, deduped. Falls back to hardcoded `CIK_MAP` for original 10 tickers when dynamic lookup misses.
+- **CIK map sharing** — `enrich_first_filing_dates_with_cik()` accepts an optional pre-fetched CIK map, avoiding a redundant SEC API call. Pipeline calls it with the map already fetched in step 3.4.
+  - *Files:* `src/scraper/edgar.rs` (rewritten `fetch_all_edgar` signature), `src/scraper/edgar_enrich.rs` (`fetch_cik_map` made public, new `_with_cik` variant), `src/scraper/main.rs` (CIK map fetch + pass to both functions)
+
+### v3.1.8 — "Polish the Glass" (2026-04-23)
+
+**Theme:** UX improvements discovered during video review. No new data sources; all changes are dashboard-side polish.
+
+1. **Universe search box** — text input on the Universe Explorer tab filters by ticker symbol or company name. Uses case-insensitive `LIKE` matching in SQL with `$5` parameter threaded through `fetch_universe_page()` and `fetch_universe_count()`. Resets to page 0 on each keystroke. Combines with existing zone and sector filters.
+   - *Files:* `state.rs` (+field, +message), `db/universe.rs` (+search param in both queries), `update/helpers.rs` (pass search to refresh), `update/mod.rs` (+handler), `view/universe.rs` (+text_input)
+
+2. **Backtest minimum-data guard** — backtests now require 30+ days of astro+price data. Below that threshold, both `run_backtest()` and `run_strategy_backtest()` return an `insufficient_data: Option<String>` message instead of zeroed-out results. The view shows the message in amber text with guidance to run the scraper.
+   - *Files:* `backtest.rs` (+field, threshold 2→30, updated tests), `strategy.rs` (+field, threshold 2→30), `view/astrology_tab.rs` (guard in both backtest and strategy views)
+
+3. **Collapsible price table** — the 100-row OHLCV price table on the Fundamentals tab starts collapsed. Click "Price History (N rows)" to expand into a 300px scrollable. Saves vertical real estate for the metrics, DCF, agents, and comparisons that matter more.
+   - *Files:* `state.rs` (+show_price_table field, +TogglePriceTable message), `update/mod.rs` (+handler), `view/fundamentals.rs` (toggle button + conditional scrollable)
+
+4. **RSS ticker relevance** — RSS articles in the Research tab are now sorted with ticker-relevant articles first (headline or summary mentions selected ticker). Relevant headlines highlighted in green. Secondary sort by publication date.
+   - *Files:* `view/research.rs` (sort + conditional color)
+
+5. **Recently Viewed cap at 8** — reduced from 10 to 8 in all SQL queries (fetch, upsert prune) to prevent header overflow on smaller screens.
+   - *Files:* `db/portfolio.rs` (LIMIT 10 → 8 in 3 queries)
+
+6. **Sparse sparkline fix** — Lagrange sparkline now draws with a single data point (centered dot) instead of requiring 2+. Prevents division-by-zero when `n=1` and shows a dot+label for new tickers with minimal history.
+   - *Files:* `charts.rs` (threshold empty→1, denom guard)
+
+---
+
+## v4.0 Implementation Roadmap — "The Forge" (Approved 2026-04-23)
+
+**Goal:** Three-phase evolution from v3.1.9 to a professional-grade financial terminal. Tech debt first (stable internals), UI/UX second (visual polish), features last (new capabilities). Each phase is independently shippable.
+
+**Codebase snapshot at approval:**
+
+| Metric | Value |
+|--------|-------|
+| Total Rust lines | 17,851 |
+| Largest file | `update/mod.rs` (921 lines) |
+| `.unwrap()` count | 44 (27 in astrology module) |
+| `panic!` count | 3 (swisseph_bridge + ephemeris) |
+| Dashboard view/ | 2,628 lines across 9 files |
+| Dashboard update/ | 1,183 lines across 2 files |
+| Dashboard db/ | 1,165 lines across 5 files |
+
+---
+
+### Phase 1: v4.0.0 — "Structural Steel" (Tech Debt)
+
+**Goal:** Reduce unwraps, split the monolithic update handler, eliminate code duplication, add error resilience. No visual changes. Dashboard behaves identically before and after.
+
+#### 4.0.1 — Split `update/mod.rs` (921 lines -> 5 files)
+
+The single 921-line match block is the biggest maintenance bottleneck. Every new message variant means touching one massive file.
+
+| New file | Handles messages for | Est. lines |
+|----------|---------------------|------------|
+| `update/astro.rs` | AstroScore, Horoscope, RetroEvents, NatalChart | ~150 |
+| `update/data.rs` | TickerSelected, PriceLoaded, FundamentalsLoaded, NewsLoaded | ~200 |
+| `update/universe.rs` | UniversePage, Alerts, Search, Filters, Export | ~150 |
+| `update/portfolio.rs` | Portfolio, Backtest, DCF, Watchlist, Import | ~120 |
+| `update/mod.rs` | Tab switching, Theme, Tick, top-level dispatch | ~200 |
+
+Each sub-module exports `fn handle_xxx(state: &mut Dashboard, msg: XxxMessage) -> Task<Message>`.
+
+**Files:** `src/dashboard/update/{astro,data,universe,portfolio}.rs` (new), `update/mod.rs` (trimmed)
+
+#### 4.0.2 — Unwrap Audit (44 -> <10)
+
+| Severity | Files | Action |
+|----------|-------|--------|
+| Critical | `swisseph_bridge.rs` (6 unwraps) | Wrap FFI returns in Option/Result, log + default on failure |
+| Critical | `interpretation.rs` (8 unwraps) | Replace with `.unwrap_or_default()` or format fallbacks |
+| High | `natal.rs` (5 unwraps) | Use `?` operator or `.ok()` chains |
+| Medium | `aspects.rs` (4), `agents.rs` (4) | Context-specific fixes |
+| Safe | `Mutex::lock()` unwraps | Keep with documented justification |
+
+**Target:** <10 unwraps remaining, all justified.
+
+#### 4.0.3 — Agent Code Deduplication
+
+The 4 agent personas (Buffett, Graham, Lynch, Munger) share ~60% identical structure. Extract shared template:
+
+```rust
+struct AgentTemplate {
+    name: &'static str,
+    philosophy: &'static str,
+    metrics_focus: &[&str],
+    astro_stance: AstroStance,  // Supportive / Skeptical / Pragmatic
+}
+fn generate_analysis(ctx: &AgentContext, template: &AgentTemplate) -> AgentAnalysis
+```
+
+**Estimated reduction:** ~400 lines removed from `agents.rs` (~1000 -> ~600).
+
+#### 4.0.4 — Hardcoded Watchlist Extraction
+
+Move `WATCHLIST` and `CIK_MAP` from `const` arrays in `scraper/main.rs` to DB-backed config. Query `SELECT ticker FROM watchlists WHERE name = 'default'` at scraper start, fall back to hardcoded list if empty. No migration needed (watchlists table exists from v3.1.8).
+
+#### 4.0.5 — Error Handling Consistency
+
+Replace `String` error types in dashboard DB functions with a proper enum:
+
+```rust
+pub enum DashError {
+    Db(sqlx::Error),
+    Parse(String),
+    NotFound(String),
+}
+```
+
+Affects: `db/*.rs` (5 files), `update/*.rs` (after split).
+
+**Phase 1 totals:** ~800 lines changed, ~400 lines net reduction. Zero visual changes.
+
+---
+
+### Phase 2: v4.1.0 — "The Glass" (UI/UX Overhaul)
+
+**Goal:** Professional financial terminal look. Icons, typography, refined theme, better widgets.
+
+#### 4.1.1 — Typography Foundation
+
+| Font | Usage | Weight |
+|------|-------|--------|
+| Inter | All UI text, labels, headers | Regular (400), SemiBold (600) |
+| JetBrains Mono | Numbers, prices, scores, code | Regular (400) |
+
+Load via `include_bytes!` in `main.rs`. Create `font.rs` with `const INTER: Font`, `const MONO: Font`. Apply MONO to all numeric columns, INTER to all labels and body text.
+
+**Files:** `assets/fonts/` (4 .ttf files), `src/dashboard/font.rs` (new), `main.rs`, `theme.rs`
+
+#### 4.1.2 — Icon System (Lucide via iced_fonts)
+
+**New dependency:** `iced_fonts = { version = "0.1", features = ["lucide"] }`
+
+Key icon mappings:
+
+| Context | Lucide icon |
+|---------|-------------|
+| Tab: Astrology | Star |
+| Tab: Overview | LayoutDashboard |
+| Tab: Universe | Globe |
+| Tab: Fundamentals | BarChart3 |
+| Tab: Research | Newspaper |
+| Tab: Portfolio | Briefcase |
+| Tab: Settings | Settings |
+| Bullish / Bearish | TrendingUp / TrendingDown |
+| Refresh / Search | RefreshCw / Search |
+| Alert / Export | Bell / Download |
+| Mercury Rx | AlertTriangle |
+
+Create `src/dashboard/icons.rs` mapping icon names to Lucide codepoints. Replace all text-based pseudo-icons with proper icons.
+
+**Files:** `Cargo.toml`, `src/dashboard/icons.rs` (new), all `view/*.rs` files
+
+#### 4.1.3 — Theme Upgrade (CatppuccinMocha + Custom Financial)
+
+Replace manual `Theme::Custom` with Catppuccin Mocha palette:
+
+| Element | New Color (Mocha) |
+|---------|-------------------|
+| Background | #1e1e2e (Base) |
+| Surface | #313244 (Surface0) |
+| Text | #cdd6f4 (Text) |
+| Accent/Blue | #89b4fa (Blue) |
+| Green (bullish) | #a6e3a1 (Green) |
+| Red (bearish) | #f38ba8 (Red) |
+| Gold (astro) | #f9e2af (Yellow) |
+| Subtext | #a6adc8 (Subtext0) |
+
+Also add TokyoNight as alternate dark theme, plus a clean Light theme. Circadian auto-switch: Dawn/Day = Light, Dusk/Night = Mocha.
+
+**Files:** `theme.rs` (rewrite), `view/mod.rs` (theme toggle)
+
+#### 4.1.4 — Tab Bar Redesign
+
+Icon + label tabs with active accent-colored underline. Inactive tabs use subtext color, hover shows surface highlight. Icons from 4.1.2.
+
+**Files:** `view/mod.rs` (tab bar), `tabs.rs`
+
+#### 4.1.5 — Card/Panel Layout System
+
+Wrap each dashboard section in a consistent card container with rounded corners, surface background, subtle border, icon + title header, and horizontal rule separator.
+
+**Files:** `view/shared.rs` (card helper), all `view/*.rs` files
+
+#### 4.1.6 — Numeric Formatting Polish
+
+- Prices: `$1,234.56` (comma-grouped, 2 decimals)
+- Percentages: `+12.3%` / `-4.7%` (sign prefix, colored)
+- Large numbers: `$1.2B`, `$340M`, `$12.5K`
+- Scores: monospace font, fixed width for column alignment
+- Dates: `Apr 23, 2026` (human readable)
+
+**Files:** `helpers.rs` (expand formatters), all view files
+
+**Phase 2 totals:** ~1,200 new lines, ~400 lines changed. Major visual upgrade.
+
+---
+
+### Phase 3: v4.2.0 — "The Expansion" (New Features)
+
+**Goal:** Port highest-value FinceptTerminal features and add polish features.
+
+#### 4.2.1 — Plotters-Iced Candlestick Charts
+
+**New dependency:** `plotters-iced = "0.11"`
+
+Replace custom canvas chart with professional plotters-backed chart: OHLC candlesticks, volume bars, timeframe selector (1W/1M/3M/6M/1Y/ALL), astro event marker annotations, SMA overlay lines (20, 50, 200).
+
+**Files:** `charts.rs` (rewrite), `view/overview.rs`, `db/ticker_data.rs` (+OHLC query)
+**Migration:** `0021_ohlc_data.sql` (add open/high/low columns if missing)
+
+#### 4.2.2 — Options Greeks Calculator
+
+Black-Scholes implementation: delta, gamma, theta, vega, rho, implied volatility. Display in Fundamentals tab alongside existing metrics.
+
+**Files:** `src/dashboard/greeks.rs` (new, ~200 lines), `view/fundamentals.rs`
+
+#### 4.2.3 — Improved Table Widget
+
+**New dependency:** `iced_table = "0.13"` (or custom reusable sorted table)
+
+Sortable columns, alternating row colors, fixed header scroll. Apply to Universe Explorer, price history, insider trades, filings.
+
+**Files:** `src/dashboard/table.rs` (new), `view/universe.rs`, `view/research.rs`, `view/fundamentals.rs`
+
+#### 4.2.4 — Toast Notifications
+
+Replace `println!` feedback with in-app toasts: success (green), info (blue), error (red). Auto-dismiss after 4 seconds, stack up to 3.
+
+**Files:** `src/dashboard/toasts.rs` (new), `state.rs`, `update/mod.rs`
+
+#### 4.2.5 — GDELT Geopolitical Events
+
+Free API, no key. Fetch geopolitical events affecting markets. Display in Research tab alongside news.
+
+**Files:** `src/scraper/gdelt.rs` (new, ~150 lines), `migration 0022_gdelt_events.sql`, `view/research.rs`
+
+#### 4.2.6 — Astro Calendar View
+
+Monthly calendar showing upcoming exact aspects for watchlist tickers. "Best days to buy" / "Days to avoid" based on aggregate astro forecast.
+
+**Files:** `calendar.rs` (expand existing), `view/astrology_tab.rs`, `db/astro.rs`
+
+**Phase 3 totals:** ~1,800 new lines, 3 new crates.
+
+---
+
+### v4.0 Dependency Chain
+
+```
+Phase 1: Tech Debt (v4.0.0)        <- do first, no visual changes
+  |-- 4.0.1 Split update/mod.rs    <- unblocks everything
+  |-- 4.0.2 Unwrap audit           <- independent
+  |-- 4.0.3 Agent dedup            <- independent
+  |-- 4.0.4 Watchlist extraction   <- independent
+  +-- 4.0.5 Error enum             <- after split
+
+Phase 2: UI/UX (v4.1.0)            <- after phase 1
+  |-- 4.1.1 Typography             <- do first (fonts used everywhere)
+  |-- 4.1.2 Icons (iced_fonts)     <- after fonts
+  |-- 4.1.3 Theme (Catppuccin)     <- independent of icons
+  |-- 4.1.4 Tab bar redesign       <- after icons + theme
+  |-- 4.1.5 Card layout            <- after theme
+  +-- 4.1.6 Numeric formatting     <- independent
+
+Phase 3: Features (v4.2.0)         <- after phase 2
+  |-- 4.2.1 Candlestick charts     <- highest impact, do first
+  |-- 4.2.2 Options Greeks          <- independent
+  |-- 4.2.3 Table widget            <- independent
+  |-- 4.2.4 Toast notifications     <- independent
+  |-- 4.2.5 GDELT geopolitics       <- independent
+  +-- 4.2.6 Astro calendar          <- independent
+```
+
+### v4.0 New Dependencies
+
+| Crate | Version | Phase | Purpose |
+|-------|---------|-------|---------|
+| `iced_fonts` | 0.1 | 4.1.2 | Lucide icons (1,400+ SVG-as-font icons) |
+| `plotters-iced` | 0.11 | 4.2.1 | Professional candlestick charts |
+| `iced_toasts` | latest | 4.2.4 | In-app notification toasts |
+
+### v4.0 Effort Summary
+
+| Phase | New lines | Changed lines | Net delta | New files |
+|-------|-----------|---------------|-----------|-----------|
+| 4.0 Tech Debt | ~400 | ~800 | -400 | 4 |
+| 4.1 UI/UX | ~1,200 | ~600 | +800 | 3 |
+| 4.2 Features | ~1,800 | ~400 | +1,400 | 5 |
+| **Total** | **~3,400** | **~1,800** | **+1,800** | **12** |
+
+### v4.0 Reference Material
+
+- **Halloy** (IRC client, Iced): Best-in-class Iced app for theme and layout patterns
+- **Liana** (Bitcoin wallet, Iced): Financial data display patterns
+- **Cryptowatch** (financial terminal): Visual benchmark for chart and data density
+- **FinceptTerminal** (C++20/Qt6): Feature source for Greeks, GDELT, advanced charts
+- **Catppuccin Mocha**: Theme palette specification (catppuccin.com)
+
+---
+
+## Implementation Roadmap (v3.1.6 through v3.1.9)
+
+*Compiled from video review of dashboard (158 frames, ~8 min screen recording) and scraper console output analysis on 2026-04-23. Items ordered by user impact, grouped into coherent shipping units.*
+
+### v3.1.6 — "Fix the Pipes" (Critical Fixes)
+
+| # | Item | Type | Details |
+|---|------|------|---------|
+| 1 | DBnomics API URL fix | Bug | `api.db.nomics.world` DNS fails. All 5 international macro indicators show "---". Verify current endpoint, update URL, add fallback. |
+| 2 | Polymarket financial filtering | Bug | Markets displayed include sports/politics (Houston Astros, French elections, Ligue 1 soccer). Filter to `economics`, `fed`, `inflation`, `recession`, `crypto` only. |
+| 3 | Dead RSS feed cleanup | Bug | Reuters, NYT, Defense News return 404/403. Remove or replace with working alternatives. |
+| 4 | Hide empty international macro row | UX | When all 5 DBnomics values are "---", hide the row entirely instead of showing 5 dashes. |
+
+**Files:** `src/scraper/dbnomics.rs`, `src/scraper/polymarket.rs`, `src/scraper/rss_news.rs`, `src/dashboard/view/shared.rs`
+
+### v3.1.7 — "The Verification Layer" (Sub-scores + Sector Data)
+
+| # | Item | Type | Details |
+|---|------|------|---------|
+| 1 | Free sector/industry data | Feature | Populate sector/industry from Polygon ticker details API (already integrated). Unblocks Sector Heat Map, sector filtering, Universe sector column. |
+| 2 | Lagrange sub-score computation | Bug | Financial, Macro, Short sub-scores all show "---" in Universe. Wire existing data into sub-score columns so composite isn't just Astro echoed. |
+| 3 | EDGAR 8-K + Form 4 prioritization | Bug | Watchlist/astro-priority tickers should get filings and insider trades fetched. Wire EDGAR into priority system. |
+| 4 | Smarter agent analysis | UX | Agents should analyze available data (price, astro, sentiment, short %) when FMP fundamentals missing. "Insufficient Data" only when nothing is available. |
+
+**Files:** `src/scraper/ticker_seed.rs`, `src/scraper/lagrange.rs`, `src/scraper/edgar_enrich.rs`, `src/dashboard/agents.rs`, `src/dashboard/db/universe.rs`
+
+### v3.1.8 — "Polish the Glass" (UX Improvements)
+
+| # | Item | Type | Details |
+|---|------|------|---------|
+| 1 | Universe search box | Feature | Text filter to search 1739 tickers by symbol or company name without paging 35 pages. |
+| 2 | Backtest minimum-data guard | UX | Show "Need 30+ days of astro history" instead of zeroed-out "0 trades, 0%" result. |
+| 3 | Collapsible price table | UX | Fundamentals tab: show 15 rows default with "Show all" toggle. Full OHLCV shouldn't dominate. |
+| 4 | RSS ticker relevance | UX | Tag RSS articles mentioning selected ticker. Show ticker-relevant first, general market news below. |
+| 5 | Recently Viewed cap at 8 | UX | Drop oldest when exceeding 8 tickers. Keeps header tight. |
+| 6 | Lagrange sparkline with sparse data | UX | Draw mini-chart with few points instead of "not enough history" text fallback. |
+
+**Files:** `src/dashboard/view/universe.rs`, `src/dashboard/view/overview.rs`, `src/dashboard/view/fundamentals.rs`, `src/dashboard/view/research.rs`, `src/dashboard/state.rs`
+
+### v3.1.9 — "New Tools" (Feature Additions)
+
+| # | Item | Type | Details |
+|---|------|------|---------|
+| 1 | "Fetch this ticker" button | Feature | On no-data tickers, show button to queue single-ticker scrape. |
+| 2 | Alert management UI | Feature | Dismiss/acknowledge alerts, configure thresholds (score change %, zone transitions). |
+| 3 | Chart astro event overlay | Feature | Vertical markers on price chart for retrogrades and exact aspects. |
+| 4 | News sentiment coloring | Feature | Green/red/gray badges on news headlines using existing sentiment data. |
+| 5 | Export Universe CSV | Feature | Export current filtered universe view to CSV. |
+| 6 | Portfolio import from watchlist | Feature | One-click import watchlist tickers as portfolio positions. |
+| 7 | Comparative auto-suggest peers | Feature | Suggest sector peers for comparison (depends on v3.1.7 sector data). |
+
+**Files:** `src/dashboard/view/overview.rs`, `src/dashboard/view/universe.rs`, `src/dashboard/view/research.rs`, `src/dashboard/view/portfolio_tab.rs`, `src/dashboard/charts.rs`
+
+**Dependency chain:** v3.1.6 (independent) -> v3.1.7 (uses fixed DBnomics for macro sub-score) -> v3.1.8 (polishes features from v3.1.7) -> v3.1.9 (adds new features on solid base). v3.1.9 item 7 depends on v3.1.7 item 1 (sector data).
+
+---
+
+## Changelog
+
+### v3.1.7 — "The Verification Layer" *(completed 2026-04-23)*
+
+Three improvements that make the Lagrange composite score meaningful and the dashboard useful without an FMP paid key.
+
+**Item 1 -- Free sector/industry data via Finnhub:** Added `enrich_sectors()` to `finnhub.rs` that calls `/stock/profile2` for tickers in the scored universe missing sector data. Finnhub returns `finnhubIndustry` (e.g., "Biotechnology", "Software"), which we map to ~11 GICS-like sectors via `finnhub_industry_to_sector()` (a 70-category lookup). Capped at 50 tickers per scraper run to stay within rate limits. Populates both `sector` and `industry` columns in `company_metadata`. Unblocks the Sector Heat Map, sector filtering, and Universe sector column.
+
+**Item 2 -- Auto-expand scoring universe:** Previously, only the 10 hardcoded watchlist tickers had `scoring_active = true` in the `tickers` table. The other 1739 tickers from Polygon had astro scores but no Lagrange scores (sub-scores all "---"). Added an auto-expansion step at the start of `compute_all_scores()` that INSERTs any ticker with 26+ price rows into `tickers` with `scoring_active = true`. Uses `ON CONFLICT DO UPDATE` so existing watchlist tickers aren't disturbed. As Tiingo fills in price history (~490 tickers/day), the Lagrange scoring universe grows automatically.
+
+**Item 3 -- Smarter agent analysis without FMP fundamentals:** All four agents (Buffett, Graham, Lynch, Munger) previously returned "Verdict: Insufficient Data" with a one-line dismissal when FMP fundamentals were missing. Added `no_fundamentals_fallback()` that generates a partial analysis from available signals: astro score, Lagrange composite, current price, Mercury retrograde status, and moon phase. Each agent gets persona-specific commentary. "Insufficient Data" only shows when literally no signals are available. The fallback produces a real verdict (Buy/Hold/Sell) with metric cards, so the Fundamentals tab is useful even without FMP.
+
+**Deferred:** EDGAR 8-K/Form 4 prioritization (requires CIK lookup infrastructure for arbitrary tickers). Will address when the watchlist expansion makes it impactful.
+
+**Modified:** `src/scraper/finnhub.rs` (sector enrichment + industry-to-sector mapping), `src/scraper/lagrange.rs` (auto-expand scoring universe), `src/dashboard/agents.rs` (fallback analysis for all 4 personas)
+
+---
+
+### v3.1.6 — "Fix the Pipes" *(completed 2026-04-23)*
+
+Four critical fixes identified from 158-frame video review and scraper console output analysis.
+
+**Fix 1 -- DBnomics API URL:** The scraper used `api.dbnomics.org` which doesn't exist. The correct domain is `api.db.nomics.world` per the [official docs](https://docs.db.nomics.world/web-api/). This single-character fix unblocks all 5 international macro indicators (Euribor 3M, PBoC, EU CPI, OECD CLI, Credit/GDP) that were showing "---" on the macro strip.
+
+**Fix 2 -- Polymarket financial filtering:** The `fetch_top_markets()` function fetched 20 markets by volume with no category filter, pulling in sports (Houston Astros, Ligue 1 soccer) and niche politics (French elections). Fix: removed `fetch_top_markets()` entirely. Replaced `elections` tag with `stocks`, `interest-rates`, and `markets` tags. All markets now come from financially relevant tag queries only.
+
+**Fix 3 -- Dead RSS feeds:** Reuters (2 feeds), NYT, and Defense News all return 404/403 (feeds retired). Replaced with: Yahoo Finance (markets), FT (wire), Naked Capitalism (analysis), Politico Economy (wire). Feed count stays at 25.
+
+**Fix 4 -- Empty international macro row:** When all 5 DBnomics values are missing, the macro strip showed 5 dashes ("Euribor 3M: --- PBoC: --- ..."). Now the international row is hidden entirely when no DBnomics data exists. A `has_value()` helper checks each series_id. The row reappears automatically once DBnomics data is fetched.
+
+**Modified:** `src/scraper/dbnomics.rs` (API URL fix), `src/scraper/polymarket.rs` (removed unfiltered fetch, updated tags), `src/scraper/rss_news.rs` (replaced 4 dead feeds), `src/dashboard/view/shared.rs` (conditional international macro row)
+
+---
+
+### v3.1.5 — Module Decomposition Refactor *(completed 2026-04-22)*
+
+Decomposed 3 monolithic dashboard files (~4,000 lines total) into 16 focused domain modules. No functional changes; pure structural refactor for AI navigability, human readability, and incremental compile performance.
+
+**view.rs (1843 lines) → view/ directory (9 files):**
+- `mod.rs` (136) — shared chrome: header, search bar, tab bar, tab dispatch
+- `shared.rs` (71) — `make_gauge()` helper, `build_macro_strip()` method
+- `overview.rs` (609) — price chart, gauges, indicators, signals, watchlist, Polymarket
+- `astrology_tab.rs` (400) — natal wheel, horoscope, transits, backtest, calendar
+- `universe.rs` (335) — universe table, sector heat map, alerts panel
+- `fundamentals.rs` (348) — metrics grid, DCF, agents, comparative analysis, earnings
+- `research.rs` (245) — 8-K filings, news, RSS, insider trades, holdings
+- `portfolio_tab.rs` (226) — P&L, named watchlists, transaction log
+- `settings.rs` (63) — theme toggle, font scale, refresh interval, info stats
+
+**db.rs (1070 lines) → db/ directory (5 files):**
+- `mod.rs` (94) — connection, ticker list/search, settings CRUD, `pub use *` re-exports
+- `ticker_data.rs` (173) — per-ticker queries: prices, filings, news, fundamentals, macro
+- `astro.rs` (162) — astro scores, natal charts, transits, aspects, horoscope, backtest data
+- `universe.rs` (381) — WatchlistRow, UniverseRow, CompareRow, sector summaries, fear/greed
+- `portfolio.rs` (244) — positions, P&L, transactions, named watchlists, recently viewed
+
+**update.rs (1078 lines) → update/ directory (2 files):**
+- `mod.rs` (844) — `new()`, `update()` match (80+ handlers), `subscription()`, `fetch_all()`
+- `helpers.rs` (223) — refresh helpers, agent/DCF recompute, CSV export, toast, keyboard handler
+
+**Technique:** Rust directory-module conversion (`foo.rs` → `foo/mod.rs`) with `pub use submodule::*` re-exports preserves all existing import paths. `impl Dashboard` blocks split across files with `pub(crate)` visibility.
 
 ### v3.1.4 — Video Review Bug Fixes *(completed 2026-04-22)*
 
@@ -1950,7 +2402,7 @@ Tiingo budget: 490/day  ·  Today's usage: 312/490
 - [x] v3.0.4 — Settings panel (DB-backed key-value store, theme/refresh persistence, dashboard info)
 - [x] v3.0.5 — Astro calendar (monthly canvas heat map, score-colored days, prev/next navigation)
 - [x] v3.0.6 — Post-release bugfix patch (3 bugs + 16 compiler warnings)
-- [ ] v3.0.7 — Dashboard UI review (6 bugs + 6 UX improvements from video review)
+- [x] v3.0.7 — Dashboard UI review (6 bugs + 6 UX improvements from video review)
 
 ### v3.1 Roadmap — "The Network"
 
@@ -1958,10 +2410,12 @@ Tiingo budget: 490/day  ·  Today's usage: 312/490
 
 **Reference:** `reference/fincept_terminal_api_catalog.md` (full API catalog), `reference/fincept_src/` (C++ source files for translation)
 
-- [ ] v3.1.0 — DBnomics international economics (free REST API, 70+ data providers, supplements FRED)
-- [ ] v3.1.1 — RSS news aggregation (60+ financial feeds, native XML parsing, parallel fetch)
-- [ ] v3.1.2 — Polymarket prediction markets (sentiment signal from probability markets, 3 API bases)
-- [ ] v3.1.3 — Dashboard wiring (new Economics tab section, news expansion, Polymarket sentiment gauge)
+- [x] v3.1.0 — DBnomics international economics (free REST API, 70+ data providers, supplements FRED)
+- [x] v3.1.1 — RSS news aggregation (25 curated feeds, `feed-rs` parser, parallel fetch)
+- [x] v3.1.2 — Polymarket prediction markets (Gamma API discovery, category fallback, volume-ranked)
+- [x] v3.1.3 — Dashboard wiring (international macro strip, RSS in Research tab, Polymarket in Overview)
+- [x] v3.1.3b — Font scale setting + astro priority full scrape (AtomicU32 runtime scaling, 4 presets)
+- [x] v3.1.4 — Video review bug fixes (6 fixes: Y-axis precision, Polymarket categories, calendar nav, macro strip, current price label)
 
 See master plan: `.claude/plans/delegated-dazzling-globe.md` for full v2.0-v3.1 roadmap with dependency chain.
 
@@ -2063,20 +2517,20 @@ CREATE TABLE IF NOT EXISTS dbnomics_series (
 ```
 
 **Scraper implementation checklist:**
-- [ ] Create `src/scraper/dbnomics.rs` with `fetch_dbnomics()` entry point
-- [ ] Define `DbnomicsResponse` and `DbnomicsObservation` serde structs
-- [ ] Implement `fetch_series_observations(client, provider, dataset, series)` for each pre-selected series
-- [ ] Rate limit: 3 req/s (matching FinceptTerminal's rate limit)
-- [ ] Store observations in `dbnomics_series` table via upsert
-- [ ] Wire into `src/scraper/main.rs` Phase 3 (bulk data, after astro + financial)
-- [ ] Add `mod dbnomics;` to main.rs
-- [ ] Log via `log_fetch(pool, "dbnomics", None, series_id, "ok", None)`
+- [x] Create `src/scraper/dbnomics.rs` with `fetch_all_dbnomics()` entry point
+- [x] Define `DbnomicsResponse` and `DbnomicsObservation` serde structs
+- [x] Implement `fetch_series_observations(client, provider, dataset, series)` for 6 pre-selected series
+- [ ] Rate limit: 3 req/s (not implemented; sequential fetch suffices for 6 series)
+- [x] Store observations in `macro_indicators` table with `DBNOMICS:` prefix (reused existing table instead of separate `dbnomics_series`)
+- [x] Wire into `src/scraper/main.rs` Phase 3 (step 3.6)
+- [x] Add `mod dbnomics;` to main.rs
+- [x] Log via `log_fetch(pool, "dbnomics", None, series_id, "ok", None)`
 
 **Dashboard wiring:**
-- [ ] `db.rs`: `fetch_dbnomics_latest(pool)` -- latest observation per series
-- [ ] `state.rs`: `pub international_macro: Vec<DbnomicsSeries>`
-- [ ] `update.rs`: load on startup alongside existing macro_data
-- [ ] `view.rs`: Add "International" subsection to macro strip (Euribor, PBoC rate, EU CPI, OECD CLI)
+- [x] Reuses existing `fetch_macro_data(pool)` -- `DBNOMICS:` prefixed series appear alongside FRED data
+- [x] Reuses existing `macro_data: Vec<MacroIndicator>` state field (zero new types needed)
+- [x] Loaded on startup alongside existing macro_data (same query)
+- [x] `view.rs`: International macro strip row added (Euribor 3M, PBoC Rate, EU CPI, OECD CLI, US Credit/GDP)
 
 ---
 
@@ -2160,24 +2614,24 @@ CREATE INDEX idx_rss_articles_category ON rss_articles(category);
 ```
 
 **Scraper implementation checklist:**
-- [ ] Add `feed-rs = "2"` to `Cargo.toml`
-- [ ] Create `src/scraper/rss_news.rs` with `fetch_rss_news()` entry point
-- [ ] Define `RssFeed { id, name, url, category, region, source, tier }` struct
-- [ ] Hardcode 60 feeds as `const RSS_FEEDS: &[RssFeed]`
-- [ ] Implement `fetch_single_feed(client, feed) -> Vec<RssArticle>` with 5s timeout per feed
-- [ ] Parallel fetch all feeds using `futures::join_all` (like FinceptTerminal's parallel QNetworkAccessManager)
-- [ ] Parse via `feed_rs::parser::parse()`, extract title/link/summary/date
-- [ ] Dedup by link URL (SQL UNIQUE constraint handles this)
-- [ ] Rate limit: no limit needed (RSS feeds are designed for polling)
-- [ ] Wire into `src/scraper/main.rs` Phase 3, run once per scraper invocation
-- [ ] Prune articles older than 30 days on each run
-- [ ] Log via `log_fetch(pool, "rss", None, feed_id, "ok", Some(count))`
+- [x] Add `feed-rs = "2"` to `Cargo.toml`
+- [x] Create `src/scraper/rss_news.rs` with `fetch_all_rss()` entry point
+- [x] Define `RssFeed` struct with id, name, url, category, source fields
+- [x] Hardcode 25 curated feeds (top sources from FinceptTerminal's 80+, organized by wire/financial/analysis/crypto)
+- [x] Implement `fetch_single_feed(client, feed)` with 5s per-feed timeout
+- [x] Parallel fetch all feeds using `tokio::spawn` + `join_all`
+- [x] Parse via `feed_rs::parser::parse()`, extract title/link/summary/date
+- [x] Dedup by link URL (SQL `UNIQUE` constraint on `link` column)
+- [x] HTML stripping via state-machine parser, truncated to 300 chars
+- [x] Wire into `src/scraper/main.rs` Phase 3 (step 3.7)
+- [ ] Prune articles older than 30 days on each run (not yet implemented)
+- [x] Log via `log_fetch(pool, "rss", None, "rss_articles", "ok", None)`
 
 **Dashboard wiring:**
-- [ ] `db.rs`: `fetch_recent_news(pool, limit)` -- latest articles across all feeds, merged with Finnhub
-- [ ] `models.rs`: Add `source: String` field to `NewsArticle` if not already present
-- [ ] `view.rs`: News section shows both Finnhub and RSS articles, sorted by date, with source badge
-- [ ] Add category filter (Markets / Regulatory / Economic / Tech / Crypto) to Research tab
+- [x] `db.rs`: `fetch_rss_articles(pool)` -- latest 50 articles across all feeds
+- [x] `models.rs`: `RssArticle` struct with source_name, category, published_at
+- [x] `view.rs`: "Market News (RSS)" section in Research tab with date, source, category badge, headline, Open button
+- [ ] Category filter buttons (Markets / Regulatory / Economic / Tech / Crypto) — not yet implemented
 
 ---
 
@@ -2254,22 +2708,23 @@ CREATE INDEX idx_polymarket_prices_date ON polymarket_prices(price_date DESC);
 ```
 
 **Scraper implementation checklist:**
-- [ ] Create `src/scraper/polymarket.rs` with `fetch_polymarket()` entry point
-- [ ] Define `PolyMarket`, `PolyEvent`, `PolyPrice` serde structs
-- [ ] Implement Gamma API: `fetch_markets(client, query)` for keyword search
-- [ ] Implement CLOB API: `fetch_midpoint(client, token_id)` for current probability
-- [ ] Implement CLOB API: `fetch_price_history(client, token_id)` for trend
-- [ ] Search for pre-selected macro-relevant markets on each run
-- [ ] Store events + latest probabilities in DB
-- [ ] Rate limit: 10 req/s (matching FinceptTerminal)
-- [ ] Wire into `src/scraper/main.rs` Phase 3
-- [ ] Handle FinceptTerminal's `num_or_str()` pattern: CLOB returns numbers as JSON strings
+- [x] Create `src/scraper/polymarket.rs` with `fetch_all_polymarket()` entry point
+- [x] Define `GammaMarket` serde struct (Gamma API response format)
+- [x] Implement Gamma API: `fetch_markets_by_tag()` for 6 financial tags + `fetch_top_markets()` by volume
+- [ ] Implement CLOB API: `fetch_midpoint(client, token_id)` for current probability — not yet ported
+- [ ] Implement CLOB API: `fetch_price_history(client, token_id)` for trend — not yet ported
+- [x] Fetch top markets by volume across financially relevant tags on each run
+- [x] Store markets + probabilities in `polymarket_markets` table via upsert
+- [ ] Rate limit: not implemented (Gamma API is generous; CLOB will need it when ported)
+- [x] Wire into `src/scraper/main.rs` Phase 3 (step 3.8)
+- [x] `num_or_str()` + `parse_str_or_array()` helpers for Gamma's mixed JSON types
+- [x] Category fallback: market.category -> first tag -> query tag (capitalized)
 
 **Dashboard wiring:**
-- [ ] `db.rs`: `fetch_polymarket_sentiment(pool)` -- latest probabilities for tracked markets
-- [ ] `state.rs`: `pub polymarket_signals: Vec<PolymarketSignal>`
-- [ ] `view.rs`: Add "Prediction Markets" section to Overview tab, showing probabilities as gauges
-- [ ] Optional: integrate rate-cut probability into Lagrange macro sub-score as a new input
+- [x] `db.rs`: `fetch_polymarket(pool)` -- top 20 active markets by volume
+- [x] `state.rs`: `pub polymarket: Vec<PolymarketMarket>` + `PolymarketLoaded` message
+- [x] `view.rs`: "Prediction Markets" section in Overview tab with Yes%, category badge, question, volume
+- [ ] Optional: integrate rate-cut probability into Lagrange macro sub-score — not yet implemented
 
 ---
 
@@ -2278,12 +2733,12 @@ CREATE INDEX idx_polymarket_prices_date ON polymarket_prices(price_date DESC);
 **What:** Wire all three new data sources into the dashboard UI. Add an "International Economics" subsection to the macro strip, expand the news section with RSS feeds, and add a Polymarket sentiment gauge.
 
 **Checklist:**
-- [ ] Macro strip: add international indicators row (Euribor, PBoC rate, OECD CLI, EU CPI)
-- [ ] News section: merge Finnhub + RSS articles, sort by date, show source badge with tier color
-- [ ] Research tab: add category filter buttons (Markets / Regulatory / Economic / Tech / Crypto)
-- [ ] Overview tab: add Polymarket probability gauges for tracked macro events
-- [ ] Settings tab: add toggles for enabling/disabling each new data source
-- [ ] Consider: Polymarket rate-cut probability as input to Lagrange macro sub-score
+- [x] Macro strip: international indicators row added (Euribor 3M, PBoC Rate, EU CPI, OECD CLI, US Credit/GDP)
+- [x] News section: RSS articles displayed in Research tab with source badge and category
+- [ ] Research tab: category filter buttons (Markets / Regulatory / Economic / Tech / Crypto) — not yet implemented
+- [x] Overview tab: Polymarket prediction markets section with Yes%, category, question, volume
+- [ ] Settings tab: toggles for enabling/disabling each new data source — not yet implemented
+- [ ] Consider: Polymarket rate-cut probability as input to Lagrange macro sub-score — not yet implemented
 
 ---
 

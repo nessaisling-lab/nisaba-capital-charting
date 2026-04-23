@@ -10,9 +10,32 @@ use pursuit_week4_automation::models::{AstroScore, MacroIndicator, PriceRow, Sen
 pub async fn compute_all_scores(pool: Arc<sqlx::PgPool>) {
     println!("Computing Lagrange scores for all tickers...");
 
+    // Auto-expand scoring universe: any ticker with 26+ price rows gets
+    // scoring_active=true in the tickers table. This ensures Lagrange scoring
+    // grows as Tiingo/AV fills in price history, not just the 10 watchlist tickers.
+    let expanded: u64 = sqlx::query(
+        "INSERT INTO tickers (ticker, name, active, scoring_active)
+         SELECT pd.ticker,
+                COALESCE(cm.company_name, pd.ticker),
+                false,
+                true
+         FROM price_data pd
+         LEFT JOIN company_metadata cm ON cm.ticker = pd.ticker
+         WHERE NOT EXISTS (SELECT 1 FROM tickers t WHERE t.ticker = pd.ticker)
+         GROUP BY pd.ticker, cm.company_name
+         HAVING COUNT(*) >= 26
+         ON CONFLICT (ticker) DO UPDATE SET scoring_active = true"
+    )
+    .execute(pool.as_ref())
+    .await
+    .map(|r| r.rows_affected())
+    .unwrap_or(0);
+
+    if expanded > 0 {
+        println!("[Lagrange] Auto-expanded scoring universe: {expanded} new tickers with 26+ price rows.");
+    }
+
     // --- Macro data (shared across all tickers) ---
-    // MacroIndicator fields: series_id, series_name, obs_date, value
-    // DB column is obs_date (see migration 0012).
     let macro_data: Vec<MacroIndicator> = sqlx::query_as(
         "SELECT DISTINCT ON (series_id)
              series_id, series_name, obs_date, value
@@ -26,8 +49,7 @@ pub async fn compute_all_scores(pool: Arc<sqlx::PgPool>) {
     let today = chrono::Utc::now().date_naive();
 
     // DB-driven universe: all tickers with scoring_active=true that have
-    // at least 26 price rows.  Replaces the hardcoded WATCHLIST constant so
-    // Lagrange scoring automatically expands as Tiingo fills in history.
+    // at least 26 price rows.
     let scoreable: Vec<String> = sqlx::query_scalar(
         "SELECT pd.ticker
          FROM price_data pd

@@ -1,13 +1,57 @@
 use anyhow::{Context, Result};
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-pub async fn fetch_all_edgar(pool: Arc<sqlx::PgPool>, client: Arc<reqwest::Client>) {
-    for (ticker, cik) in crate::CIK_MAP {
+/// Fetch EDGAR Form 4 (insider trades) and 8-K filings for priority + watchlist tickers.
+///
+/// Processes priority tickers first (astro-ranked), then watchlist tickers, skipping
+/// any already processed. Uses the dynamic CIK map from SEC's company_tickers.json
+/// instead of the hardcoded CIK_MAP, so any ticker with a SEC filing can be fetched.
+pub async fn fetch_all_edgar(
+    pool: Arc<sqlx::PgPool>,
+    client: Arc<reqwest::Client>,
+    cik_map: &HashMap<String, u64>,
+    priority_tickers: &[String],
+) {
+    // Build ordered list: priority tickers first, then watchlist, deduped
+    let mut seen = std::collections::HashSet::new();
+    let mut tickers_to_fetch: Vec<String> = Vec::new();
+
+    for t in priority_tickers {
+        let upper = t.to_uppercase();
+        if seen.insert(upper.clone()) {
+            tickers_to_fetch.push(upper);
+        }
+    }
+    for t in crate::WATCHLIST {
+        let upper = t.to_uppercase();
+        if seen.insert(upper.clone()) {
+            tickers_to_fetch.push(upper);
+        }
+    }
+
+    let mut fetched = 0usize;
+    let mut skipped_no_cik = 0usize;
+
+    for ticker in &tickers_to_fetch {
+        let cik_num = match cik_map.get(ticker.as_str()) {
+            Some(c) => *c,
+            None => {
+                // Fall back to hardcoded CIK_MAP for the original 10 tickers
+                match crate::CIK_MAP.iter().find(|(t, _)| *t == ticker.as_str()) {
+                    Some((_, cik_str)) => cik_str.trim_start_matches('0').parse::<u64>().unwrap_or(0),
+                    None => { skipped_no_cik += 1; continue; }
+                }
+            }
+        };
+
+        let cik_padded = format!("{cik_num:010}");
+
         tokio::time::sleep(Duration::from_millis(300)).await;
-        match fetch_edgar_form4(ticker, cik, &pool, &client).await {
+        match fetch_edgar_form4(ticker, &cik_padded, &pool, &client).await {
             Ok(n) => {
                 println!("[{ticker}] EDGAR Form4: {n} new insider trades");
                 crate::log_fetch(&pool, "edgar", Some(ticker), "form4", "ok", None).await;
@@ -19,7 +63,7 @@ pub async fn fetch_all_edgar(pool: Arc<sqlx::PgPool>, client: Arc<reqwest::Clien
         }
 
         tokio::time::sleep(Duration::from_millis(300)).await;
-        match fetch_edgar_8k(ticker, cik, &pool, &client).await {
+        match fetch_edgar_8k(ticker, &cik_padded, &pool, &client).await {
             Ok(n) => {
                 println!("[{ticker}] EDGAR 8-K: {n} new filings");
                 crate::log_fetch(&pool, "edgar", Some(ticker), "8k", "ok", None).await;
@@ -29,7 +73,11 @@ pub async fn fetch_all_edgar(pool: Arc<sqlx::PgPool>, client: Arc<reqwest::Clien
                 crate::log_fetch(&pool, "edgar", Some(ticker), "8k", "error", Some(&e.to_string())).await;
             }
         }
+
+        fetched += 1;
     }
+
+    println!("[EDGAR] Fetched filings for {fetched} tickers ({skipped_no_cik} skipped: no CIK found)");
 }
 
 async fn fetch_edgar_form4(

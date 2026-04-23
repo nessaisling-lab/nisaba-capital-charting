@@ -1,31 +1,33 @@
+mod helpers;
+
 use chrono::Datelike;
-use iced::keyboard::key::Named;
-use iced::keyboard::{Key, Modifiers};
 use iced::widget::text_input;
 use iced::{Subscription, Task, Theme};
 use sqlx::PgPool;
 use std::sync::Arc;
 use std::time::Duration;
-use notify_rust;
 
 use pursuit_week4_automation::models::LagrangeAlert;
 
 use crate::db::{
     add_to_watchlist, connect_db, create_watchlist, delete_watchlist, fetch_8k_filings,
     fetch_backtest_data, fetch_portfolio_pnl, fetch_transactions,
-    insert_transaction, delete_transaction, fetch_astro_calendar, fetch_settings, upsert_setting, WatchlistRow,
-    fetch_alerts, fetch_analyst_rating, fetch_astro_active_aspects, fetch_horoscope,
-    fetch_astro_score, fetch_available_sectors, fetch_compare_data, fetch_daily_transits,
+    insert_transaction, delete_transaction, fetch_astro_calendar, fetch_settings, upsert_setting,
+    dismiss_alert, fetch_alerts, fetch_analyst_rating, fetch_astro_active_aspects, fetch_horoscope,
+    mark_all_alerts_read,
+    fetch_astro_score, fetch_available_sectors, fetch_daily_transits, fetch_retrograde_events,
     fetch_fear_greed, fetch_fundamentals, fetch_holdings, fetch_insider_trades, fetch_ticker_earnings,
     fetch_lagrange_history, fetch_macro_indicators, fetch_market_fear_greed, fetch_natal_chart,
     fetch_named_watchlists, fetch_news, fetch_polymarket, fetch_portfolio, fetch_prices, fetch_recently_viewed, fetch_rss_articles,
     fetch_sector_summaries, fetch_sentiment, fetch_short_interest, fetch_universe_count,
     fetch_universe_page, fetch_watchlist_summaries, fetch_watchlist_tickers, load_tickers,
     mark_alert_read, remove_from_watchlist, search_tickers, upsert_recently_viewed,
+    fetch_sector_peers,
 };
 use crate::indicators::Indicators;
 use crate::state::{Dashboard, Message};
-use crate::tabs::Tab;
+
+pub(crate) use helpers::{handle_key_press, sort_watchlist, export_watchlist_csv, export_universe_csv, fire_toast};
 
 /// Stable ID for the ticker search text_input, used for programmatic focus.
 pub const SEARCH_INPUT_ID: &str = "ticker-search";
@@ -97,8 +99,8 @@ impl Dashboard {
                         Task::perform(fetch_portfolio(Arc::clone(pool)), Message::PortfolioLoaded),
                         Task::perform(fetch_recently_viewed(Arc::clone(pool)), Message::RecentlyViewedLoaded),
                         Task::perform(fetch_alerts(Arc::clone(pool)), Message::AlertsLoaded),
-                        Task::perform(fetch_universe_page(Arc::clone(pool), None, None, 0, 50), Message::UniverseLoaded),
-                        Task::perform(fetch_universe_count(Arc::clone(pool), None, None), Message::UniverseCountLoaded),
+                        Task::perform(fetch_universe_page(Arc::clone(pool), None, None, None, 0, 50), Message::UniverseLoaded),
+                        Task::perform(fetch_universe_count(Arc::clone(pool), None, None, None), Message::UniverseCountLoaded),
                         Task::perform(fetch_available_sectors(Arc::clone(pool)), Message::UniverseSectorsLoaded),
                         Task::perform(fetch_sector_summaries(Arc::clone(pool)), Message::SectorSummariesLoaded),
                         Task::perform(fetch_named_watchlists(Arc::clone(pool)), Message::NamedWatchlistsLoaded),
@@ -107,6 +109,15 @@ impl Dashboard {
                         Task::perform(fetch_settings(Arc::clone(pool)), Message::SettingsLoaded),
                         Task::perform(fetch_rss_articles(Arc::clone(pool)), Message::RssArticlesLoaded),
                         Task::perform(fetch_polymarket(Arc::clone(pool)), Message::PolymarketLoaded),
+                        {
+                            // Fetch retrograde station events for the last year (chart overlay)
+                            let retro_start = chrono::Local::now().date_naive() - chrono::Duration::days(365);
+                            let retro_end   = chrono::Local::now().date_naive();
+                            Task::perform(
+                                fetch_retrograde_events(Arc::clone(pool), retro_start, retro_end),
+                                Message::RetroEventsLoaded,
+                            )
+                        },
                         {
                             let now = chrono::Local::now().date_naive();
                             let start = chrono::NaiveDate::from_ymd_opt(now.year(), now.month(), 1).unwrap();
@@ -147,13 +158,15 @@ impl Dashboard {
                 self.fundamentals = None;
                 self.agent_analysis = None;
                 self.lagrange_history = vec![];
+                self.sector_peers = vec![];
                 self.status = format!("Loading {ticker}...");
                 if let Some(pool) = &self.pool {
                     let rv_pool    = Arc::clone(pool);
                     let rv_ticker  = ticker.clone();
                     Task::batch([
                         Self::fetch_all(pool, ticker.clone()),
-                        Task::perform(fetch_lagrange_history(Arc::clone(pool), ticker), Message::LagrangeHistoryLoaded),
+                        Task::perform(fetch_lagrange_history(Arc::clone(pool), ticker.clone()), Message::LagrangeHistoryLoaded),
+                        Task::perform(fetch_sector_peers(Arc::clone(pool), ticker), Message::SectorPeersLoaded),
                         Task::perform(
                             async move {
                                 upsert_recently_viewed(Arc::clone(&rv_pool), rv_ticker).await;
@@ -167,8 +180,6 @@ impl Dashboard {
                 }
             }
             Message::TickerSearchInput(s) => {
-                // Guard: if we just dismissed (via selection or submit), ignore
-                // the on_input event that fires when the text_input is cleared.
                 if self.autocomplete_dismissed {
                     self.autocomplete_dismissed = false;
                     return Task::none();
@@ -188,7 +199,6 @@ impl Dashboard {
                 }
             }
             Message::AutocompleteResults(suggestions) => {
-                // Don't repopulate if the dropdown was dismissed since the query was sent
                 if self.autocomplete_dismissed || self.ticker_search_input.is_empty() {
                     return Task::none();
                 }
@@ -263,6 +273,8 @@ impl Dashboard {
             Message::NatalChartLoaded(Err(_))        => Task::none(),
             Message::TransitsLoaded(Ok(t))          => { self.daily_transits = t;   Task::none() }
             Message::TransitsLoaded(Err(_))          => Task::none(),
+            Message::RetroEventsLoaded(Ok(events))   => { self.retrograde_events = events; Task::none() }
+            Message::RetroEventsLoaded(Err(_))        => Task::none(),
             Message::AstroAspectsLoaded(Ok(v)) => {
                 self.astro_aspects = v.as_array().cloned().unwrap_or_default();
                 Task::none()
@@ -276,9 +288,7 @@ impl Dashboard {
             Message::ShortInterestLoaded(Err(_))   => Task::none(),
             Message::FundamentalsLoaded(Ok(f))     => {
                 self.fundamentals = f;
-                // Auto-compute DCF if we have fundamentals data
                 self.compute_dcf_if_ready();
-                // Re-run active agent analysis with new fundamentals
                 self.recompute_agent_if_active();
                 Task::none()
             }
@@ -308,6 +318,14 @@ impl Dashboard {
                 self.compare_tickers.push(ticker);
                 self.refresh_compare()
             }
+            Message::CompareAddDirect(ticker) => {
+                let ticker = ticker.to_uppercase();
+                if self.compare_tickers.len() >= 4 || self.compare_tickers.contains(&ticker) {
+                    return Task::none();
+                }
+                self.compare_tickers.push(ticker);
+                self.refresh_compare()
+            }
             Message::CompareRemove(ticker) => {
                 self.compare_tickers.retain(|t| t != &ticker);
                 if self.compare_tickers.is_empty() {
@@ -322,6 +340,8 @@ impl Dashboard {
                 Task::none()
             }
             Message::CompareDataLoaded(Err(_)) => Task::none(),
+            Message::SectorPeersLoaded(Ok(peers)) => { self.sector_peers = peers; Task::none() }
+            Message::SectorPeersLoaded(Err(_)) => Task::none(),
             Message::UniverseLoaded(Ok(rows)) => {
                 self.universe_rows = rows;
                 Task::none()
@@ -340,6 +360,11 @@ impl Dashboard {
             }
             Message::UniverseFilterSector(sector) => {
                 self.universe_filter_sector = sector;
+                self.universe_page = 0;
+                self.refresh_universe()
+            }
+            Message::UniverseSearchChanged(text) => {
+                self.universe_search_text = text;
                 self.universe_page = 0;
                 self.refresh_universe()
             }
@@ -366,10 +391,8 @@ impl Dashboard {
                 Task::none()
             }
             Message::WatchlistLoaded(Err(_)) => Task::none(),
-            // ── Named Watchlists ──────────────────────────────────
             Message::NamedWatchlistsLoaded(Ok(wls)) => {
                 self.named_watchlists = wls;
-                // Auto-select first watchlist if none selected
                 if self.active_watchlist_id.is_none() {
                     if let Some(first) = self.named_watchlists.first() {
                         self.active_watchlist_id = Some(first.id);
@@ -465,7 +488,6 @@ impl Dashboard {
                     let tasks = vec![
                         Task::perform(delete_watchlist(Arc::clone(pool), wl_id), Message::WatchlistMutated),
                     ];
-                    // Reload tickers for newly selected watchlist
                     if let Some(new_id) = self.active_watchlist_id {
                         return Task::batch(
                             tasks.into_iter().chain(std::iter::once(
@@ -479,16 +501,25 @@ impl Dashboard {
                 }
             }
             Message::ExportCsv => {
-                // Export current watchlist data to CSV via native file dialog
                 let rows = self.watchlist.clone();
                 let ticker = self.selected_ticker.clone();
                 Task::perform(async move {
                     export_watchlist_csv(rows, &ticker).await
                 }, |_: Result<(), String>| Message::WatchlistMutated(Ok(())))
             }
+            Message::ExportUniverseCsv => {
+                let rows = self.universe_rows.clone();
+                Task::perform(async move {
+                    export_universe_csv(rows).await
+                }, |_: Result<(), String>| Message::WatchlistMutated(Ok(())))
+            }
             Message::ToggleWatchlistSort => {
                 self.sort_watchlist_by_score = !self.sort_watchlist_by_score;
                 sort_watchlist(&mut self.watchlist, self.sort_watchlist_by_score);
+                Task::none()
+            }
+            Message::TogglePriceTable => {
+                self.show_price_table = !self.show_price_table;
                 Task::none()
             }
             Message::LagrangeHistoryLoaded(Ok(h))  => { self.lagrange_history = h; Task::none() }
@@ -526,7 +557,6 @@ impl Dashboard {
                 }
             }
             Message::Tick => {
-                // Update theme for Auto mode (picks up time-of-day changes)
                 if self.theme_mode == crate::theme::ThemeMode::Auto {
                     self.theme = crate::theme::iced_theme(self.theme_mode);
                 }
@@ -557,7 +587,6 @@ impl Dashboard {
             }
             Message::AlertsLoaded(Err(_)) => Task::none(),
             Message::MarkAlertRead(id) => {
-                // Optimistic in-memory flip — no waiting for DB round-trip
                 if let Some(a) = self.alerts.iter_mut().find(|a| a.id == id) {
                     if !a.is_read {
                         a.is_read = true;
@@ -571,12 +600,34 @@ impl Dashboard {
                     Task::none()
                 }
             }
-            // ── Backtest ─���────────────────────────────────────
+            Message::MarkAllAlertsRead => {
+                for a in &mut self.alerts { a.is_read = true; }
+                self.unread_alert_count = 0;
+                if let Some(pool) = &self.pool {
+                    let p = Arc::clone(pool);
+                    Task::perform(async move { mark_all_alerts_read(p).await }, |_| Message::NotifyAlerts)
+                } else {
+                    Task::none()
+                }
+            }
+            Message::DismissAlert(id) => {
+                if let Some(a) = self.alerts.iter().find(|a| a.id == id) {
+                    if !a.is_read {
+                        self.unread_alert_count = self.unread_alert_count.saturating_sub(1);
+                    }
+                }
+                self.alerts.retain(|a| a.id != id);
+                if let Some(pool) = &self.pool {
+                    let p = Arc::clone(pool);
+                    Task::perform(async move { dismiss_alert(p, id).await }, |_| Message::NotifyAlerts)
+                } else {
+                    Task::none()
+                }
+            }
             Message::SetTimeframe(tf) => {
                 self.chart_timeframe = tf;
                 Task::none()
             }
-            // ── Strategy Builder ─────────────────────────────
             Message::StrategyAddBuyCond(c) => {
                 self.strategy.buy_conditions.push(c);
                 Task::none()
@@ -622,14 +673,10 @@ impl Dashboard {
                 }
             }
             Message::StrategyDataLoaded(Ok(rows)) => {
-                // Build DaySnapshots with indicators
                 let indicators_map = self.indicators.as_ref();
                 let days: Vec<crate::strategy::DaySnapshot> = rows.iter().enumerate().map(|(i, r)| {
                     let close = r.close.to_string().parse::<f64>().unwrap_or(0.0);
-                    // Try to find matching indicator data (indicators are in chronological order)
                     let (rsi, macd, macd_prev, sma50) = if let Some(ind) = indicators_map {
-                        // Indicators match the full rows set, but backtest data may have different dates.
-                        // Use simple index mapping if lengths match, otherwise None.
                         let rsi = ind.rsi_vals.get(i).copied().flatten();
                         let macd = ind.macd_line.get(i).copied().flatten();
                         let macd_prev = if i > 0 { ind.macd_line.get(i - 1).copied().flatten() } else { None };
@@ -670,7 +717,6 @@ impl Dashboard {
                 Task::none()
             }
             Message::RunBacktest => {
-                // Parse thresholds from text inputs
                 let buy = self.backtest_buy_input.parse::<f64>().unwrap_or(65.0);
                 let sell = self.backtest_sell_input.parse::<f64>().unwrap_or(35.0);
                 self.backtest_config = crate::backtest::BacktestConfig {
@@ -707,13 +753,11 @@ impl Dashboard {
                 self.backtest_result = None;
                 Task::none()
             }
-            // ── Portfolio P&L ───────���────────────────────────────
             Message::PortfolioPnlLoaded(Ok(rows)) => {
                 self.portfolio_pnl = rows;
                 Task::none()
             }
             Message::PortfolioPnlLoaded(Err(_)) => Task::none(),
-            // ── Astro Calendar ──────────────────────────────
             Message::CalendarLoaded(Ok(rows)) => {
                 self.calendar_days = rows.into_iter().map(|(date, score, label)| {
                     crate::calendar::CalendarDay { date, astro_score: Some(score), label }
@@ -739,11 +783,8 @@ impl Dashboard {
                 }
                 self.refresh_calendar()
             }
-            // ── Transaction Log ──────────────────────────────
-            // ── Settings ─────────────────────────────────────
             Message::SettingsLoaded(Ok(pairs)) => {
                 for (k, v) in pairs {
-                    // Apply settings to state
                     if k == "theme_mode" {
                         self.theme_mode = match v.as_str() {
                             "Light" => crate::theme::ThemeMode::AlwaysLight,
@@ -773,7 +814,6 @@ impl Dashboard {
             Message::SettingsRefreshInput(s) => { self.settings_refresh_input = s; Task::none() }
             Message::SaveSetting(key, value) => {
                 self.settings.insert(key.clone(), value.clone());
-                // Apply theme_mode immediately
                 if key == "theme_mode" {
                     self.theme_mode = match value.as_str() {
                         "Light" => crate::theme::ThemeMode::AlwaysLight,
@@ -782,7 +822,6 @@ impl Dashboard {
                     };
                     self.theme = crate::theme::iced_theme(self.theme_mode);
                 }
-                // Apply font scale immediately
                 if key == "font_scale" {
                     let (scale, label) = match value.as_str() {
                         "Compact" => (0.85, "Compact"),
@@ -835,7 +874,7 @@ impl Dashboard {
                 }
             }
             Message::TxCreated(Ok(tx)) => {
-                self.transactions.insert(0, tx); // prepend (most recent first)
+                self.transactions.insert(0, tx);
                 Task::none()
             }
             Message::TxCreated(Err(_)) => Task::none(),
@@ -849,6 +888,19 @@ impl Dashboard {
             }
             Message::TxDeleted(Ok(())) => Task::none(),
             Message::TxDeleted(Err(_)) => Task::none(),
+            Message::ImportWatchlistToPortfolio => {
+                if let Some(pool) = &self.pool {
+                    let tickers = self.watchlist_tickers_list.clone();
+                    let pool2 = Arc::clone(pool);
+                    let pool3 = Arc::clone(pool);
+                    Task::perform(async move {
+                        let _ = crate::db::import_tickers_to_portfolio(pool2, tickers).await;
+                        crate::db::fetch_portfolio(pool3).await
+                    }, Message::PortfolioLoaded)
+                } else {
+                    Task::none()
+                }
+            }
             Message::FocusSearch => text_input::focus(SEARCH_INPUT_ID),
             Message::EscapePressed => {
                 self.ticker_search_input = String::new();
@@ -865,214 +917,5 @@ impl Dashboard {
             iced::time::every(Duration::from_secs(30)).map(|_| Message::Tick),
             iced::keyboard::on_key_press(handle_key_press),
         ])
-    }
-
-    /// Refresh the Universe Explorer with current filters and page.
-    fn refresh_universe(&self) -> Task<Message> {
-        if let Some(pool) = &self.pool {
-            Task::batch([
-                Task::perform(
-                    fetch_universe_page(
-                        Arc::clone(pool),
-                        self.universe_filter_zone.clone(),
-                        self.universe_filter_sector.clone(),
-                        self.universe_page,
-                        50,
-                    ),
-                    Message::UniverseLoaded,
-                ),
-                Task::perform(
-                    fetch_universe_count(
-                        Arc::clone(pool),
-                        self.universe_filter_zone.clone(),
-                        self.universe_filter_sector.clone(),
-                    ),
-                    Message::UniverseCountLoaded,
-                ),
-            ])
-        } else {
-            Task::none()
-        }
-    }
-
-    /// Fetch comparison data for the current compare_tickers list.
-    fn refresh_compare(&self) -> Task<Message> {
-        if let Some(pool) = &self.pool {
-            let tickers = self.compare_tickers.clone();
-            Task::perform(
-                fetch_compare_data(Arc::clone(pool), tickers),
-                Message::CompareDataLoaded,
-            )
-        } else {
-            Task::none()
-        }
-    }
-
-    fn refresh_calendar(&self) -> Task<Message> {
-        if let Some(pool) = &self.pool {
-            let start = chrono::NaiveDate::from_ymd_opt(self.calendar_year, self.calendar_month, 1).unwrap();
-            let end = if self.calendar_month == 12 {
-                chrono::NaiveDate::from_ymd_opt(self.calendar_year + 1, 1, 1).unwrap().pred_opt().unwrap()
-            } else {
-                chrono::NaiveDate::from_ymd_opt(self.calendar_year, self.calendar_month + 1, 1).unwrap().pred_opt().unwrap()
-            };
-            Task::perform(
-                fetch_astro_calendar(Arc::clone(pool), self.selected_ticker.clone(), start, end),
-                Message::CalendarLoaded,
-            )
-        } else {
-            Task::none()
-        }
-    }
-
-}
-
-/// Export watchlist rows to a CSV file via a native save-file dialog.
-async fn export_watchlist_csv(rows: Vec<WatchlistRow>, _ticker: &str) -> Result<(), String> {
-    let handle = rfd::AsyncFileDialog::new()
-        .set_title("Export Watchlist CSV")
-        .add_filter("CSV", &["csv"])
-        .set_file_name("watchlist.csv")
-        .save_file()
-        .await;
-    let Some(handle) = handle else { return Ok(()); }; // user cancelled
-    let path = handle.path();
-    let mut wtr = csv::Writer::from_path(path).map_err(|e| e.to_string())?;
-    wtr.write_record(["Ticker", "Astro Score", "Astro Label", "Sentiment", "Sentiment Label", "Short %"])
-        .map_err(|e| e.to_string())?;
-    for r in &rows {
-        wtr.write_record(&[
-            &r.ticker,
-            &r.astro_score.map(|v| format!("{v:.1}")).unwrap_or_default(),
-            r.astro_label.as_deref().unwrap_or(""),
-            &r.sentiment_score.as_ref().map(|v| v.to_string()).unwrap_or_default(),
-            r.sentiment_label.as_deref().unwrap_or(""),
-            &r.short_pct.as_ref().map(|v| v.to_string()).unwrap_or_default(),
-        ]).map_err(|e| e.to_string())?;
-    }
-    wtr.flush().map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-impl Dashboard {
-    /// Build an `AgentContext` from current state and run the active persona's analysis.
-    pub fn recompute_agent_if_active(&mut self) {
-        let Some(persona) = self.active_agent else { return; };
-        let price = self.rows.first()
-            .map(|r| r.close.to_string().parse::<f64>().unwrap_or(0.0));
-
-        let ctx = crate::agents::AgentContext {
-            ticker: self.selected_ticker.clone(),
-            fundamentals: self.fundamentals.clone(),
-            astro_score: self.astro_score.as_ref().and_then(|s| s.astro_score.map(|v| v as f64)),
-            astro_label: self.astro_score.as_ref().and_then(|s| s.astro_label.clone()),
-            dominant_theme: None, // v2.0.3 horoscope engine (future)
-            concordance: None,    // v2.0.5 concordance (future)
-            lagrange_score: self.indicators.as_ref().map(|ind| {
-                let (score, _, _) = crate::indicators::compute_lagrange_score(
-                    ind, &self.rows, &self.sentiment,
-                    &self.astro_score, &self.macro_data, &self.short_interest,
-                );
-                score
-            }),
-            lagrange_label: self.indicators.as_ref().map(|ind| {
-                let (_, label, _) = crate::indicators::compute_lagrange_score(
-                    ind, &self.rows, &self.sentiment,
-                    &self.astro_score, &self.macro_data, &self.short_interest,
-                );
-                label
-            }),
-            current_price: price,
-            mercury_rx: self.astro_score.as_ref().and_then(|s| s.mercury_rx).unwrap_or(false),
-            moon_phase: self.astro_score.as_ref().and_then(|s| s.moon_phase.clone()),
-        };
-        self.agent_analysis = Some(crate::agents::analyze(persona, &ctx));
-    }
-
-    /// Compute DCF if we have the required data (FCF + shares + price).
-    pub fn compute_dcf_if_ready(&mut self) {
-        let fcf = self.fundamentals.as_ref().and_then(|f| f.fcf);
-        let shares = self.fundamentals.as_ref().and_then(|f| f.shares_outstanding);
-        let price = self.rows.first()
-            .map(|r| r.close.to_string().parse::<f64>().unwrap_or(0.0));
-
-        if let (Some(fcf), Some(shares), Some(price)) = (fcf, shares, price) {
-            if fcf <= 0 || shares <= 0 || price <= 0.0 {
-                self.dcf_result = None;
-                return;
-            }
-            let growth_rate = self.dcf_growth_rate.parse::<f64>().unwrap_or(10.0) / 100.0;
-            let growth_years = self.dcf_growth_years.parse::<u32>().unwrap_or(5);
-            let terminal_growth = self.dcf_terminal_growth.parse::<f64>().unwrap_or(2.5) / 100.0;
-            let discount_rate = self.dcf_discount_rate.parse::<f64>().unwrap_or(10.0) / 100.0;
-
-            let inputs = crate::dcf::DcfInputs {
-                fcf: fcf as f64,
-                growth_rate,
-                growth_years,
-                terminal_growth,
-                discount_rate,
-                shares_outstanding: shares as f64,
-                current_price: price,
-            };
-            self.dcf_result = Some(crate::dcf::compute_dcf(&inputs));
-        } else {
-            self.dcf_result = None;
-        }
-    }
-}
-
-fn sort_watchlist(rows: &mut Vec<crate::db::WatchlistRow>, by_score: bool) {
-    if by_score {
-        rows.sort_by(|a, b| b.quick_score().partial_cmp(&a.quick_score()).unwrap_or(std::cmp::Ordering::Equal));
-    } else {
-        rows.sort_by(|a, b| a.ticker.cmp(&b.ticker));
-    }
-}
-
-async fn fire_toast(alerts: Vec<LagrangeAlert>) {
-    let entries: Vec<String> = alerts.iter().take(3)
-        .map(|a| format!("{} → {}", a.ticker, a.label))
-        .collect();
-    let mut body = entries.join(", ");
-    if alerts.len() > 3 {
-        body = format!("{} (+{} more)", body, alerts.len() - 3);
-    }
-    let summary = format!("Lagrange: {} alert{}", alerts.len(), if alerts.len() == 1 { "" } else { "s" });
-    notify_rust::Notification::new()
-        .summary(&summary)
-        .body(&body)
-        .show()
-        .ok();
-}
-
-/// Global keyboard shortcut handler.
-///
-/// Ctrl+1..6  switch tabs
-/// Ctrl+T     focus the ticker search box
-/// Ctrl+R     refresh all data
-/// Escape     clear search input and autocomplete
-fn handle_key_press(key: Key, modifiers: Modifiers) -> Option<Message> {
-    if modifiers.control() {
-        match &key {
-            Key::Character(c) => match c.as_str() {
-                "1" => Some(Message::TabSelected(Tab::Astrology)),
-                "2" => Some(Message::TabSelected(Tab::Overview)),
-                "3" => Some(Message::TabSelected(Tab::Universe)),
-                "4" => Some(Message::TabSelected(Tab::Fundamentals)),
-                "5" => Some(Message::TabSelected(Tab::Research)),
-                "6" => Some(Message::TabSelected(Tab::Portfolio)),
-                "7" => Some(Message::TabSelected(Tab::Settings)),
-                "t" | "T" => Some(Message::FocusSearch),
-                "r" | "R" => Some(Message::RefreshNow),
-                _ => None,
-            },
-            _ => None,
-        }
-    } else {
-        match key {
-            Key::Named(Named::Escape) => Some(Message::EscapePressed),
-            _ => None,
-        }
     }
 }

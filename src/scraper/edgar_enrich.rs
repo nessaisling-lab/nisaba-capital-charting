@@ -71,10 +71,21 @@ struct EdgarFilingFile {
 // Public entry point
 // ---------------------------------------------------------------------------
 
+#[allow(dead_code)]
 pub async fn enrich_first_filing_dates(
     pool: Arc<sqlx::PgPool>,
     client: Arc<reqwest::Client>,
     user_agent: Arc<String>,
+) {
+    enrich_first_filing_dates_with_cik(pool, client, user_agent, None).await;
+}
+
+/// Enrichment with optional pre-fetched CIK map (avoids redundant SEC API call).
+pub async fn enrich_first_filing_dates_with_cik(
+    pool: Arc<sqlx::PgPool>,
+    client: Arc<reqwest::Client>,
+    user_agent: Arc<String>,
+    existing_cik_map: Option<&HashMap<String, u64>>,
 ) {
     // Find tickers that still need a date, watchlist-first
     let order = crate::enrich_common::watchlist_priority_sql();
@@ -98,16 +109,25 @@ pub async fn enrich_first_filing_dates(
         to_enrich.len()
     );
 
-    // Build CIK map from EDGAR (one call)
-    let cik_map = match fetch_cik_map(&client, &user_agent).await {
-        Ok(m) => m,
-        Err(e) => {
-            eprintln!("[EDGAR-Enrich] Failed to fetch CIK map: {e:#}");
-            return;
+    // Use existing CIK map or fetch fresh
+    let owned_map;
+    let cik_map = match existing_cik_map {
+        Some(m) => {
+            println!("[EDGAR-Enrich] Reusing CIK map ({} companies).", m.len());
+            m
+        }
+        None => {
+            owned_map = match fetch_cik_map(&client, &user_agent).await {
+                Ok(m) => m,
+                Err(e) => {
+                    eprintln!("[EDGAR-Enrich] Failed to fetch CIK map: {e:#}");
+                    return;
+                }
+            };
+            println!("[EDGAR-Enrich] CIK map loaded ({} companies).", owned_map.len());
+            &owned_map
         }
     };
-
-    println!("[EDGAR-Enrich] CIK map loaded ({} companies).", cik_map.len());
 
     let mut enriched  = 0usize;
     let mut not_found = 0usize;
@@ -168,7 +188,7 @@ pub async fn enrich_first_filing_dates(
 // Fetch ticker → CIK map
 // ---------------------------------------------------------------------------
 
-async fn fetch_cik_map(
+pub async fn fetch_cik_map(
     client: &reqwest::Client,
     user_agent: &str,
 ) -> Result<HashMap<String, u64>> {

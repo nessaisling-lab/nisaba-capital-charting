@@ -244,18 +244,20 @@ fn analyze_buffett(ctx: &AgentContext) -> AgentAnalysis {
         AgentVerdict::InsufficientData => format!("I need more data on {} before forming an opinion.", ctx.ticker),
     };
 
-    let analysis = if f.is_some() {
-        build_buffett_narrative(ctx, score)
+    let (final_analysis, final_verdict, final_metrics) = if f.is_some() {
+        (build_buffett_narrative(ctx, score), verdict, metrics)
+    } else if let Some((fb_analysis, fb_verdict, fb_metrics)) = no_fundamentals_fallback(ctx, AgentPersona::Buffett) {
+        (fb_analysis, fb_verdict, fb_metrics)
     } else {
-        "I can't analyze what I can't see. Fetch the fundamentals first.".to_string()
+        ("I can't analyze what I can't see. Fetch the fundamentals first.".to_string(), AgentVerdict::InsufficientData, metrics)
     };
 
     AgentAnalysis {
         persona: AgentPersona::Buffett,
         headline,
-        analysis,
-        verdict: if f.is_some() { verdict } else { AgentVerdict::InsufficientData },
-        key_metrics: metrics,
+        analysis: final_analysis,
+        verdict: final_verdict,
+        key_metrics: final_metrics,
         astro_take,
     }
 }
@@ -416,18 +418,20 @@ fn analyze_graham(ctx: &AgentContext) -> AgentAnalysis {
         AgentVerdict::InsufficientData => format!("I need financial statements for {} before I can run my screens.", ctx.ticker),
     };
 
-    let analysis = if f.is_some() {
-        build_graham_narrative(ctx, score)
+    let (final_analysis, final_verdict, final_metrics) = if f.is_some() {
+        (build_graham_narrative(ctx, score), verdict, metrics)
+    } else if let Some((fb_analysis, fb_verdict, fb_metrics)) = no_fundamentals_fallback(ctx, AgentPersona::Graham) {
+        (fb_analysis, fb_verdict, fb_metrics)
     } else {
-        "Without financial data, I cannot perform my quantitative analysis.".to_string()
+        ("Without financial data, I cannot perform my quantitative analysis.".to_string(), AgentVerdict::InsufficientData, metrics)
     };
 
     AgentAnalysis {
         persona: AgentPersona::Graham,
         headline,
-        analysis,
-        verdict: if f.is_some() { verdict } else { AgentVerdict::InsufficientData },
-        key_metrics: metrics,
+        analysis: final_analysis,
+        verdict: final_verdict,
+        key_metrics: final_metrics,
         astro_take,
     }
 }
@@ -592,18 +596,20 @@ fn analyze_lynch(ctx: &AgentContext) -> AgentAnalysis {
         AgentVerdict::InsufficientData => format!("I need to see the numbers for {} before I can form an opinion.", ctx.ticker),
     };
 
-    let analysis = if f.is_some() {
-        build_lynch_narrative(ctx, score)
+    let (final_analysis, final_verdict, final_metrics) = if f.is_some() {
+        (build_lynch_narrative(ctx, score), verdict, metrics)
+    } else if let Some((fb_analysis, fb_verdict, fb_metrics)) = no_fundamentals_fallback(ctx, AgentPersona::Lynch) {
+        (fb_analysis, fb_verdict, fb_metrics)
     } else {
-        "I can't tell you if it's a good stock without seeing the business.".to_string()
+        ("I can't tell you if it's a good stock without seeing the business.".to_string(), AgentVerdict::InsufficientData, metrics)
     };
 
     AgentAnalysis {
         persona: AgentPersona::Lynch,
         headline,
-        analysis,
-        verdict: if f.is_some() { verdict } else { AgentVerdict::InsufficientData },
-        key_metrics: metrics,
+        analysis: final_analysis,
+        verdict: final_verdict,
+        key_metrics: final_metrics,
         astro_take,
     }
 }
@@ -754,18 +760,20 @@ fn analyze_munger(ctx: &AgentContext) -> AgentAnalysis {
         AgentVerdict::InsufficientData => format!("I need to see the economics of {} before I can form a judgment.", ctx.ticker),
     };
 
-    let analysis = if f.is_some() {
-        build_munger_narrative(ctx, score)
+    let (final_analysis, final_verdict, final_metrics) = if f.is_some() {
+        (build_munger_narrative(ctx, score), verdict, metrics)
+    } else if let Some((fb_analysis, fb_verdict, fb_metrics)) = no_fundamentals_fallback(ctx, AgentPersona::Munger) {
+        (fb_analysis, fb_verdict, fb_metrics)
     } else {
-        "Show me the business economics. Then we can talk.".to_string()
+        ("Show me the business economics. Then we can talk.".to_string(), AgentVerdict::InsufficientData, metrics)
     };
 
     AgentAnalysis {
         persona: AgentPersona::Munger,
         headline,
-        analysis,
-        verdict: if f.is_some() { verdict } else { AgentVerdict::InsufficientData },
-        key_metrics: metrics,
+        analysis: final_analysis,
+        verdict: final_verdict,
+        key_metrics: final_metrics,
         astro_take,
     }
 }
@@ -812,4 +820,85 @@ fn format_large_number(n: i64) -> String {
     if f.abs() >= 1_000_000_000.0 { format!("${:.1}B", f / 1_000_000_000.0) }
     else if f.abs() >= 1_000_000.0 { format!("${:.1}M", f / 1_000_000.0) }
     else { format!("${f:.0}") }
+}
+
+/// When fundamentals are missing, generate a partial analysis from available
+/// signals (astro, lagrange, price, moon phase). Returns (analysis, verdict, metrics).
+/// Returns None if there's truly nothing to work with.
+fn no_fundamentals_fallback(
+    ctx: &AgentContext,
+    persona: AgentPersona,
+) -> Option<(String, AgentVerdict, Vec<(String, String, String)>)> {
+    // Need at least one of: astro score, lagrange score, or current price
+    let has_astro = ctx.astro_score.is_some();
+    let has_lagrange = ctx.lagrange_score.is_some();
+    let has_price = ctx.current_price.is_some();
+
+    if !has_astro && !has_lagrange && !has_price {
+        return None; // Truly nothing available
+    }
+
+    let mut metrics = Vec::new();
+    let mut points = 0i32;
+
+    if let Some(astro) = ctx.astro_score {
+        let (assessment, pts) = if astro > 75.0 {
+            ("Strongly favorable astrological alignment.", 2)
+        } else if astro > 55.0 {
+            ("Moderately favorable conditions.", 1)
+        } else if astro > 40.0 {
+            ("Neutral astrological positioning.", 0)
+        } else {
+            ("Unfavorable alignment. Caution warranted.", -1)
+        };
+        metrics.push(("Astro Score".to_string(), format!("{astro:.0}"), assessment.to_string()));
+        points += pts;
+    }
+
+    if let (Some(score), Some(label)) = (ctx.lagrange_score, ctx.lagrange_label.as_deref()) {
+        let pts = if score > 70.0 { 2 } else if score > 55.0 { 1 } else if score > 40.0 { 0 } else { -1 };
+        metrics.push(("Lagrange Score".to_string(), format!("{score:.0} ({label})"), {
+            if score > 70.0 { "Composite signal is strong." }
+            else if score > 55.0 { "Composite signal is positive." }
+            else if score > 40.0 { "Mixed signals." }
+            else { "Composite signal is weak." }
+        }.to_string()));
+        points += pts;
+    }
+
+    if let Some(price) = ctx.current_price {
+        metrics.push(("Price".to_string(), format!("${price:.2}"), "No fundamental context to assess valuation.".to_string()));
+    }
+
+    if ctx.mercury_rx {
+        metrics.push(("Mercury".to_string(), "Retrograde".to_string(), "Communications disrupted. Caution on new positions.".to_string()));
+        points -= 1;
+    }
+
+    if let Some(phase) = ctx.moon_phase.as_deref() {
+        metrics.push(("Moon Phase".to_string(), phase.to_string(), String::new()));
+    }
+
+    let verdict = match points {
+        3.. => AgentVerdict::Buy,
+        1..=2 => AgentVerdict::Hold,
+        _ => AgentVerdict::Sell,
+    };
+
+    let persona_note = match persona {
+        AgentPersona::Buffett => "Without financials, I'm flying blind. The astrological reading gives me a sense of timing, but I invest in businesses, not star charts. Still, here's what the available signals tell me.",
+        AgentPersona::Graham => "My quantitative screens require financial data. However, I can offer a preliminary view based on the composite signals available.",
+        AgentPersona::Lynch => "I'd normally want to understand the business before the numbers. Without financials, I'll work with what we have: the market signal and the cosmic one.",
+        AgentPersona::Munger => "I'm working with incomplete information. The astrology and composite signals provide some context, but show me the business economics for a real opinion.",
+    };
+
+    let analysis = format!(
+        "{} {}",
+        persona_note,
+        if points >= 2 { "The available signals lean positive." }
+        else if points >= 0 { "The signals are mixed. No strong conviction either way." }
+        else { "The available signals lean cautious." }
+    );
+
+    Some((analysis, verdict, metrics))
 }

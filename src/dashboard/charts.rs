@@ -410,9 +410,9 @@ impl<Message> canvas::Program<Message> for LagrangeSparkline {
 
         frame.fill_rectangle(Point::ORIGIN, bounds.size(), theme::canvas_bg(_theme));
 
-        if self.history.len() < 2 {
+        if self.history.is_empty() {
             frame.fill_text(canvas::Text {
-                content: "Not enough Lagrange history yet — run the scraper".to_string(),
+                content: "No Lagrange history yet — run the scraper".to_string(),
                 position: Point::new(8.0, bounds.height / 2.0 - 6.0),
                 color: theme::fg_muted(_theme),
                 size: iced::Pixels(10.0),
@@ -458,9 +458,10 @@ impl<Message> canvas::Program<Message> for LagrangeSparkline {
             });
         }
 
-        // Score line
+        // Score line (handle n=1 by centering the single point)
+        let denom = if n > 1 { (n - 1) as f32 } else { 1.0 };
         let pts: Vec<Point> = self.history.iter().enumerate().map(|(i, row)| {
-            let x = pad + (i as f32 / (n - 1) as f32) * inner_w;
+            let x = if n == 1 { pad + inner_w / 2.0 } else { pad + (i as f32 / denom) * inner_w };
             let y = pad + inner_h - (row.score / 100.0) * inner_h;
             Point::new(x, y.max(pad))
         }).collect();

@@ -153,20 +153,24 @@ pub fn run_strategy_backtest(
 ) -> crate::backtest::BacktestResult {
     use crate::backtest::{BacktestResult, Trade};
 
-    let empty = BacktestResult {
-        ticker: ticker.to_string(),
-        trades: vec![],
-        total_return_pct: 0.0,
-        buy_hold_return_pct: 0.0,
-        max_drawdown_pct: 0.0,
-        win_rate_pct: 0.0,
-        signal_accuracy_pct: 0.0,
-        num_trades: 0,
-        days_tested: data.len(),
-        final_capital: initial_capital,
-    };
-
-    if data.len() < 2 { return empty; }
+    if data.len() < 30 {
+        return BacktestResult {
+            ticker: ticker.to_string(),
+            trades: vec![],
+            total_return_pct: 0.0,
+            buy_hold_return_pct: 0.0,
+            max_drawdown_pct: 0.0,
+            win_rate_pct: 0.0,
+            signal_accuracy_pct: 0.0,
+            num_trades: 0,
+            days_tested: data.len(),
+            final_capital: initial_capital,
+            insufficient_data: Some(format!(
+                "Need 30+ days of data to backtest. Currently have {} day(s) for {}.",
+                data.len(), ticker,
+            )),
+        };
+    }
 
     let mut capital = initial_capital;
     let mut shares = 0.0_f64;
@@ -233,6 +237,7 @@ pub fn run_strategy_backtest(
         num_trades,
         days_tested: data.len(),
         final_capital: capital,
+        insufficient_data: None,
     }
 }
 

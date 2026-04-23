@@ -49,6 +49,12 @@ pub(crate) struct FinnhubRecommendation {
     pub strong_sell: i32,
 }
 
+#[derive(Debug, Deserialize)]
+struct FinnhubProfile {
+    #[serde(rename = "finnhubIndustry", default)]
+    finnhub_industry: Option<String>,
+}
+
 // ---------------------------------------------------------------------------
 // Public entry point
 // ---------------------------------------------------------------------------
@@ -107,6 +113,153 @@ pub async fn fetch_all_finnhub(
             }
         }
     }
+
+    // Sector enrichment: fetch industry classification for tickers missing sector data.
+    // Uses Finnhub /stock/profile2 which returns finnhubIndustry (free, 60 req/min).
+    // Capped at 50 per run to avoid hogging the rate limiter.
+    enrich_sectors(&pool, &client, &finnhub_key, &limiter).await;
+}
+
+async fn enrich_sectors(
+    pool: &sqlx::PgPool,
+    client: &reqwest::Client,
+    finnhub_key: &str,
+    limiter: &governor::DefaultDirectRateLimiter,
+) {
+    // Find tickers that have astro scores (scored universe) but no sector data
+    let missing: Vec<String> = sqlx::query_scalar(
+        "SELECT DISTINCT a.ticker
+         FROM astro_scores a
+         JOIN company_metadata cm ON cm.ticker = a.ticker
+         WHERE cm.sector IS NULL
+         ORDER BY a.ticker
+         LIMIT 50",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+
+    if missing.is_empty() {
+        println!("[Finnhub] All scored tickers have sector data.");
+        return;
+    }
+
+    println!("[Finnhub] Enriching sector data for {} tickers...", missing.len());
+    let mut enriched = 0u32;
+
+    for ticker in &missing {
+        limiter.until_ready().await;
+
+        let url = format!(
+            "https://finnhub.io/api/v1/stock/profile2?symbol={ticker}&token={finnhub_key}"
+        );
+
+        let resp = match client.get(&url).send().await {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("[Finnhub] sector {ticker}: request failed: {e}");
+                continue;
+            }
+        };
+
+        if !resp.status().is_success() {
+            continue;
+        }
+
+        let profile: FinnhubProfile = match resp.json().await {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
+
+        let Some(industry) = profile.finnhub_industry.filter(|s| !s.is_empty()) else {
+            continue;
+        };
+
+        // Map Finnhub industry to a broad sector classification
+        let sector = finnhub_industry_to_sector(&industry);
+
+        let _ = sqlx::query(
+            "UPDATE company_metadata SET sector = $1, industry = $2 WHERE ticker = $3",
+        )
+        .bind(&sector)
+        .bind(&industry)
+        .bind(ticker)
+        .execute(pool)
+        .await;
+
+        enriched += 1;
+    }
+
+    println!("[Finnhub] Sector enrichment: {enriched}/{} tickers updated.", missing.len());
+}
+
+/// Map Finnhub's ~70 industry categories to ~11 GICS-like sectors.
+fn finnhub_industry_to_sector(industry: &str) -> String {
+    match industry {
+        // Technology
+        "Technology" | "Semiconductors" | "Software" | "Internet Content & Information"
+        | "Information Technology Services" | "Electronic Components"
+        | "Computer Hardware" | "Scientific & Technical Instruments"
+        | "Communication Equipment" | "Consumer Electronics" => "Technology",
+
+        // Healthcare
+        "Biotechnology" | "Drug Manufacturers" | "Medical Devices"
+        | "Health Information Services" | "Medical Instruments & Supplies"
+        | "Diagnostics & Research" | "Healthcare Plans" | "Medical Care Facilities"
+        | "Pharmaceutical Retailers" | "Medical Distribution" => "Healthcare",
+
+        // Financial Services
+        "Banks" | "Insurance" | "Capital Markets" | "Financial Data & Stock Exchanges"
+        | "Credit Services" | "Asset Management" | "Insurance Brokers"
+        | "Financial Conglomerates" | "Mortgage Finance" | "Shell Companies" => "Financial Services",
+
+        // Consumer Cyclical
+        "Auto Manufacturers" | "Restaurants" | "Apparel Retail" | "Home Improvement Retail"
+        | "Internet Retail" | "Specialty Retail" | "Leisure" | "Lodging"
+        | "Residential Construction" | "Auto Parts" | "Luxury Goods"
+        | "Gambling" | "Travel Services" | "Apparel Manufacturing" => "Consumer Cyclical",
+
+        // Consumer Defensive
+        "Beverages" | "Household & Personal Products" | "Packaged Foods"
+        | "Tobacco" | "Discount Stores" | "Grocery Stores"
+        | "Farm Products" | "Food Distribution" | "Education & Training Services" => "Consumer Defensive",
+
+        // Industrials
+        "Aerospace & Defense" | "Industrial Distribution" | "Railroads"
+        | "Trucking" | "Waste Management" | "Consulting Services"
+        | "Engineering & Construction" | "Building Products & Equipment"
+        | "Airlines" | "Marine Shipping" | "Rental & Leasing Services"
+        | "Staffing & Employment Services" | "Integrated Freight & Logistics"
+        | "Conglomerates" | "Security & Protection Services" | "Specialty Business Services" => "Industrials",
+
+        // Energy
+        "Oil & Gas" | "Oil & Gas E&P" | "Oil & Gas Midstream"
+        | "Oil & Gas Integrated" | "Oil & Gas Refining & Marketing"
+        | "Oil & Gas Equipment & Services" | "Uranium" => "Energy",
+
+        // Utilities
+        "Utilities" | "Utilities - Regulated Electric" | "Utilities - Regulated Gas"
+        | "Utilities - Diversified" | "Utilities - Renewable"
+        | "Utilities - Independent Power Producers" => "Utilities",
+
+        // Real Estate
+        "REIT" | "Real Estate" | "Real Estate Services"
+        | "Real Estate - Development" | "Real Estate - Diversified" => "Real Estate",
+
+        // Communication Services
+        "Telecom Services" | "Entertainment" | "Publishing"
+        | "Broadcasting" | "Advertising Agencies" | "Electronic Gaming & Multimedia" => "Communication Services",
+
+        // Basic Materials
+        "Gold" | "Silver" | "Copper" | "Steel" | "Chemicals"
+        | "Specialty Chemicals" | "Building Materials" | "Lumber & Wood Production"
+        | "Paper & Paper Products" | "Aluminum" | "Other Precious Metals & Mining"
+        | "Other Industrial Metals & Mining" | "Agricultural Inputs" | "Coking Coal" => "Basic Materials",
+
+        // Fallback: use the raw industry as the sector
+        _ => return industry.to_string(),
+    }
+    .to_string()
 }
 
 // ---------------------------------------------------------------------------

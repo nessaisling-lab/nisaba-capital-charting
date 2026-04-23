@@ -9,7 +9,7 @@ use pursuit_week4_automation::models::{
 use crate::agents::{AgentAnalysis, AgentPersona};
 use crate::backtest::{BacktestConfig, BacktestResult};
 use crate::strategy::Strategy;
-use crate::db::{CompareRow, NamedWatchlist, PortfolioPnlRow, SectorSummary, TransactionRow, UniverseRow, WatchlistRow};
+use crate::db::{CompareRow, NamedWatchlist, PortfolioPnlRow, RetroEvent, SectorSummary, TransactionRow, UniverseRow, WatchlistRow};
 use crate::tabs::Tab;
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -76,6 +76,7 @@ pub struct Dashboard {
     pub astro_aspects:     Vec<serde_json::Value>, // decoded from active_aspects JSONB
     pub natal_positions:   Vec<NatalPosition>,
     pub daily_transits:    Vec<DailyTransit>,
+    pub retrograde_events: Vec<RetroEvent>,
     pub horoscope:         Option<pursuit_week4_automation::astrology::interpretation::HoroscopeReading>,
     pub macro_data:        Vec<MacroIndicator>,
     pub short_interest:    Option<ShortInterest>,
@@ -100,6 +101,7 @@ pub struct Dashboard {
     pub compare_tickers:          Vec<String>,       // up to 4 tickers for comparison
     pub compare_input:            String,             // text input for adding compare ticker
     pub compare_data:             Vec<CompareRow>,
+    pub sector_peers:             Vec<String>,
     pub sort_watchlist_by_score:  bool,
     pub recently_viewed:          Vec<String>,
     pub active_tab:               Tab,
@@ -113,6 +115,7 @@ pub struct Dashboard {
     pub universe_page:            usize,
     pub universe_filter_zone:     Option<String>,
     pub universe_filter_sector:   Option<String>,
+    pub universe_search_text:     String,
     pub universe_sectors:         Vec<String>,
     pub sector_summaries:         Vec<SectorSummary>,
     // Named Watchlists
@@ -122,6 +125,7 @@ pub struct Dashboard {
     pub new_watchlist_name:       String,
     pub watchlist_add_ticker:     String,
     // Chart timeframe
+    pub show_price_table:         bool,
     pub chart_timeframe:          ChartTimeframe,
     // Backtesting
     pub backtest_config:          BacktestConfig,
@@ -174,6 +178,7 @@ impl Default for Dashboard {
             astro_aspects:   vec![],
             natal_positions: vec![],
             daily_transits:  vec![],
+            retrograde_events: vec![],
             horoscope:         None,
             macro_data:        vec![],
             short_interest:    None,
@@ -197,6 +202,7 @@ impl Default for Dashboard {
             compare_tickers:          vec![],
             compare_input:            String::new(),
             compare_data:             vec![],
+            sector_peers:             vec![],
             sort_watchlist_by_score:  true,
             recently_viewed:          vec![],
             active_tab:               Tab::Astrology,
@@ -209,6 +215,7 @@ impl Default for Dashboard {
             universe_page:            0,
             universe_filter_zone:     None,
             universe_filter_sector:   None,
+            universe_search_text:     String::new(),
             universe_sectors:         vec![],
             sector_summaries:         vec![],
             named_watchlists:         vec![],
@@ -216,6 +223,7 @@ impl Default for Dashboard {
             watchlist_tickers_list:   vec![],
             new_watchlist_name:       String::new(),
             watchlist_add_ticker:     String::new(),
+            show_price_table:         false,
             chart_timeframe:          ChartTimeframe::default(),
             backtest_config:          BacktestConfig::default(),
             backtest_result:          None,
@@ -258,6 +266,7 @@ pub enum Message {
     AstroScoreLoaded(Result<Option<AstroScore>, String>),
     NatalChartLoaded(Result<Vec<NatalPosition>, String>),
     TransitsLoaded(Result<Vec<DailyTransit>, String>),
+    RetroEventsLoaded(Result<Vec<RetroEvent>, String>),
     AstroAspectsLoaded(Result<serde_json::Value, String>),
     HoroscopeLoaded(Result<Option<pursuit_week4_automation::astrology::interpretation::HoroscopeReading>, String>),
     MacroDataLoaded(Result<Vec<MacroIndicator>, String>),
@@ -276,6 +285,8 @@ pub enum Message {
     TickerSelected(String),
     AlertsLoaded(Result<Vec<LagrangeAlert>, String>),
     MarkAlertRead(i32),
+    MarkAllAlertsRead,
+    DismissAlert(i32),
     NotifyAlerts,
     TickerSearchInput(String),
     TickerSearchSubmit,
@@ -287,14 +298,17 @@ pub enum Message {
     AgentSelected(AgentPersona),
     CompareInput(String),
     CompareAdd,
+    CompareAddDirect(String),
     CompareRemove(String),
     CompareDataLoaded(Result<Vec<CompareRow>, String>),
+    SectorPeersLoaded(Result<Vec<String>, String>),
     UniverseLoaded(Result<Vec<UniverseRow>, String>),
     UniverseCountLoaded(Result<i64, String>),
     UniverseSectorsLoaded(Result<Vec<String>, String>),
     SectorSummariesLoaded(Result<Vec<SectorSummary>, String>),
     UniverseFilterZone(Option<String>),
     UniverseFilterSector(Option<String>),
+    UniverseSearchChanged(String),
     UniverseNextPage,
     UniversePrevPage,
     // Named Watchlists
@@ -310,7 +324,9 @@ pub enum Message {
     WatchlistMutated(Result<(), String>),
     DeleteActiveWatchlist,
     ExportCsv,
+    ExportUniverseCsv,
     ToggleWatchlistSort,
+    TogglePriceTable,
     // Chart timeframe
     SetTimeframe(ChartTimeframe),
     // Backtest
@@ -348,6 +364,7 @@ pub enum Message {
     TxCreated(Result<TransactionRow, String>),
     TxDelete(i32),
     TxDeleted(Result<(), String>),
+    ImportWatchlistToPortfolio,
     FocusSearch,
     EscapePressed,
     RefreshNow,
