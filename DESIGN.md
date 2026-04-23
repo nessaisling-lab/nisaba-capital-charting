@@ -3,11 +3,53 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v3.0.7 (v3.1.x planned)
+**Current version:** v3.1.2
 
 ---
 
 ## Changelog
+
+### v3.1.2 — Polymarket Prediction Markets *(completed 2026-04-22)*
+
+**Theme:** Prediction market integration from Polymarket's free Gamma API. Ported from FinceptTerminal's PolymarketService.cpp (843 lines C++ to ~210 lines Rust). Adds macro sentiment visibility via real-money prediction markets.
+
+**Implementation:** Fetches top active markets by volume across 6 financially relevant tags (economics, fed, inflation, recession, crypto, elections). The Gamma API returns numeric fields as JSON strings ("1567632.01") and outcomes/outcomePrices as either JSON arrays or string-encoded arrays. Two helpers (`num_or_str`, `parse_str_or_array`) handle both forms, matching the C++ original's approach. Markets are upserted by `market_id` so probabilities stay fresh across scraper runs.
+
+**Dashboard wiring:** Overview tab gains a "Prediction Markets" section below the two-column layout showing top 8 active markets with Yes probability percentage, category badge, question text, and formatted volume. The data loads once on startup (global, not per-ticker).
+
+**Created:** `src/scraper/polymarket.rs`, `migrations/0030_polymarket.sql`
+**Modified:** `src/scraper/main.rs` (mod + Phase 3 step 3.8), `src/models.rs` (PolymarketMarket), `src/dashboard/db.rs` (fetch_polymarket), `src/dashboard/state.rs` (polymarket field + PolymarketLoaded message), `src/dashboard/update.rs` (handler + initial load), `src/dashboard/view.rs` (Overview tab prediction markets section)
+
+### v3.1.1 — RSS News Aggregation *(completed 2026-04-22)*
+
+**Theme:** Free RSS/Atom news feed aggregation from 25 curated sources. Ported from FinceptTerminal's NewsService.cpp (1327 lines C++ to ~170 lines Rust). The massive reduction is thanks to the `feed-rs` crate which handles RSS 0.9/1.0/2.0 and Atom format detection + parsing automatically.
+
+**Feed selection (25 of 80+ from C++ source):** Wire services (Reuters Business, Reuters Markets, BBC Business, NYT World, Al Jazeera), regulators (SEC, Federal Reserve, ECB), financial media (Bloomberg Markets, WSJ Markets, MarketWatch, CNBC Finance, Seeking Alpha), analysis (Economist, Calculated Risk, Wolf Street), tech (TechCrunch, Finextra), Asia-Pacific (SCMP, Nikkei Asia), energy (OilPrice), crypto (CoinDesk, CoinTelegraph), geopolitics (Foreign Policy, Defense News).
+
+**Parallel fetch:** All 25 feeds fetched concurrently via `tokio::spawn` with 5-second per-feed timeout. HTML stripped from summaries with a simple state-machine parser, truncated to 300 chars (matching C++ `kSummaryMaxChars`). Articles deduplicated by `link` unique constraint.
+
+**Dashboard wiring:** Research tab gains "Market News (RSS)" section between Finnhub per-ticker news and insider trades. Shows date, source name, category badge, headline, and Open button. Scrollable list of 50 most recent articles.
+
+**New dependency:** `feed-rs = "2"` (RSS/Atom parser)
+**Created:** `src/scraper/rss_news.rs`, `migrations/0029_rss_articles.sql`
+**Modified:** `Cargo.toml`, `src/scraper/main.rs`, `src/models.rs` (RssArticle), `src/dashboard/db.rs`, `src/dashboard/state.rs`, `src/dashboard/update.rs`, `src/dashboard/view.rs`
+
+### v3.1.0 — DBnomics International Economics *(completed 2026-04-22)*
+
+**Theme:** Free international macroeconomic data from DBnomics (api.dbnomics.org), an aggregator of 70+ statistical providers. No API key needed. Ported from FinceptTerminal's DBnomicsService.cpp (372 lines C++ to ~180 lines Rust).
+
+**Design decision:** Rather than creating a separate table, DBnomics observations reuse the existing `macro_indicators` table with a `DBNOMICS:` prefix on `series_id`. This means the dashboard macro strip displays international indicators with zero new model types, zero new queries, and zero new state fields. A partial index (`WHERE series_id LIKE 'DBNOMICS:%'`) keeps queries efficient.
+
+**6 series selected:** ECB Euribor 3-month rate (EU short-term benchmark), BIS PBoC policy rate (China monetary policy), IMF US GDP growth forecast (World Economic Outlook), Eurostat CPI YoY (Eurozone inflation), OECD Composite Leading Indicator (US), BIS Total Credit to Private Sector as % of GDP (US).
+
+**Period parsing:** DBnomics returns dates in 4 formats depending on the provider: `2024-01-15` (daily), `2024-01` (monthly), `2024-Q1` (quarterly), `2024` (annual). The `parse_dbn_period()` function normalizes all four to `NaiveDate`, defaulting to the 1st of the period for non-daily formats.
+
+**Dashboard wiring:** Overview and Portfolio tabs gain a second macro strip row showing international indicators: Euribor 3M, PBoC rate, EU CPI, OECD CLI, US Credit/GDP. Shows "—" until first scraper run populates data.
+
+**Created:** `src/scraper/dbnomics.rs`, `migrations/0028_dbnomics_series.sql`
+**Modified:** `src/scraper/main.rs` (mod + Phase 3 step 3.6), `src/dashboard/view.rs` (international macro strip row)
+
+---
 
 ### v3.0.7 — Dashboard UI Review & Fixes *(completed 2026-04-22)*
 
