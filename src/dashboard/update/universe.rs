@@ -48,6 +48,16 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
             state.universe_page = 0;
             Some(state.refresh_universe())
         }
+        Message::UniverseSort(col) => {
+            if state.universe_sort_col == col {
+                state.universe_sort_asc = !state.universe_sort_asc;
+            } else {
+                state.universe_sort_col = col;
+                state.universe_sort_asc = false; // default descending for new column
+            }
+            state.universe_page = 0;
+            Some(state.refresh_universe())
+        }
         Message::UniverseNextPage => {
             let max_page = ((state.universe_total as usize).saturating_sub(1)) / 50;
             if state.universe_page < max_page {
@@ -192,6 +202,7 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
         }
         Message::WatchlistCreated(Ok(wl)) => {
             let new_id = wl.id;
+            state.push_toast(format!("Watchlist '{}' created", wl.name));
             state.named_watchlists.push(wl);
             state.active_watchlist_id = Some(new_id);
             state.watchlist_tickers_list.clear();

@@ -48,6 +48,8 @@ pub struct UniverseRow {
 }
 
 /// Fetch a page of the scored universe, with optional zone, sector, and search filters.
+/// `sort_col` is a SQL-safe column expression from `UniverseSortCol::sql_expr()`.
+/// `sort_asc` controls ascending (true) vs descending (false) order.
 pub async fn fetch_universe_page(
     pool: Arc<PgPool>,
     zone_filter: Option<String>,
@@ -55,13 +57,17 @@ pub async fn fetch_universe_page(
     search: Option<String>,
     page: usize,
     page_size: usize,
+    sort_col: &str,
+    sort_asc: bool,
 ) -> Result<Vec<UniverseRow>, String> {
     let offset = (page * page_size) as i64;
     let limit = page_size as i64;
     // Convert search text to ILIKE pattern (prefix match on ticker, substring on company)
     let search_pattern = search.as_ref().map(|s| format!("%{}%", s.to_uppercase()));
 
-    sqlx::query_as::<_, UniverseRow>(
+    let direction = if sort_asc { "ASC" } else { "DESC" };
+    // sort_col comes from our enum (not user input), so format! is safe here
+    let query = format!(
         "WITH latest_astro AS (
              SELECT MAX(score_date) AS d FROM astro_scores
          ),
@@ -102,9 +108,11 @@ pub async fn fetch_universe_page(
            AND ($5::text IS NULL
                 OR UPPER(a.ticker) LIKE $5
                 OR UPPER(COALESCE(cm.company_name, '')) LIKE $5)
-         ORDER BY a.astro_score DESC NULLS LAST
-         LIMIT $3 OFFSET $4",
-    )
+         ORDER BY {sort_col} {direction} NULLS LAST
+         LIMIT $3 OFFSET $4"
+    );
+
+    sqlx::query_as::<_, UniverseRow>(&query)
     .bind(&zone_filter)
     .bind(&sector_filter)
     .bind(limit)

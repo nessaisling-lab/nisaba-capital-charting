@@ -1,5 +1,5 @@
 use iced::widget::{button, column, horizontal_rule, row, scrollable, text, Column};
-use iced::{Alignment, Element, Length};
+use iced::{Alignment, Color, Element, Length};
 
 use crate::helpers::{describe_8k_items, format_market_value, format_shares};
 use crate::state::{Dashboard, Message};
@@ -267,6 +267,67 @@ impl Dashboard {
             .spacing(4)
         };
 
+        // ── GDELT Geopolitical Events ───────────────────────
+        let gdelt_section = if self.gdelt_events.is_empty() {
+            column![
+                text("Geopolitical Events (GDELT)").size(theme::text_md()),
+                text("No geopolitical events loaded yet. Run the scraper to fetch from GDELT.")
+                    .size(theme::text_sm()),
+            ]
+            .spacing(4)
+        } else {
+            let gdelt_items: Vec<Element<Message>> = self
+                .gdelt_events
+                .iter()
+                .map(|ev| {
+                    let date = ev.published_at.format("%b %d %H:%M").to_string();
+                    let country = ev.source_country.as_deref().unwrap_or("—");
+                    let domain = ev.domain.as_deref().unwrap_or("—");
+                    let url = ev.url.clone();
+
+                    // Tone coloring: negative = red, neutral = gray, positive = green
+                    let tone_str = ev.tone.map(|t| format!("{t:+.1}")).unwrap_or_else(|| "—".into());
+                    let tone_color = match ev.tone {
+                        Some(t) if t > 2.0 => theme::ZONE_OPTIMAL,
+                        Some(t) if t > 0.0 => theme::ZONE_FAVORABLE,
+                        Some(t) if t > -2.0 => Color::from_rgb(0.6, 0.6, 0.6),
+                        Some(_) => theme::ZONE_MISALIGNED,
+                        None => Color::from_rgb(0.5, 0.5, 0.5),
+                    };
+
+                    row![
+                        text(format!("[{date}]"))
+                            .size(theme::text_base())
+                            .width(Length::Fixed(100.0)),
+                        text(country)
+                            .size(theme::text_xs())
+                            .width(Length::Fixed(36.0)),
+                        text(tone_str)
+                            .size(theme::text_xs())
+                            .color(tone_color)
+                            .width(Length::Fixed(42.0)),
+                        text(&ev.title)
+                            .size(theme::text_base())
+                            .width(Length::Fill),
+                        text(domain)
+                            .size(theme::text_xs())
+                            .width(Length::Fixed(90.0)),
+                        button(text("Open").size(theme::text_sm()))
+                            .on_press(Message::OpenUrl(url)),
+                    ]
+                    .spacing(6)
+                    .align_y(Alignment::Center)
+                    .into()
+                })
+                .collect();
+            column![
+                text("Geopolitical Events (GDELT)").size(theme::text_md()),
+                scrollable(Column::with_children(gdelt_items).spacing(4))
+                    .height(Length::Fixed(160.0)),
+            ]
+            .spacing(4)
+        };
+
         // ── News + Filings side by side ─────────────────────
         let news_filings_row = row![
             column![filings_section].width(Length::FillPortion(1)),
@@ -278,6 +339,8 @@ impl Dashboard {
             news_filings_row,
             horizontal_rule(1),
             rss_section,
+            horizontal_rule(1),
+            gdelt_section,
             horizontal_rule(1),
             insider_section,
             horizontal_rule(1),

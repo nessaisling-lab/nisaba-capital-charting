@@ -22,7 +22,7 @@ use std::time::Duration;
 use crate::db::{
     connect_db, fetch_alerts, fetch_available_sectors, fetch_daily_transits,
     fetch_lagrange_history, fetch_macro_indicators, fetch_market_fear_greed,
-    fetch_named_watchlists, fetch_polymarket, fetch_portfolio, fetch_portfolio_pnl,
+    fetch_gdelt, fetch_named_watchlists, fetch_polymarket, fetch_portfolio, fetch_portfolio_pnl,
     fetch_recently_viewed, fetch_retrograde_events, fetch_rss_articles,
     fetch_sector_summaries, fetch_settings, fetch_ticker_earnings,
     fetch_transactions, fetch_universe_count, fetch_universe_page,
@@ -127,7 +127,7 @@ impl Dashboard {
                         Task::perform(fetch_portfolio(Arc::clone(pool)), Message::PortfolioLoaded),
                         Task::perform(fetch_recently_viewed(Arc::clone(pool)), Message::RecentlyViewedLoaded),
                         Task::perform(fetch_alerts(Arc::clone(pool)), Message::AlertsLoaded),
-                        Task::perform(fetch_universe_page(Arc::clone(pool), None, None, None, 0, 50), Message::UniverseLoaded),
+                        Task::perform(fetch_universe_page(Arc::clone(pool), None, None, None, 0, 50, crate::state::UniverseSortCol::default().sql_expr(), false), Message::UniverseLoaded),
                         Task::perform(fetch_universe_count(Arc::clone(pool), None, None, None), Message::UniverseCountLoaded),
                         Task::perform(fetch_available_sectors(Arc::clone(pool)), Message::UniverseSectorsLoaded),
                         Task::perform(fetch_sector_summaries(Arc::clone(pool)), Message::SectorSummariesLoaded),
@@ -137,6 +137,7 @@ impl Dashboard {
                         Task::perform(fetch_settings(Arc::clone(pool)), Message::SettingsLoaded),
                         Task::perform(fetch_rss_articles(Arc::clone(pool)), Message::RssArticlesLoaded),
                         Task::perform(fetch_polymarket(Arc::clone(pool)), Message::PolymarketLoaded),
+                        Task::perform(fetch_gdelt(Arc::clone(pool)), Message::GdeltLoaded),
                         {
                             let retro_start = chrono::Local::now().date_naive() - chrono::Duration::days(365);
                             let retro_end = chrono::Local::now().date_naive();
@@ -191,7 +192,10 @@ impl Dashboard {
                 self.chart_timeframe = tf;
                 Task::none()
             }
-            Message::CopyText(s) => iced::clipboard::write(s),
+            Message::CopyText(s) => {
+                self.push_toast("Copied to clipboard");
+                iced::clipboard::write(s)
+            }
             Message::OpenUrl(url) => {
                 let _ = open::that_detached(&url);
                 Task::none()
@@ -222,6 +226,7 @@ impl Dashboard {
                 }
             }
             Message::Tick => {
+                self.expire_toasts();
                 if self.theme_mode == crate::theme::ThemeMode::Auto {
                     self.theme = crate::theme::iced_theme(self.theme_mode);
                 }
@@ -299,7 +304,10 @@ impl Dashboard {
                     Task::none()
                 }
             }
-            Message::SettingSaved(Ok(())) => Task::none(),
+            Message::SettingSaved(Ok(())) => {
+                self.push_toast("Setting saved");
+                Task::none()
+            }
             Message::SettingSaved(Err(_)) => Task::none(),
 
             // Catch-all: message was already handled by a domain module

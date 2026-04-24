@@ -5,6 +5,7 @@ mod calendar;
 mod charts;
 mod dcf;
 mod db;
+mod greeks;
 mod error;
 mod font;
 mod gauges;

@@ -3,12 +3,48 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v4.1.0
-**Next milestone:** v4.2.0 "The Expansion" (Candlestick Charts + New Features)
+**Current version:** v4.2.0
+**Next milestone:** v5.0.0 (TBD)
 
 ---
 
 ## Changelog
+
+### v4.2.0 — "The Expansion" (2026-04-24)
+
+**Theme:** New analytical features. Candlestick charts, Black-Scholes options calculator, server-side sortable tables, in-app toast notifications, GDELT geopolitical events, and astro calendar (already present from v3.0.5).
+
+1. **Candlestick charts replacing area fill** — rewrote the price chart Canvas from an area-fill line chart to proper OHLC candlestick bars. Each bar has a thin wick line (high to low) and a filled body rectangle (open to close). Green for bullish candles (close >= open), red for bearish, using `theme::bullish()` and `theme::bearish()` (Catppuccin green/red). Bar width auto-scales with data count, clamped to 2..12px. Price range calculation expanded to include high/low values (not just close), preventing wick clipping. Doji candles get a minimum 1px body height. Volume bars, SMA overlays, Bollinger Bands, and astro markers all remain functional.
+   - *Files:* `src/dashboard/charts.rs` (candlestick rendering replaces area fill)
+   - *Insight:* `rust_decimal::Decimal` doesn't implement `Into<f32>`, so all OHLC values use `.to_string().parse::<f32>()` for conversion. Not elegant, but zero-allocation overhead at 100 data points.
+
+2. **Black-Scholes Options Greeks calculator** — new `greeks.rs` module (~200 lines) implementing the complete Black-Scholes model. Computes call and put prices plus 5 Greeks: delta, gamma, theta (per calendar day), vega (per 1% vol), and rho (per 1% rate). Standard normal CDF uses the Abramowitz & Stegun polynomial approximation (max error ~1.5e-7) via erf identity. Implied volatility solver uses Newton-Raphson iteration (50 max iterations, 1e-8 tolerance) with Brenner-Subrahmanyam initial guess `sigma_0 = sqrt(2pi/T) * price/spot`. UI in Fundamentals tab: input row for spot/strike/days/rate/vol/type, compute button, IV solver row, and colored results display (delta by magnitude, theta in red for time decay). Auto-fills spot price from current ticker data when empty.
+   - *Files:* `src/dashboard/greeks.rs` (new), `src/dashboard/main.rs` (+mod), `src/dashboard/state.rs` (+8 input fields, +2 result fields, +9 messages), `src/dashboard/update/data.rs` (+9 handlers), `src/dashboard/update/helpers.rs` (+compute_greeks, +solve_implied_vol), `src/dashboard/view/fundamentals.rs` (+Greeks section)
+   - *Tests:* 5 unit tests: call price sanity, put-call parity, IV roundtrip, ATM delta near 0.5, degenerate input handling
+
+3. **Server-side sortable Universe table** — Universe Explorer column headers are now clickable sort buttons. `UniverseSortCol` enum with 6 variants (Ticker, AstroScore, LagrangeScore, FinSub, MacroSub, ShortSub), each mapping to a SQL expression via `sql_expr()`. Click toggles ascending/descending, resets to page 0, and re-fetches with dynamic `ORDER BY`. Column headers show active sort indicator (triangle-up or triangle-down). Server-side sort is critical here: 1,700+ tickers across 35 pages, client-side sort on a 50-row page would be meaningless.
+   - *Files:* `src/dashboard/state.rs` (+UniverseSortCol enum, +sort fields, +Message::UniverseSort), `src/dashboard/update/universe.rs` (+sort handler), `src/dashboard/db/universe.rs` (+sort_col/sort_asc params), `src/dashboard/view/universe.rs` (+clickable headers with indicators)
+
+4. **In-app toast notifications** — replaced silent operations with visual feedback. Toasts are dark semi-transparent pills (rgba 0.1, 0.1, 0.15, 0.92) rendered as a right-aligned overlay at the top of the content area. Each toast auto-expires after 4 seconds, cleaned up on the existing 30-second `Tick` subscription. Max 5 visible toasts, oldest drops first. Applied to: clipboard copy ("Copied to clipboard"), settings save ("Setting saved"), portfolio transaction creation, and more.
+   - *Files:* `src/dashboard/state.rs` (+toasts Vec), `src/dashboard/update/helpers.rs` (+push_toast, +expire_toasts), `src/dashboard/update/mod.rs` (+expire on Tick, +toast on CopyText/SettingSaved), `src/dashboard/update/portfolio.rs` (+toast on TxCreated), `src/dashboard/view/mod.rs` (+toast overlay rendering)
+
+5. **GDELT geopolitical events** — new scraper module and Research tab section for the GDELT 2.0 DOC API. Five query categories: trade/sanctions, monetary policy, military conflict, political instability, and energy/OPEC. Each category fetches up to 25 articles from the past 24 hours (English only). Articles stored with URL deduplication (`ON CONFLICT (url) DO NOTHING`). GDELT tone scores (-10 to +10) displayed with color coding: green for positive, gray for neutral, red for negative. Research tab shows title, source country, tone, domain, and timestamp in a 160px scrollable list.
+   - *Files:* `src/scraper/gdelt.rs` (new, ~160 lines), `src/scraper/main.rs` (+mod, +pipeline step), `migrations/0032_gdelt_events.sql` (new), `src/models.rs` (+GdeltEvent struct), `src/dashboard/db/ticker_data.rs` (+fetch_gdelt), `src/dashboard/state.rs` (+gdelt_events, +GdeltLoaded), `src/dashboard/update/data.rs` (+handler), `src/dashboard/update/mod.rs` (+initial fetch), `src/dashboard/view/research.rs` (+GDELT section)
+
+6. **Astro calendar (confirmed present)** — the monthly calendar Canvas widget showing astro-score-colored day cells was already implemented in v3.0.5. Each day cell is colored on a green (favorable) to red (unfavorable) gradient based on the ticker's daily astro score. Day-of-week headers, score labels in cells, and month/year title. Fully wired: `calendar.rs` widget, `fetch_astro_calendar()` DB function, `CalendarLoaded` message handler, displayed in the Astrology tab.
+   - *Files:* `src/dashboard/calendar.rs` (existing), `src/dashboard/view/astrology_tab.rs` (existing integration)
+
+**Post-upgrade metrics:**
+
+| Metric | v4.1.0 | v4.2.0 |
+|--------|--------|--------|
+| New files | -- | 3 (greeks.rs, gdelt.rs scraper, migration) |
+| Chart type | Area fill | OHLC Candlestick |
+| Options analytics | None | Full Black-Scholes + IV solver |
+| Table sorting | None | 6-column server-side sort |
+| User feedback | Silent operations | Toast notifications |
+| Geopolitical data | None | GDELT 5-category feed |
+| Tests | 47 | 52 (38 lib + 14 dashboard) |
 
 ### v4.1.0 — "The Glass" (2026-04-23)
 

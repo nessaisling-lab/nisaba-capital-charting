@@ -3,7 +3,7 @@ use iced::widget::{button, column, container, horizontal_rule, row, scrollable, 
 use iced::{Alignment, Element, Length};
 
 use crate::heatmap::SectorHeatMap;
-use crate::state::{Dashboard, Message};
+use crate::state::{Dashboard, Message, UniverseSortCol};
 use crate::theme;
 
 impl Dashboard {
@@ -95,33 +95,35 @@ impl Dashboard {
                 .size(theme::text_base())
                 .into()
         } else {
+            // Sortable column header helper
+            let sort_hdr = |label: &str, col: UniverseSortCol, width: Length| -> Element<'_, Message> {
+                let indicator = if self.universe_sort_col == col {
+                    if self.universe_sort_asc { " ▲" } else { " ▼" }
+                } else {
+                    ""
+                };
+                button(text(format!("{label}{indicator}")).size(theme::text_sm()))
+                    .on_press(Message::UniverseSort(col))
+                    .width(width)
+                    .into()
+            };
             let hdr = row![
                 text("#").size(theme::text_sm()).width(Length::Fixed(30.0)),
-                text("Ticker")
-                    .size(theme::text_sm())
-                    .width(Length::Fixed(64.0)),
+                sort_hdr("Ticker", UniverseSortCol::Ticker, Length::Fixed(64.0)),
                 text("Company")
                     .size(theme::text_sm())
                     .width(Length::FillPortion(3)),
                 text("Sector")
                     .size(theme::text_sm())
                     .width(Length::FillPortion(2)),
-                text("Astro")
-                    .size(theme::text_sm())
-                    .width(Length::Fixed(56.0)),
-                text("Score")
-                    .size(theme::text_sm())
-                    .width(Length::Fixed(56.0)),
+                sort_hdr("Astro", UniverseSortCol::Astro, Length::Fixed(56.0)),
+                sort_hdr("Score", UniverseSortCol::Score, Length::Fixed(56.0)),
                 text("Zone")
                     .size(theme::text_sm())
                     .width(Length::Fixed(90.0)),
-                text("Fin").size(theme::text_sm()).width(Length::Fixed(44.0)),
-                text("Macro")
-                    .size(theme::text_sm())
-                    .width(Length::Fixed(44.0)),
-                text("Short")
-                    .size(theme::text_sm())
-                    .width(Length::Fixed(44.0)),
+                sort_hdr("Fin", UniverseSortCol::Fin, Length::Fixed(44.0)),
+                sort_hdr("Macro", UniverseSortCol::Macro, Length::Fixed(44.0)),
+                sort_hdr("Short", UniverseSortCol::Short, Length::Fixed(44.0)),
                 text("Conc")
                     .size(theme::text_sm())
                     .width(Length::Fixed(50.0)),

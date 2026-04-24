@@ -1,6 +1,6 @@
 use crate::error::SqlResultExt;
 use pursuit_week4_automation::models::{
-    AnalystRating, EarningsDate, FilingRow, FundamentalMetric, HoldingRow,
+    AnalystRating, EarningsDate, FilingRow, FundamentalMetric, GdeltEvent, HoldingRow,
     InsiderTradeRow, MacroIndicator, NewsArticle, PolymarketMarket, PriceRow,
     RssArticle, SentimentScore, ShortInterest,
 };
@@ -58,6 +58,14 @@ pub async fn fetch_polymarket(pool: Arc<PgPool>) -> Result<Vec<PolymarketMarket>
          ORDER BY volume DESC NULLS LAST LIMIT 10",
     )
     .fetch_all(pool.as_ref()).await.ctx("fetch_polymarket")
+}
+
+pub async fn fetch_gdelt(pool: Arc<PgPool>) -> Result<Vec<GdeltEvent>, String> {
+    sqlx::query_as::<_, GdeltEvent>(
+        "SELECT id, url, title, source_country, tone, themes, locations, domain, published_at \
+         FROM gdelt_events ORDER BY published_at DESC LIMIT 30",
+    )
+    .fetch_all(pool.as_ref()).await.ctx("fetch_gdelt")
 }
 
 pub async fn fetch_rss_articles(pool: Arc<PgPool>) -> Result<Vec<RssArticle>, String> {

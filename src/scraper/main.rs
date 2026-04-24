@@ -2,6 +2,7 @@ mod astrology;
 mod company_enrich;
 mod dbnomics;
 mod edgar;
+mod gdelt;
 mod edgar_enrich;
 mod enrich_common;
 mod fmp_enrich;
@@ -478,6 +479,9 @@ async fn run_all_fetches(
 
     println!("3.8 Fetching Polymarket prediction markets...");
     polymarket::fetch_all_polymarket(Arc::clone(&pool), Arc::clone(&client)).await;
+
+    println!("3.9a Fetching GDELT geopolitical events...");
+    gdelt::fetch_gdelt_events(Arc::clone(&pool), Arc::clone(&client)).await;
 
     // IPO date enrichment pipeline (4 sources)
     println!("3.9 Enriching missing IPO dates (AV OVERVIEW)...");

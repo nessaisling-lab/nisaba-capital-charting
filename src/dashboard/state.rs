@@ -53,6 +53,45 @@ impl Default for ChartTimeframe {
     fn default() -> Self { Self::SixMonths }
 }
 
+/// Column the Universe table is sorted by.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UniverseSortCol {
+    Ticker,
+    Astro,
+    Score,
+    Fin,
+    Macro,
+    Short,
+}
+
+impl UniverseSortCol {
+    /// SQL ORDER BY expression for this column.
+    pub fn sql_expr(self) -> &'static str {
+        match self {
+            Self::Ticker => "a.ticker",
+            Self::Astro  => "a.astro_score",
+            Self::Score  => "score",
+            Self::Fin    => "lh.fin_score",
+            Self::Macro  => "lh.macro_score",
+            Self::Short  => "lh.short_score",
+        }
+    }
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Ticker => "Ticker",
+            Self::Astro  => "Astro",
+            Self::Score  => "Score",
+            Self::Fin    => "Fin",
+            Self::Macro  => "Macro",
+            Self::Short  => "Short",
+        }
+    }
+}
+
+impl Default for UniverseSortCol {
+    fn default() -> Self { Self::Astro }
+}
+
 pub struct Dashboard {
     pub pool:              Option<Arc<PgPool>>,
     pub tickers:           Vec<String>,
@@ -65,6 +104,7 @@ pub struct Dashboard {
     pub news:              Vec<NewsArticle>,
     pub rss_articles:      Vec<pursuit_week4_automation::models::RssArticle>,
     pub polymarket:        Vec<pursuit_week4_automation::models::PolymarketMarket>,
+    pub gdelt_events:      Vec<pursuit_week4_automation::models::GdeltEvent>,
     pub earnings:          Vec<EarningsDate>,
     pub analyst_rating:    Option<AnalystRating>,
     pub sentiment:         Option<SentimentScore>,
@@ -87,6 +127,16 @@ pub struct Dashboard {
     pub dcf_terminal_growth: String,
     pub dcf_discount_rate:  String,
     pub dcf_result:         Option<crate::dcf::DcfResult>,
+    // Options Greeks calculator inputs
+    pub greeks_spot:        String,
+    pub greeks_strike:      String,
+    pub greeks_expiry_days: String,
+    pub greeks_rate:        String,
+    pub greeks_vol:         String,
+    pub greeks_is_call:     bool,
+    pub greeks_market_price: String, // for IV solve
+    pub greeks_result:      Option<crate::greeks::BsResult>,
+    pub greeks_iv:          Option<f64>,
     pub watchlist:         Vec<WatchlistRow>,
     pub lagrange_history:  Vec<LagrangeHistory>,
     pub portfolio:         Vec<PortfolioPosition>,
@@ -107,6 +157,8 @@ pub struct Dashboard {
     pub active_tab:               Tab,
     pub status:                   String,
     pub refreshing:               bool,
+    // In-app toast notifications
+    pub toasts:                   Vec<(String, std::time::Instant)>,
     pub theme:                    Theme,
     pub theme_mode:               ThemeMode,
     // Universe Explorer
@@ -116,6 +168,8 @@ pub struct Dashboard {
     pub universe_filter_zone:     Option<String>,
     pub universe_filter_sector:   Option<String>,
     pub universe_search_text:     String,
+    pub universe_sort_col:        UniverseSortCol,
+    pub universe_sort_asc:        bool,
     pub universe_sectors:         Vec<String>,
     pub sector_summaries:         Vec<SectorSummary>,
     // Named Watchlists
@@ -167,6 +221,7 @@ impl Default for Dashboard {
             news:            vec![],
             rss_articles:    vec![],
             polymarket:      vec![],
+            gdelt_events:    vec![],
             earnings:        vec![],
             analyst_rating:  None,
             sentiment:       None,
@@ -188,6 +243,15 @@ impl Default for Dashboard {
             dcf_terminal_growth: "2.5".to_string(),
             dcf_discount_rate:  "10".to_string(),
             dcf_result:         None,
+            greeks_spot:        String::new(),
+            greeks_strike:      String::new(),
+            greeks_expiry_days: "30".to_string(),
+            greeks_rate:        "4.5".to_string(),
+            greeks_vol:         "25".to_string(),
+            greeks_is_call:     true,
+            greeks_market_price: String::new(),
+            greeks_result:      None,
+            greeks_iv:          None,
             watchlist:         vec![],
             lagrange_history:  vec![],
             portfolio:         vec![],
@@ -208,6 +272,7 @@ impl Default for Dashboard {
             active_tab:               Tab::Astrology,
             status:                   String::new(),
             refreshing:               false,
+            toasts:                   vec![],
             theme:                    crate::theme::iced_theme(ThemeMode::default()),
             theme_mode:               ThemeMode::default(),
             universe_rows:            vec![],
@@ -216,6 +281,8 @@ impl Default for Dashboard {
             universe_filter_zone:     None,
             universe_filter_sector:   None,
             universe_search_text:     String::new(),
+            universe_sort_col:        UniverseSortCol::default(),
+            universe_sort_asc:        false, // descending by default (highest first)
             universe_sectors:         vec![],
             sector_summaries:         vec![],
             named_watchlists:         vec![],
@@ -258,6 +325,7 @@ pub enum Message {
     NewsLoaded(Result<Vec<NewsArticle>, String>),
     RssArticlesLoaded(Result<Vec<pursuit_week4_automation::models::RssArticle>, String>),
     PolymarketLoaded(Result<Vec<pursuit_week4_automation::models::PolymarketMarket>, String>),
+    GdeltLoaded(Result<Vec<pursuit_week4_automation::models::GdeltEvent>, String>),
     EarningsLoaded(Result<Vec<EarningsDate>, String>),
     AnalystRatingLoaded(Result<Option<AnalystRating>, String>),
     SentimentLoaded(Result<Option<SentimentScore>, String>),
@@ -277,6 +345,16 @@ pub enum Message {
     DcfTerminalGrowthInput(String),
     DcfDiscountRateInput(String),
     DcfCompute,
+    // Options Greeks
+    GreeksSpotInput(String),
+    GreeksStrikeInput(String),
+    GreeksExpiryInput(String),
+    GreeksRateInput(String),
+    GreeksVolInput(String),
+    GreeksToggleType,
+    GreeksMarketPriceInput(String),
+    GreeksCompute,
+    GreeksSolveIV,
     WatchlistLoaded(Result<Vec<WatchlistRow>, String>),
     LagrangeHistoryLoaded(Result<Vec<LagrangeHistory>, String>),
     PortfolioLoaded(Result<Vec<PortfolioPosition>, String>),
@@ -309,6 +387,7 @@ pub enum Message {
     UniverseFilterZone(Option<String>),
     UniverseFilterSector(Option<String>),
     UniverseSearchChanged(String),
+    UniverseSort(UniverseSortCol),
     UniverseNextPage,
     UniversePrevPage,
     // Named Watchlists

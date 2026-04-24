@@ -132,6 +132,113 @@ impl Dashboard {
             }
         };
 
+        // ── Options Greeks Calculator ────────────────────────
+        let greeks_section: Element<'_, Message> = {
+            let type_label = if self.greeks_is_call { "Call" } else { "Put" };
+            let input_row = row![
+                column![
+                    text("Spot $").size(theme::text_xs()),
+                    text_input("auto", &self.greeks_spot)
+                        .on_input(Message::GreeksSpotInput)
+                        .on_submit(Message::GreeksCompute)
+                        .size(theme::text_sm())
+                        .width(Length::Fixed(70.0)),
+                ].spacing(2),
+                column![
+                    text("Strike $").size(theme::text_xs()),
+                    text_input("100", &self.greeks_strike)
+                        .on_input(Message::GreeksStrikeInput)
+                        .on_submit(Message::GreeksCompute)
+                        .size(theme::text_sm())
+                        .width(Length::Fixed(70.0)),
+                ].spacing(2),
+                column![
+                    text("Days").size(theme::text_xs()),
+                    text_input("30", &self.greeks_expiry_days)
+                        .on_input(Message::GreeksExpiryInput)
+                        .on_submit(Message::GreeksCompute)
+                        .size(theme::text_sm())
+                        .width(Length::Fixed(50.0)),
+                ].spacing(2),
+                column![
+                    text("Rate %").size(theme::text_xs()),
+                    text_input("4.5", &self.greeks_rate)
+                        .on_input(Message::GreeksRateInput)
+                        .on_submit(Message::GreeksCompute)
+                        .size(theme::text_sm())
+                        .width(Length::Fixed(50.0)),
+                ].spacing(2),
+                column![
+                    text("Vol %").size(theme::text_xs()),
+                    text_input("25", &self.greeks_vol)
+                        .on_input(Message::GreeksVolInput)
+                        .on_submit(Message::GreeksCompute)
+                        .size(theme::text_sm())
+                        .width(Length::Fixed(50.0)),
+                ].spacing(2),
+                column![
+                    text("Type").size(theme::text_xs()),
+                    button(text(type_label).size(theme::text_sm()))
+                        .on_press(Message::GreeksToggleType),
+                ].spacing(2),
+                column![
+                    text(" ").size(theme::text_xs()),
+                    button(text("Compute").size(theme::text_sm()))
+                        .on_press(Message::GreeksCompute),
+                ].spacing(2),
+            ].spacing(6).align_y(Alignment::End);
+
+            let iv_row = row![
+                column![
+                    text("Mkt Price $").size(theme::text_xs()),
+                    text_input("0.00", &self.greeks_market_price)
+                        .on_input(Message::GreeksMarketPriceInput)
+                        .on_submit(Message::GreeksSolveIV)
+                        .size(theme::text_sm())
+                        .width(Length::Fixed(80.0)),
+                ].spacing(2),
+                column![
+                    text(" ").size(theme::text_xs()),
+                    button(text("Solve IV").size(theme::text_sm()))
+                        .on_press(Message::GreeksSolveIV),
+                ].spacing(2),
+                {
+                    let iv_label: Element<'_, Message> = if let Some(iv) = self.greeks_iv {
+                        text(format!("IV: {:.1}%", iv * 100.0)).size(theme::text_md()).color(theme::ZONE_OPTIMAL).into()
+                    } else {
+                        text("").size(theme::text_xs()).into()
+                    };
+                    iv_label
+                },
+            ].spacing(6).align_y(Alignment::Center);
+
+            if let Some(ref g) = self.greeks_result {
+                let delta_color = if g.delta.abs() > 0.5 { theme::ZONE_OPTIMAL } else { theme::ZONE_NEUTRAL };
+                let results = row![
+                    column![
+                        text(format!("Price: ${:.4}", g.price)).size(theme::text_md()),
+                        text(format!("Delta: {:.4}", g.delta)).size(theme::text_sm()).color(delta_color),
+                        text(format!("Gamma: {:.4}", g.gamma)).size(theme::text_sm()),
+                    ].spacing(2),
+                    column![
+                        text(format!("Theta: {:.4}/day", g.theta)).size(theme::text_sm()).color(theme::ZONE_MISALIGNED),
+                        text(format!("Vega:  {:.4}/1%", g.vega)).size(theme::text_sm()),
+                        text(format!("Rho:   {:.4}/1%", g.rho)).size(theme::text_sm()),
+                    ].spacing(2),
+                ].spacing(20);
+                column![
+                    text("Options Greeks (Black-Scholes)").size(theme::text_md()),
+                    input_row, iv_row, results,
+                ].spacing(6).into()
+            } else {
+                column![
+                    text("Options Greeks (Black-Scholes)").size(theme::text_md()),
+                    input_row, iv_row,
+                    text("Enter strike price and click Compute. Spot auto-fills from current price.").size(theme::text_xs()),
+                ].spacing(6).into()
+            }
+        };
+
         // ── Agent Personas ──────────────────────────────────
         let agent_buttons: Row<Message> = AgentPersona::all().iter().fold(
             row![text("Ask the Council:").size(theme::text_base())]
@@ -304,6 +411,8 @@ impl Dashboard {
             fundamentals_section,
             horizontal_rule(1),
             dcf_section,
+            horizontal_rule(1),
+            greeks_section,
             horizontal_rule(1),
             agent_buttons,
             agent_section,

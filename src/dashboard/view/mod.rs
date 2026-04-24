@@ -7,8 +7,8 @@ mod research;
 mod portfolio_tab;
 mod settings;
 
-use iced::widget::{button, column, container, horizontal_rule, row, scrollable, text, text_input, Row};
-use iced::{Alignment, Element, Length};
+use iced::widget::{button, column, container, horizontal_rule, row, scrollable, text, text_input, Column, Row};
+use iced::{Alignment, Color, Element, Length};
 
 use crate::icons;
 use crate::state::{Dashboard, Message};
@@ -158,6 +158,40 @@ impl Dashboard {
         .spacing(10)
         .padding(20);
 
-        container(scrollable(content)).width(Length::Fill).height(Length::Fill).into()
+        // ── Toast overlay ───────────────────────────────────
+        let main_view: Element<'_, Message> = container(scrollable(content))
+            .width(Length::Fill).height(Length::Fill).into();
+
+        if self.toasts.is_empty() {
+            main_view
+        } else {
+            let toast_col: Column<Message> = self.toasts.iter().fold(
+                column![].spacing(4).width(Length::Shrink),
+                |col, (msg, _)| {
+                    col.push(
+                        container(
+                            text(msg.clone()).size(theme::text_sm()).color(Color::WHITE),
+                        )
+                        .padding([6, 14])
+                        .style(|_theme: &iced::Theme| container::Style {
+                            background: Some(iced::Background::Color(
+                                Color::from_rgba(0.1, 0.1, 0.15, 0.92),
+                            )),
+                            border: iced::Border {
+                                radius: 6.0.into(),
+                                ..Default::default()
+                            },
+                            ..Default::default()
+                        }),
+                    )
+                },
+            );
+            let toast_overlay = container(toast_col)
+                .width(Length::Fill)
+                .align_x(iced::alignment::Horizontal::Right)
+                .padding([10, 20]);
+
+            column![toast_overlay, main_view].into()
+        }
     }
 }

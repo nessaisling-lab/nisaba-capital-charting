@@ -209,6 +209,7 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
             }
         }
         Message::TxCreated(Ok(tx)) => {
+            state.push_toast(format!("Transaction recorded: {}", tx.ticker));
             state.transactions.insert(0, tx);
             Some(Task::none())
         }

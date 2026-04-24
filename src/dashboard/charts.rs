@@ -106,9 +106,16 @@ impl canvas::Program<Message> for PriceChart {
             return vec![frame.into_geometry()];
         }
 
-        // Price range — expand to fit BB bands if present
+        // Price range — expand to fit OHLC wicks + BB bands
         let mut min = self.data.iter().cloned().fold(f32::INFINITY, f32::min);
         let mut max = self.data.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+        // Include high/low from OHLC data so candlestick wicks don't clip
+        for row in &self.rows_chrono {
+            let h_f = row.high.to_string().parse::<f32>().unwrap_or(0.0);
+            let l_f = row.low.to_string().parse::<f32>().unwrap_or(f32::INFINITY);
+            if h_f > max { max = h_f; }
+            if l_f < min { min = l_f; }
+        }
         for &v in self.bb_upper.iter().filter_map(|x| x.as_ref()) { if v > max { max = v; } }
         for &v in self.bb_lower.iter().filter_map(|x| x.as_ref()) { if v < min { min = v; } }
         let range = max - min;
@@ -177,27 +184,43 @@ impl canvas::Program<Message> for PriceChart {
             Self::draw_series(&mut frame, &pts, theme::SMA20_ORANGE, 1.2);
         }
 
-        // Price area fill
+        // Candlestick chart — OHLC bodies + wicks
+        let bar_w = (w / n as f32).clamp(2.0, 12.0);
+        let body_w = (bar_w * 0.7).max(1.5);
         let price_pts: Vec<Point> = self.data.iter().enumerate()
             .map(|(i, &p)| Point::new(x_of(i), y_of(p))).collect();
-        let fill = canvas::Path::new(|b| {
-            b.move_to(Point::new(pad_left, pad_top + h));
-            for &p in &price_pts { b.line_to(p); }
-            b.line_to(Point::new(pad_left + w, pad_top + h));
-            b.close();
-        });
-        frame.fill(&fill, theme::ACCENT_BLUE_FILL);
 
-        // Price line
-        let line = canvas::Path::new(|b| {
-            b.move_to(price_pts[0]);
-            for &p in &price_pts[1..] { b.line_to(p); }
-        });
-        frame.stroke(&line, canvas::Stroke {
-            style: canvas::Style::Solid(theme::ACCENT_BLUE),
-            width: 2.0,
-            ..canvas::Stroke::default()
-        });
+        for (i, row) in self.rows_chrono.iter().enumerate() {
+            let open_f  = row.open.to_string().parse::<f32>().unwrap_or(0.0);
+            let high_f  = row.high.to_string().parse::<f32>().unwrap_or(0.0);
+            let low_f   = row.low.to_string().parse::<f32>().unwrap_or(0.0);
+            let close_f = row.close.to_string().parse::<f32>().unwrap_or(0.0);
+
+            let cx = x_of(i);
+            let bullish = close_f >= open_f;
+            let color = if bullish { theme::bullish(_theme) } else { theme::bearish(_theme) };
+
+            // Wick: thin vertical line from high to low
+            let wick = canvas::Path::new(|b| {
+                b.move_to(Point::new(cx, y_of(high_f)));
+                b.line_to(Point::new(cx, y_of(low_f)));
+            });
+            frame.stroke(&wick, canvas::Stroke {
+                style: canvas::Style::Solid(color),
+                width: 1.0,
+                ..canvas::Stroke::default()
+            });
+
+            // Body: filled rectangle from open to close
+            let body_top = y_of(open_f.max(close_f));
+            let body_bot = y_of(open_f.min(close_f));
+            let body_h = (body_bot - body_top).max(1.0); // min 1px for doji
+            frame.fill_rectangle(
+                Point::new(cx - body_w / 2.0, body_top),
+                Size::new(body_w, body_h),
+                color,
+            );
+        }
 
         // Ticker label
         frame.fill_text(canvas::Text {

@@ -259,3 +259,17 @@ pub struct PortfolioPosition {
     pub avg_cost: f32,
     pub notes:    Option<String>,
 }
+
+/// One row from gdelt_events (geopolitical events)
+#[derive(Debug, Clone, FromRow)]
+pub struct GdeltEvent {
+    pub id:             i32,
+    pub url:            String,
+    pub title:          String,
+    pub source_country: Option<String>,
+    pub tone:           Option<f32>,
+    pub themes:         Option<Vec<String>>,
+    pub locations:      Option<Vec<String>>,
+    pub domain:         Option<String>,
+    pub published_at:   chrono::DateTime<chrono::Utc>,
+}

@@ -154,6 +154,8 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
         Message::RssArticlesLoaded(Err(_)) => Some(Task::none()),
         Message::PolymarketLoaded(Ok(m)) => { state.polymarket = m; Some(Task::none()) }
         Message::PolymarketLoaded(Err(_)) => Some(Task::none()),
+        Message::GdeltLoaded(Ok(events)) => { state.gdelt_events = events; Some(Task::none()) }
+        Message::GdeltLoaded(Err(_)) => Some(Task::none()),
         Message::EarningsLoaded(Ok(e)) => { state.earnings = e; Some(Task::none()) }
         Message::EarningsLoaded(Err(_)) => Some(Task::none()),
         Message::AnalystRatingLoaded(Ok(r)) => { state.analyst_rating = r; Some(Task::none()) }
@@ -189,6 +191,17 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
         Message::DcfTerminalGrowthInput(s) => { state.dcf_terminal_growth = s; Some(Task::none()) }
         Message::DcfDiscountRateInput(s) => { state.dcf_discount_rate = s; Some(Task::none()) }
         Message::DcfCompute => { state.compute_dcf_if_ready(); Some(Task::none()) }
+
+        // Options Greeks inputs
+        Message::GreeksSpotInput(s) => { state.greeks_spot = s; Some(Task::none()) }
+        Message::GreeksStrikeInput(s) => { state.greeks_strike = s; Some(Task::none()) }
+        Message::GreeksExpiryInput(s) => { state.greeks_expiry_days = s; Some(Task::none()) }
+        Message::GreeksRateInput(s) => { state.greeks_rate = s; Some(Task::none()) }
+        Message::GreeksVolInput(s) => { state.greeks_vol = s; Some(Task::none()) }
+        Message::GreeksToggleType => { state.greeks_is_call = !state.greeks_is_call; Some(Task::none()) }
+        Message::GreeksMarketPriceInput(s) => { state.greeks_market_price = s; Some(Task::none()) }
+        Message::GreeksCompute => { state.compute_greeks(); Some(Task::none()) }
+        Message::GreeksSolveIV => { state.solve_implied_vol(); Some(Task::none()) }
 
         // Agent selection
         Message::AgentSelected(persona) => {

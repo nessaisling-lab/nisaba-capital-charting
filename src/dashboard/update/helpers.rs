@@ -30,6 +30,8 @@ impl Dashboard {
                         search.clone(),
                         self.universe_page,
                         50,
+                        self.universe_sort_col.sql_expr(),
+                        self.universe_sort_asc,
                     ),
                     Message::UniverseLoaded,
                 ),
@@ -148,6 +150,82 @@ impl Dashboard {
         } else {
             self.dcf_result = None;
         }
+    }
+
+    /// Compute Black-Scholes option price and Greeks from user inputs.
+    pub(crate) fn compute_greeks(&mut self) {
+        let spot = if self.greeks_spot.is_empty() {
+            // Auto-fill from current price if available
+            self.rows.first()
+                .map(|r| r.close.to_string().parse::<f64>().unwrap_or(0.0))
+                .unwrap_or(0.0)
+        } else {
+            self.greeks_spot.parse::<f64>().unwrap_or(0.0)
+        };
+        let strike = self.greeks_strike.parse::<f64>().unwrap_or(0.0);
+        let days = self.greeks_expiry_days.parse::<f64>().unwrap_or(30.0);
+        let rate = self.greeks_rate.parse::<f64>().unwrap_or(4.5) / 100.0;
+        let vol = self.greeks_vol.parse::<f64>().unwrap_or(25.0) / 100.0;
+        let option_type = if self.greeks_is_call {
+            crate::greeks::OptionType::Call
+        } else {
+            crate::greeks::OptionType::Put
+        };
+
+        let inputs = crate::greeks::BsInputs {
+            spot, strike,
+            time_years: days / 365.0,
+            risk_free_rate: rate,
+            volatility: vol,
+            option_type,
+        };
+        self.greeks_result = crate::greeks::compute_greeks(&inputs);
+    }
+
+    /// Solve for implied volatility given a market price.
+    pub(crate) fn solve_implied_vol(&mut self) {
+        let spot = if self.greeks_spot.is_empty() {
+            self.rows.first()
+                .map(|r| r.close.to_string().parse::<f64>().unwrap_or(0.0))
+                .unwrap_or(0.0)
+        } else {
+            self.greeks_spot.parse::<f64>().unwrap_or(0.0)
+        };
+        let strike = self.greeks_strike.parse::<f64>().unwrap_or(0.0);
+        let days = self.greeks_expiry_days.parse::<f64>().unwrap_or(30.0);
+        let rate = self.greeks_rate.parse::<f64>().unwrap_or(4.5) / 100.0;
+        let market_price = self.greeks_market_price.parse::<f64>().unwrap_or(0.0);
+        let option_type = if self.greeks_is_call {
+            crate::greeks::OptionType::Call
+        } else {
+            crate::greeks::OptionType::Put
+        };
+
+        self.greeks_iv = crate::greeks::implied_volatility(
+            spot, strike, days / 365.0, rate, market_price, option_type,
+        );
+
+        // Also recompute Greeks with the solved IV
+        if let Some(iv) = self.greeks_iv {
+            self.greeks_vol = format!("{:.1}", iv * 100.0);
+            self.compute_greeks();
+        }
+    }
+
+    /// Push an in-app toast notification (auto-expires after 4 seconds).
+    pub(crate) fn push_toast(&mut self, msg: impl Into<String>) {
+        let expiry = std::time::Instant::now() + std::time::Duration::from_secs(4);
+        self.toasts.push((msg.into(), expiry));
+        // Cap at 5 visible toasts
+        if self.toasts.len() > 5 {
+            self.toasts.remove(0);
+        }
+    }
+
+    /// Remove expired toasts. Called on Tick.
+    pub(crate) fn expire_toasts(&mut self) {
+        let now = std::time::Instant::now();
+        self.toasts.retain(|(_, expiry)| *expiry > now);
     }
 }
 
