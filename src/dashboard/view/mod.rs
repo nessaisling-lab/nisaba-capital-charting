@@ -10,6 +10,7 @@ mod settings;
 use iced::widget::{button, column, container, horizontal_rule, row, scrollable, text, text_input, Row};
 use iced::{Alignment, Element, Length};
 
+use crate::icons;
 use crate::state::{Dashboard, Message};
 use crate::tabs::Tab;
 use crate::theme;
@@ -85,19 +86,45 @@ impl Dashboard {
         ].align_y(Alignment::Center);
 
         // ── Status + refresh ────────────────────────────────
-        let refresh_label = if self.refreshing { "Refreshing..." } else { "Refresh Now" };
+        let refresh_icon = text(icons::ARROW_REPEAT.to_string())
+            .font(icons::BOOTSTRAP)
+            .size(theme::text_sm());
+        let refresh_label = if self.refreshing {
+            row![refresh_icon, text("Refreshing...").size(theme::text_sm())].spacing(4).align_y(Alignment::Center)
+        } else {
+            row![refresh_icon, text("Refresh").size(theme::text_sm())].spacing(4).align_y(Alignment::Center)
+        };
 
-        // ── Tab bar ─────────────────────────────────────────
-        let tab_bar: Row<Message> = Tab::all().iter().fold(row![].spacing(4), |r, &tab| {
-            let label = if tab == self.active_tab {
-                format!("[{}]", tab.label())
+        // ── Tab bar (icon + label, active underline) ────────
+        let tab_bar: Row<Message> = Tab::all().iter().fold(row![].spacing(2), |r, &tab| {
+            let is_active = tab == self.active_tab;
+            let icon_text = text(tab.icon().to_string())
+                .font(icons::BOOTSTRAP)
+                .size(theme::text_base());
+            let label_text = text(tab.label()).size(theme::text_sm());
+            let tab_content = row![icon_text, label_text]
+                .spacing(5)
+                .align_y(Alignment::Center);
+            let tab_el: Element<Message> = if is_active {
+                // Active tab: underline via a bottom border
+                let inner = column![
+                    tab_content,
+                    container(row![])
+                        .width(Length::Fill)
+                        .height(Length::Fixed(2.0))
+                        .style(container::bordered_box),
+                ].spacing(2);
+                button(inner)
+                    .on_press(Message::TabSelected(tab))
+                    .padding([6, 12])
+                    .into()
             } else {
-                tab.label().to_string()
+                button(tab_content)
+                    .on_press(Message::TabSelected(tab))
+                    .padding([6, 12])
+                    .into()
             };
-            let btn: Element<Message> = button(text(label).size(theme::text_base()))
-                .on_press(Message::TabSelected(tab))
-                .into();
-            r.push(btn)
+            r.push(tab_el)
         });
 
         // ── Tab content dispatch ────────────────────────────

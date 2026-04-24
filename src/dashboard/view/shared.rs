@@ -1,9 +1,48 @@
-use iced::widget::{canvas::Canvas, column, row, text, Column};
+use iced::widget::{canvas::Canvas, column, container, horizontal_rule, row, text, Column};
 use iced::{Alignment, Element, Length};
 
+use crate::font;
 use crate::gauges::FearGreedGauge;
+use crate::icons;
 use crate::state::{Dashboard, Message};
 use crate::theme;
+
+// ---------------------------------------------------------------------------
+// Reusable layout components
+// ---------------------------------------------------------------------------
+
+/// Wrap content in a card panel (rounded background, padding, full width).
+pub fn card<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
+    container(content)
+        .padding(12)
+        .width(Length::Fill)
+        .style(container::rounded_box)
+        .into()
+}
+
+/// Section heading with icon + bold title.
+pub fn section_heading<'a>(icon_char: char, title: &str) -> Element<'a, Message> {
+    row![
+        text(icon_char.to_string()).font(icons::BOOTSTRAP).size(theme::text_md()),
+        text(title.to_string()).font(font::INTER_BOLD).size(theme::text_md()),
+    ]
+    .spacing(6)
+    .align_y(Alignment::Center)
+    .into()
+}
+
+/// Card with a titled header: icon + title + horizontal rule + content.
+pub fn titled_card<'a>(
+    icon_char: char,
+    title: &str,
+    content: impl Into<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    card(column![
+        section_heading(icon_char, title),
+        horizontal_rule(1),
+        content.into(),
+    ].spacing(6))
+}
 
 /// Gauge helper: renders a title + FearGreedGauge canvas, or a fallback label.
 pub fn make_gauge<'a>(

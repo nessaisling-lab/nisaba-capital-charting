@@ -6,9 +6,11 @@ mod charts;
 mod dcf;
 mod db;
 mod error;
+mod font;
 mod gauges;
 mod heatmap;
 mod helpers;
+mod icons;
 mod indicators;
 mod patterns;
 mod signals;
@@ -25,5 +27,10 @@ pub fn main() -> iced::Result {
     iced::application("Financial Dashboard", Dashboard::update, Dashboard::view)
         .subscription(Dashboard::subscription)
         .theme(Dashboard::theme)
+        .default_font(font::INTER)
+        .font(font::INTER_REGULAR_BYTES)
+        .font(font::INTER_SEMIBOLD_BYTES)
+        .font(font::MONO_REGULAR_BYTES)
+        .font(icons::BOOTSTRAP_BYTES)
         .run_with(Dashboard::new)
 }

@@ -3,12 +3,49 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v4.0.0
-**Next milestone:** v4.1.0 "The Glass" (UI/UX Overhaul)
+**Current version:** v4.1.0
+**Next milestone:** v4.2.0 "The Expansion" (Candlestick Charts + New Features)
 
 ---
 
 ## Changelog
+
+### v4.1.0 — "The Glass" (2026-04-23)
+
+**Theme:** UI/UX overhaul. Custom typography, icon system, Catppuccin theme palette, redesigned tab bar, card layout system, and polished numeric formatting. The dashboard goes from functional to professional.
+
+1. **Typography foundation (Inter + JetBrains Mono)** — embedded three font files at compile time via `include_bytes!`. Inter Regular (body text, labels), Inter SemiBold (section headings), and JetBrains Mono (future: numeric columns). New `font.rs` module defines `Font` constants (`INTER`, `INTER_BOLD`, `MONO`). All three registered in `main.rs` via `.font()` on the Iced application builder. Zero runtime font loading, zero external file dependencies.
+   - *Files:* `src/dashboard/font.rs` (new), `src/dashboard/main.rs` (+mod font, +.font() calls), `assets/fonts/{Inter-Regular,Inter-SemiBold,JetBrainsMono-Regular}.ttf` (new)
+
+2. **Bootstrap icon system** — added `iced_fonts` 0.3.0 crate with `bootstrap` feature, providing 2,048 Bootstrap Icons as an embedded TTF. Created `icons.rs` module that re-exports the font bytes and defines our own `Font` constant (avoiding iced_core 0.13/0.14 type mismatch). 35 icon codepoint constants defined for tabs (stars, speedometer, globe, bar-chart, newspaper, briefcase, gear), actions (search, refresh, download, filter), navigation (chevrons), indicators (arrows, carets, sort), and status (bell, clock, info, warning). Helper function `icon(codepoint, size)` returns iced 0.13-compatible `Text` elements.
+   - *Files:* `src/dashboard/icons.rs` (new), `src/dashboard/main.rs` (+mod icons, +.font(BOOTSTRAP_BYTES)), `Cargo.toml` (+iced_fonts)
+
+3. **Catppuccin + TokyoNight theme upgrade** — replaced manual theme color definitions with Iced 0.13's built-in `CatppuccinMocha`, `CatppuccinLatte`, and `TokyoNight` themes. `ThemeMode` expanded from 3 to 4 variants (Auto/Latte/Mocha/Tokyo). Auto mode uses circadian phase detection (Dawn/Day=Latte, Dusk/Night=Mocha). `is_dark()` rewritten to use background luminance check `(r+g+b)/3 < 0.5` instead of enum comparison, making it work with any custom theme. Added 23 Catppuccin palette constants (17 Mocha, 6 Latte) for canvas widgets. All semantic color functions (`fg()`, `surface()`, `accent()`, `bullish()`, etc.) updated to adapt to active theme.
+   - *Files:* `src/dashboard/theme.rs` (major update), `src/dashboard/update/mod.rs` (TokyoNight parsing in 2 match blocks), `src/dashboard/view/settings.rs` (Tokyo button)
+
+4. **Tab bar redesign (icon + label + underline)** — replaced plain text tab buttons with icon + label pairs. Each tab shows its Bootstrap icon alongside the label name. Active tab gets a visual underline via a 2px `container` with `bordered_box` style. Tab icon mapping added to `tabs.rs` via `Tab::icon()` method. Refresh button also updated with icon + label layout.
+   - *Files:* `src/dashboard/tabs.rs` (+icon method), `src/dashboard/view/mod.rs` (tab bar + refresh redesign)
+
+5. **Card/panel layout system** — created reusable `card()`, `section_heading()`, and `titled_card()` helpers in `view/shared.rs`. `card()` wraps content in a `container` with `rounded_box` style (theme-adaptive background color with 2px rounded corners) and 12px padding. `section_heading()` renders icon + bold title. Applied across Settings tab (4 cards: Appearance, Data, Alerts, Info) and Overview tab (gauges, signal intelligence, scored universe, polymarket sections wrapped in cards).
+   - *Files:* `src/dashboard/view/shared.rs` (+card helpers), `view/settings.rs` (full card redesign), `view/overview.rs` (card wrapping)
+
+6. **Numeric formatting polish** — new formatting functions in `helpers.rs`: `format_price()` produces comma-grouped prices ($1,234.56), `format_pct()` adds sign prefix (+12.3%, -4.5%), `format_compact()` abbreviates large numbers (1.2B, 345M, 12.3K). Applied across Overview tab (SMA prices) and Portfolio tab (transaction prices, cost basis, P&L totals, percentage returns). Handles NaN/Infinity gracefully with "—" fallback.
+   - *Files:* `src/dashboard/helpers.rs` (+format_price, +format_pct, +format_compact, +comma_group), `view/overview.rs`, `view/portfolio_tab.rs`
+
+7. **Swiss Ephemeris test serialization** — the Swiss Ephemeris C library has global mutable state that corrupts under parallel test execution. Added a `pub(crate) SWE_TEST_LOCK: Mutex<()>` in `swisseph_bridge.rs`, acquired by all 11 Swiss Ephemeris-touching tests (7 in swisseph_bridge, 4 in natal). Tests now pass reliably under parallel execution. 47/47 stable across multiple runs.
+   - *Files:* `src/astrology/swisseph_bridge.rs` (+SWE_TEST_LOCK), `src/astrology/natal.rs` (+lock guards in 4 tests)
+
+**Post-upgrade metrics:**
+
+| Metric | v4.0.0 | v4.1.0 |
+|--------|--------|--------|
+| New files | -- | 3 (font.rs, icons.rs, 3 TTFs) |
+| New crate deps | -- | `iced_fonts` 0.3.0 |
+| Theme modes | 3 (Auto/Light/Dark) | 4 (+TokyoNight) |
+| Icon codepoints | 0 | 35 |
+| Card-wrapped sections | 0 | 8+ (Settings 4, Overview 4) |
+| Font families | 1 (system default) | 3 (Inter, Inter SemiBold, JetBrains Mono) |
+| Test stability | Flaky (SWE race) | 47/47 stable |
 
 ### v4.0.0 — "Structural Steel" (2026-04-23)
 

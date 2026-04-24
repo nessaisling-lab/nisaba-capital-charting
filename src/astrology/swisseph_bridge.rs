@@ -216,6 +216,12 @@ pub fn swe_julday(year: i32, month: u32, day: u32, hour_ut: f64) -> f64 {
 // Tests
 // ---------------------------------------------------------------------------
 
+// Swiss Ephemeris uses global mutable C state. Tests must not run
+// concurrently or the shared state gets corrupted (NaN positions,
+// inconsistent flag sets). This mutex serializes all SWE tests.
+#[cfg(test)]
+pub(crate) static SWE_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -223,6 +229,7 @@ mod tests {
 
     #[test]
     fn test_swe_sun_position() {
+        let _guard = super::SWE_TEST_LOCK.lock().unwrap();
         // Jan 1, 2000 12:00 UT — Sun should be ~280° (Capricorn)
         let jdn = date_to_jdn(2000, 1, 1, 12.0);
         let (lon, speed) = calc_position(Planet::Sun, jdn).unwrap();
@@ -232,10 +239,7 @@ mod tests {
 
     #[test]
     fn test_swe_vs_meeus_sun_moon() {
-        // Only Sun and Moon have dedicated Meeus formulas (not the broken
-        // helio→geo conversion). They should agree with Swiss Eph to < 1°.
-        // All other planets use the simplified Meeus conversion which has
-        // errors of 100°+ — this is exactly why we switched to Swiss Eph.
+        let _guard = super::SWE_TEST_LOCK.lock().unwrap();
         let jdn = date_to_jdn(2024, 6, 15, 12.0);
         let meeus_snaps = snapshot_all(jdn);
         let precise_snaps = snapshot_all_precise(jdn);
@@ -255,7 +259,7 @@ mod tests {
 
     #[test]
     fn test_swe_nodes() {
-        // Lunar nodes should always work (they're in the main ephemeris)
+        let _guard = super::SWE_TEST_LOCK.lock().unwrap();
         let jdn = date_to_jdn(2024, 6, 15, 12.0);
         for planet in [Planet::NorthNode, Planet::SouthNode] {
             let (lon, _speed) = calc_position(planet, jdn)
@@ -276,9 +280,7 @@ mod tests {
 
     #[test]
     fn test_swe_chiron_optional() {
-        // Chiron requires asteroid ephemeris files. It may or may not work
-        // depending on whether seas_XX.se1 files are available or Moshier
-        // covers it. This test just ensures we don't panic.
+        let _guard = super::SWE_TEST_LOCK.lock().unwrap();
         let jdn = date_to_jdn(2024, 6, 15, 12.0);
         match calc_position(Planet::Chiron, jdn) {
             Ok((lon, _speed)) => {
@@ -293,6 +295,7 @@ mod tests {
 
     #[test]
     fn test_snapshot_all_precise_count() {
+        let _guard = super::SWE_TEST_LOCK.lock().unwrap();
         let jdn = date_to_jdn(2024, 6, 15, 12.0);
         let snaps = snapshot_all_precise(jdn);
         // 13 bodies if Chiron's asteroid file is available, 12 without it.
@@ -318,7 +321,7 @@ mod tests {
 
     #[test]
     fn test_swe_julday_agreement() {
-        // Our date_to_jdn and Swiss Eph's julday should agree
+        let _guard = super::SWE_TEST_LOCK.lock().unwrap();
         let ours = date_to_jdn(2024, 3, 20, 12.0);
         let theirs = swe_julday(2024, 3, 20, 12.0);
         assert!(
@@ -329,6 +332,7 @@ mod tests {
 
     #[test]
     fn test_houses_nyse() {
+        let _guard = super::SWE_TEST_LOCK.lock().unwrap();
         let jdn = date_to_jdn(2024, 6, 15, 14.5); // ~9:30 AM EST in UT
         let houses = compute_houses_nyse(jdn).unwrap();
         assert!(houses.ascendant >= 0.0 && houses.ascendant < 360.0);

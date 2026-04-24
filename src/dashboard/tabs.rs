@@ -1,10 +1,12 @@
 //! Tab navigation system — Astrology as the flagship first tab.
 //!
-//! The dashboard uses a 6-tab layout. Astrology is the default and primary tab
+//! The dashboard uses a 7-tab layout. Astrology is the default and primary tab
 //! because it's THE product differentiator. Everything else exists to verify
 //! and contextualize the astrological signal.
 
-/// The six dashboard tabs, in display order.
+use crate::icons;
+
+/// The seven dashboard tabs, in display order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
     /// PRIMARY: natal wheel, horoscope reading, transits, moon phase, Top 5/Bottom 5
@@ -49,4 +51,16 @@ impl Tab {
         }
     }
 
+    /// Bootstrap icon codepoint for this tab.
+    pub fn icon(self) -> char {
+        match self {
+            Tab::Astrology    => icons::STARS,
+            Tab::Overview     => icons::SPEEDOMETER,
+            Tab::Universe     => icons::GLOBE,
+            Tab::Fundamentals => icons::BAR_CHART,
+            Tab::Research     => icons::NEWSPAPER,
+            Tab::Portfolio    => icons::BRIEFCASE,
+            Tab::Settings     => icons::GEAR,
+        }
+    }
 }

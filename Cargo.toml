@@ -32,3 +32,4 @@ swiss-eph = { version = "0.2", features = ["embedded-ephe"] }
 rfd = "0.15"
 csv = "1"
 feed-rs = "2"
+iced_fonts = { version = "0.3.0", features = ["bootstrap"] }

@@ -242,6 +242,7 @@ impl Dashboard {
                         self.theme_mode = match v.as_str() {
                             "Light" => crate::theme::ThemeMode::AlwaysLight,
                             "Dark" => crate::theme::ThemeMode::AlwaysDark,
+                            "TokyoNight" => crate::theme::ThemeMode::TokyoNight,
                             _ => crate::theme::ThemeMode::Auto,
                         };
                         self.theme = crate::theme::iced_theme(self.theme_mode);
@@ -274,6 +275,7 @@ impl Dashboard {
                     self.theme_mode = match value.as_str() {
                         "Light" => crate::theme::ThemeMode::AlwaysLight,
                         "Dark" => crate::theme::ThemeMode::AlwaysDark,
+                        "TokyoNight" => crate::theme::ThemeMode::TokyoNight,
                         _ => crate::theme::ThemeMode::Auto,
                     };
                     self.theme = crate::theme::iced_theme(self.theme_mode);

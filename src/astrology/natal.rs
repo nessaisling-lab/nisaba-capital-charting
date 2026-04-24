@@ -317,6 +317,7 @@ mod tests {
 
     #[test]
     fn test_natal_chart_has_all_planets() {
+        let _guard = super::swisseph_bridge::SWE_TEST_LOCK.lock().unwrap();
         let chart = NatalChart::compute("MSFT", msft_ipo());
         // 12-13 with Swiss Eph (10 classical + nodes + maybe Chiron),
         // or 10 with Meeus fallback
@@ -329,6 +330,7 @@ mod tests {
 
     #[test]
     fn test_natal_sun_in_pisces() {
+        let _guard = super::swisseph_bridge::SWE_TEST_LOCK.lock().unwrap();
         // MSFT IPO: March 13, 1986 — Sun should be in Pisces (~22°)
         let chart = NatalChart::compute("MSFT", msft_ipo());
         let sun_lon = chart.longitude_of(Planet::Sun).expect("Sun position missing");
@@ -338,6 +340,7 @@ mod tests {
 
     #[test]
     fn test_transit_score_in_range() {
+        let _guard = super::swisseph_bridge::SWE_TEST_LOCK.lock().unwrap();
         let chart = NatalChart::compute("MSFT", msft_ipo());
         let today = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
         let score = compute_transit_score(&chart, today);
@@ -348,6 +351,7 @@ mod tests {
 
     #[test]
     fn test_aspects_roundtrip() {
+        let _guard = super::swisseph_bridge::SWE_TEST_LOCK.lock().unwrap();
         let chart = NatalChart::compute("TSLA", NaiveDate::from_ymd_opt(2010, 6, 29).unwrap());
         let score = compute_transit_score(&chart, NaiveDate::from_ymd_opt(2024, 6, 1).unwrap());
         let json  = aspects_to_json(&score.active_aspects);

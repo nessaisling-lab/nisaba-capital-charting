@@ -1,6 +1,7 @@
 use iced::widget::{button, column, horizontal_rule, row, text, text_input, Column, Row};
 use iced::{Alignment, Element, Length};
 
+use crate::helpers;
 use crate::state::{Dashboard, Message};
 use crate::theme;
 
@@ -98,8 +99,8 @@ impl Dashboard {
                     text(&tx.action).size(theme::text_sm()).color(color).width(Length::Fixed(40.0)),
                     text(&tx.ticker).size(theme::text_sm()).width(Length::Fixed(56.0)),
                     text(format!("{:.1}", tx.shares)).size(theme::text_sm()).width(Length::Fixed(56.0)),
-                    text(format!("${:.2}", tx.price)).size(theme::text_sm()).width(Length::Fixed(72.0)),
-                    text(format!("${total:.0}")).size(theme::text_sm()).width(Length::Fixed(72.0)),
+                    text(helpers::format_price(tx.price as f64)).size(theme::text_sm()).width(Length::Fixed(72.0)),
+                    text(format!("${}", helpers::format_compact(total as f64))).size(theme::text_sm()).width(Length::Fixed(72.0)),
                     text(tx.trade_date.to_string()).size(theme::text_sm()).width(Length::Fixed(80.0)),
                     button(text("✕").size(theme::text_sm())).on_press(Message::TxDelete(tx.id)),
                 ].spacing(4).into()
@@ -165,10 +166,10 @@ impl Dashboard {
                 row![
                     text(&p.ticker).size(theme::text_sm()).width(Length::Fixed(60.0)),
                     text(format!("{:.1}", p.shares)).size(theme::text_sm()).width(Length::Fixed(60.0)),
-                    text(format!("${:.2}", p.avg_cost)).size(theme::text_sm()).width(Length::Fixed(72.0)),
-                    text(if last_price > 0.0 { format!("${last_price:.2}") } else { "---".to_string() }).size(theme::text_sm()).width(Length::Fixed(72.0)),
+                    text(helpers::format_price(p.avg_cost as f64)).size(theme::text_sm()).width(Length::Fixed(72.0)),
+                    text(if last_price > 0.0 { helpers::format_price(last_price) } else { "---".to_string() }).size(theme::text_sm()).width(Length::Fixed(72.0)),
                     text(format!("{:+.0}", pnl)).size(theme::text_sm()).color(pnl_color).width(Length::Fixed(88.0)),
-                    text(format!("{:+.1}%", pnl_pct)).size(theme::text_sm()).color(pnl_color).width(Length::Fixed(60.0)),
+                    text(helpers::format_pct(pnl_pct)).size(theme::text_sm()).color(pnl_color).width(Length::Fixed(60.0)),
                     text(astro_label).size(theme::text_sm()).width(Length::Fill),
                 ].spacing(6).into()
             }).collect();
@@ -184,9 +185,9 @@ impl Dashboard {
                 Column::with_children(pos_rows).spacing(2),
                 horizontal_rule(1),
                 row![
-                    text(format!("Cost: ${total_cost:.0}")).size(theme::text_sm()),
-                    text(format!("Value: ${total_value:.0}")).size(theme::text_sm()),
-                    text(format!("P&L: {:+.0} ({:+.1}%)", total_pnl, total_pnl_pct)).size(theme::text_base()).color(total_color),
+                    text(format!("Cost: ${}", helpers::format_compact(total_cost))).size(theme::text_sm()),
+                    text(format!("Value: ${}", helpers::format_compact(total_value))).size(theme::text_sm()),
+                    text(format!("P&L: {:+.0} ({})", total_pnl, helpers::format_pct(total_pnl_pct))).size(theme::text_base()).color(total_color),
                 ].spacing(16),
             ].spacing(4)
         } else if self.portfolio.is_empty() {
@@ -208,8 +209,8 @@ impl Dashboard {
                 row![
                     text(&p.ticker).size(theme::text_base()).width(Length::Fixed(64.0)),
                     text(format!("{:.2}", p.shares)).size(theme::text_base()).width(Length::Fixed(72.0)),
-                    text(format!("${:.2}", p.avg_cost)).size(theme::text_base()).width(Length::Fixed(88.0)),
-                    text(format!("${cost_basis:.0}")).size(theme::text_base()).width(Length::Fill),
+                    text(helpers::format_price(p.avg_cost as f64)).size(theme::text_base()).width(Length::Fixed(88.0)),
+                    text(format!("${}", helpers::format_compact(cost_basis as f64))).size(theme::text_base()).width(Length::Fill),
                 ].spacing(8).into()
             }).collect();
 

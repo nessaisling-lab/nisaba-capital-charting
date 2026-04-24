@@ -3,13 +3,15 @@ use iced::widget::{column, container, horizontal_rule, row, scrollable, text, Co
 use iced::{Alignment, Element, Length};
 
 use crate::charts::{AstroMarker, LagrangeSparkline, PriceChart};
+use crate::helpers;
+use crate::icons;
 use crate::indicators::{compute_lagrange_score, compute_ticker_score, Indicators};
 use crate::patterns;
 use crate::signals::generate_signal_bullets;
 use crate::state::{Dashboard, Message};
 use crate::theme;
 
-use super::shared::make_gauge;
+use super::shared::{card, make_gauge, titled_card};
 
 impl Dashboard {
     pub(crate) fn view_overview(&self) -> Element<'_, Message> {
@@ -157,7 +159,11 @@ impl Dashboard {
                     _ => "MACD: —".into(),
                 };
                 let sma_str = match (sma20_val, sma50_val) {
-                    (Some(a), Some(b)) => format!("SMA20: ${a:.2}  SMA50: ${b:.2}"),
+                    (Some(a), Some(b)) => format!(
+                        "SMA20: {}  SMA50: {}",
+                        helpers::format_price(a as f64),
+                        helpers::format_price(b as f64),
+                    ),
                     _ => "SMA: —".into(),
                 };
                 let analyst_str = match &self.analyst_rating {
@@ -604,9 +610,8 @@ impl Dashboard {
         .spacing(8);
 
         let right_col: Column<Message> = column![
-            container(signal_section).padding([10, 14]),
-            horizontal_rule(1),
-            container(watchlist_section).padding([10, 14]),
+            card(signal_section),
+            card(watchlist_section),
         ]
         .spacing(8);
 
@@ -617,11 +622,9 @@ impl Dashboard {
         .spacing(12);
 
         column![
-            gauges_row,
-            horizontal_rule(1),
+            card(gauges_row),
             two_col,
-            horizontal_rule(1),
-            polymarket_section,
+            card(polymarket_section),
         ]
         .spacing(10)
         .into()

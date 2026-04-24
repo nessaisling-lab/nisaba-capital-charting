@@ -1,18 +1,20 @@
 use iced::Color;
 
 // ---------------------------------------------------------------------------
-// Circadian theme system — 4 phases, 3 user modes
+// Circadian theme system — 4 phases, 4 user modes
 // ---------------------------------------------------------------------------
 
-/// User-selectable theme mode. Cycles: Auto → Light → Dark → Auto.
+/// User-selectable theme mode. Cycles: Auto → Latte → Mocha → TokyoNight → Auto.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ThemeMode {
-    /// Automatically select phase based on local time of day.
+    /// Circadian: CatppuccinLatte by day, CatppuccinMocha by night.
     Auto,
-    /// Always use the Day (light) phase.
+    /// Catppuccin Latte (warm light theme).
     AlwaysLight,
-    /// Always use the Night (dark) phase.
+    /// Catppuccin Mocha (rich dark theme).
     AlwaysDark,
+    /// TokyoNight (cool dark theme, blue-tinted).
+    TokyoNight,
 }
 
 impl ThemeMode {
@@ -20,14 +22,16 @@ impl ThemeMode {
         match self {
             Self::Auto => Self::AlwaysLight,
             Self::AlwaysLight => Self::AlwaysDark,
-            Self::AlwaysDark => Self::Auto,
+            Self::AlwaysDark => Self::TokyoNight,
+            Self::TokyoNight => Self::Auto,
         }
     }
     pub fn label(self) -> &'static str {
         match self {
             Self::Auto => "Auto",
-            Self::AlwaysLight => "Light",
-            Self::AlwaysDark => "Dark",
+            Self::AlwaysLight => "Latte",
+            Self::AlwaysDark => "Mocha",
+            Self::TokyoNight => "Tokyo",
         }
     }
 }
@@ -68,21 +72,27 @@ pub fn active_phase(mode: ThemeMode) -> CircadianPhase {
     match mode {
         ThemeMode::Auto => CircadianPhase::current(),
         ThemeMode::AlwaysLight => CircadianPhase::Day,
-        ThemeMode::AlwaysDark => CircadianPhase::Night,
+        ThemeMode::AlwaysDark | ThemeMode::TokyoNight => CircadianPhase::Night,
     }
 }
 
 /// Map a circadian phase to an Iced Theme.
 pub fn iced_theme(mode: ThemeMode) -> iced::Theme {
-    match active_phase(mode) {
-        CircadianPhase::Dawn | CircadianPhase::Day => iced::Theme::Light,
-        CircadianPhase::Dusk | CircadianPhase::Night => iced::Theme::Dark,
+    match mode {
+        ThemeMode::Auto => match active_phase(mode) {
+            CircadianPhase::Dawn | CircadianPhase::Day => iced::Theme::CatppuccinLatte,
+            CircadianPhase::Dusk | CircadianPhase::Night => iced::Theme::CatppuccinMocha,
+        },
+        ThemeMode::AlwaysLight => iced::Theme::CatppuccinLatte,
+        ThemeMode::AlwaysDark  => iced::Theme::CatppuccinMocha,
+        ThemeMode::TokyoNight  => iced::Theme::TokyoNight,
     }
 }
 
-/// Whether the active theme is dark.
+/// Whether the active theme is dark (checks palette background luminance).
 pub fn is_dark(theme: &iced::Theme) -> bool {
-    *theme != iced::Theme::Light
+    let bg = theme.palette().background;
+    (bg.r + bg.g + bg.b) / 3.0 < 0.5
 }
 
 use chrono::Timelike;
@@ -120,84 +130,105 @@ pub fn text_2xl()  -> f32 { s(28.0) }  // page title
 
 
 // ---------------------------------------------------------------------------
-// Semantic background colors
+// Catppuccin Mocha palette constants (for canvas / custom drawing)
+// ---------------------------------------------------------------------------
+
+pub const MOCHA_BASE:     Color = Color::from_rgb(0.118, 0.118, 0.180); // #1e1e2e
+pub const MOCHA_MANTLE:   Color = Color::from_rgb(0.094, 0.094, 0.145); // #181825
+pub const MOCHA_SURFACE0: Color = Color::from_rgb(0.192, 0.196, 0.267); // #313244
+pub const MOCHA_SURFACE1: Color = Color::from_rgb(0.271, 0.278, 0.353); // #45475a
+pub const MOCHA_OVERLAY0: Color = Color::from_rgb(0.424, 0.439, 0.525); // #6c7086
+pub const MOCHA_SUBTEXT0: Color = Color::from_rgb(0.651, 0.678, 0.784); // #a6adc8
+pub const MOCHA_SUBTEXT1: Color = Color::from_rgb(0.729, 0.761, 0.871); // #bac2de
+pub const MOCHA_TEXT:     Color = Color::from_rgb(0.804, 0.839, 0.957); // #cdd6f4
+
+pub const MOCHA_BLUE:     Color = Color::from_rgb(0.537, 0.706, 0.980); // #89b4fa
+pub const MOCHA_GREEN:    Color = Color::from_rgb(0.651, 0.890, 0.631); // #a6e3a1
+pub const MOCHA_RED:      Color = Color::from_rgb(0.953, 0.545, 0.659); // #f38ba8
+pub const MOCHA_YELLOW:   Color = Color::from_rgb(0.976, 0.886, 0.686); // #f9e2af
+pub const MOCHA_PEACH:    Color = Color::from_rgb(0.980, 0.702, 0.529); // #fab387
+pub const MOCHA_MAUVE:    Color = Color::from_rgb(0.796, 0.651, 0.969); // #cba6f7
+pub const MOCHA_SKY:      Color = Color::from_rgb(0.537, 0.863, 0.922); // #89dceb
+pub const MOCHA_TEAL:     Color = Color::from_rgb(0.580, 0.886, 0.835); // #94e2d5
+pub const MOCHA_LAVENDER: Color = Color::from_rgb(0.706, 0.745, 0.996); // #b4befe
+
+// Catppuccin Latte palette (light mode canvas)
+pub const LATTE_BASE:     Color = Color::from_rgb(0.937, 0.945, 0.961); // #eff1f5
+pub const LATTE_SURFACE0: Color = Color::from_rgb(0.800, 0.816, 0.855); // #ccd0da
+pub const LATTE_OVERLAY0: Color = Color::from_rgb(0.604, 0.620, 0.694); // #9ca0b0
+pub const LATTE_SUBTEXT0: Color = Color::from_rgb(0.424, 0.431, 0.522); // #6c6f85
+pub const LATTE_SUBTEXT1: Color = Color::from_rgb(0.361, 0.373, 0.467); // #5c5f77
+pub const LATTE_TEXT:     Color = Color::from_rgb(0.298, 0.310, 0.412); // #4c4f69
+
+// ---------------------------------------------------------------------------
+// Semantic colors — adapt to active theme palette
 // ---------------------------------------------------------------------------
 
 pub fn canvas_bg(theme: &iced::Theme) -> Color {
-    if is_dark(theme) {
-        Color::from_rgb(0.06, 0.06, 0.10)
-    } else {
-        Color::from_rgb(0.93, 0.93, 0.96)
-    }
+    if is_dark(theme) { MOCHA_BASE } else { LATTE_BASE }
 }
 
-// ---------------------------------------------------------------------------
-// Foreground / text colors
-// ---------------------------------------------------------------------------
+pub fn surface(theme: &iced::Theme) -> Color {
+    if is_dark(theme) { MOCHA_SURFACE0 } else { LATTE_SURFACE0 }
+}
 
 pub fn fg(theme: &iced::Theme) -> Color {
-    if is_dark(theme) {
-        Color::WHITE
-    } else {
-        Color::from_rgb(0.08, 0.08, 0.08)
-    }
+    if is_dark(theme) { MOCHA_TEXT } else { LATTE_TEXT }
 }
 
 pub fn fg_dim(theme: &iced::Theme) -> Color {
-    if is_dark(theme) {
-        Color::from_rgba(1.0, 1.0, 1.0, 0.40)
-    } else {
-        Color::from_rgba(0.0, 0.0, 0.0, 0.45)
-    }
+    if is_dark(theme) { MOCHA_SUBTEXT0 } else { LATTE_SUBTEXT0 }
 }
 
 pub fn fg_muted(theme: &iced::Theme) -> Color {
-    if is_dark(theme) {
-        Color::from_rgba(1.0, 1.0, 1.0, 0.50)
-    } else {
-        Color::from_rgba(0.0, 0.0, 0.0, 0.50)
-    }
+    if is_dark(theme) { MOCHA_OVERLAY0 } else { LATTE_OVERLAY0 }
 }
 
 pub fn label_color(theme: &iced::Theme) -> Color {
-    if is_dark(theme) {
-        Color::from_rgba(1.0, 1.0, 1.0, 0.65)
-    } else {
-        Color::from_rgba(0.0, 0.0, 0.0, 0.60)
-    }
+    if is_dark(theme) { MOCHA_SUBTEXT1 } else { LATTE_SUBTEXT1 }
 }
 
 pub fn grid_line(theme: &iced::Theme) -> Color {
     if is_dark(theme) {
-        Color::from_rgba(1.0, 1.0, 1.0, 0.08)
+        Color { a: 0.15, ..MOCHA_SURFACE1 }
     } else {
-        Color::from_rgba(0.0, 0.0, 0.0, 0.08)
+        Color { a: 0.30, ..LATTE_SURFACE0 }
     }
 }
 
 pub fn sign_color(theme: &iced::Theme) -> Color {
-    if is_dark(theme) {
-        Color::from_rgba(1.0, 1.0, 1.0, 0.30)
-    } else {
-        Color::from_rgba(0.0, 0.0, 0.0, 0.35)
-    }
+    if is_dark(theme) { MOCHA_OVERLAY0 } else { LATTE_OVERLAY0 }
 }
 
 pub fn ring_dim(theme: &iced::Theme) -> Color {
     if is_dark(theme) {
-        Color::from_rgba(1.0, 1.0, 1.0, 0.20)
+        Color { a: 0.25, ..MOCHA_SURFACE1 }
     } else {
-        Color::from_rgba(0.0, 0.0, 0.0, 0.15)
+        Color { a: 0.20, ..LATTE_SURFACE0 }
     }
 }
 
+/// Accent color (blue) for primary actions and highlights.
+pub fn accent(theme: &iced::Theme) -> Color {
+    if is_dark(theme) { MOCHA_BLUE } else { Color::from_rgb(0.118, 0.400, 0.961) } // Latte Blue
+}
+
+/// Bullish / positive color.
+pub fn bullish(_theme: &iced::Theme) -> Color { MOCHA_GREEN }
+
+/// Bearish / negative color.
+pub fn bearish(_theme: &iced::Theme) -> Color { MOCHA_RED }
+
+/// Astro / gold accent.
+pub fn gold(_theme: &iced::Theme) -> Color { MOCHA_YELLOW }
+
 // ---------------------------------------------------------------------------
-// Chart accent colors (theme-independent — these read well on both bgs)
+// Chart accent colors — Catppuccin-influenced, readable on both light/dark
 // ---------------------------------------------------------------------------
 
-pub const ACCENT_BLUE: Color = Color::from_rgb(0.2, 0.65, 1.0);
+pub const ACCENT_BLUE: Color = MOCHA_BLUE;
 pub const ACCENT_BLUE_FILL: Color = Color {
-    r: 0.2, g: 0.65, b: 1.0, a: 0.15,
+    r: 0.537, g: 0.706, b: 0.980, a: 0.15,
 };
 pub const SMA20_ORANGE: Color = Color { r: 1.0, g: 0.55, b: 0.1, a: 0.85 };
 pub const SMA50_YELLOW: Color = Color { r: 1.0, g: 0.85, b: 0.2, a: 0.7 };
