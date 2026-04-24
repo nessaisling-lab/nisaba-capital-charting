@@ -187,8 +187,10 @@ fn strip_html_and_truncate(html: &str, max_chars: usize) -> String {
     }
     // Collapse whitespace
     let cleaned: String = out.split_whitespace().collect::<Vec<_>>().join(" ");
-    if cleaned.len() > max_chars {
-        format!("{}...", &cleaned[..max_chars])
+    // Truncate by char count (not byte index) to avoid panicking on multi-byte UTF-8
+    if cleaned.chars().count() > max_chars {
+        let truncated: String = cleaned.chars().take(max_chars).collect();
+        format!("{truncated}...")
     } else {
         cleaned
     }
