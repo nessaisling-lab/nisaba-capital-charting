@@ -239,8 +239,8 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
             state.agent_llm_error = None;
             state.agent_loading = false;
             // Re-run analysis for active persona in new mode
-            if state.active_agent.is_some() {
-                Some(state.update(Message::AgentSelected(state.active_agent.unwrap())))
+            if let Some(persona) = state.active_agent {
+                Some(state.update(Message::AgentSelected(persona)))
             } else {
                 Some(Task::none())
             }

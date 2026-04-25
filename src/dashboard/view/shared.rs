@@ -21,7 +21,6 @@ pub fn card<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message
 }
 
 /// Section heading with icon + bold title.
-#[allow(dead_code)]
 pub fn section_heading<'a>(icon_char: char, title: &str) -> Element<'a, Message> {
     row![
         text(icon_char.to_string()).font(icons::BOOTSTRAP).size(theme::text_md()),

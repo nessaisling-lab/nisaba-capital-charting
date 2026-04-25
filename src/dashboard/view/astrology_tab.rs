@@ -377,15 +377,15 @@ impl Dashboard {
             let legend = row![
                 text("■")
                     .size(theme::text_sm())
-                    .color(iced::Color::from_rgb(0.3, 0.8, 0.4)),
+                    .color(theme::ZONE_OPTIMAL),
                 text("Favorable (>50)").size(theme::text_xs()),
                 text("■")
                     .size(theme::text_sm())
-                    .color(iced::Color::from_rgb(0.5, 0.7, 0.2)),
+                    .color(theme::ZONE_NEUTRAL),
                 text("Neutral (~50)").size(theme::text_xs()),
                 text("■")
                     .size(theme::text_sm())
-                    .color(iced::Color::from_rgb(0.8, 0.3, 0.3)),
+                    .color(theme::ZONE_MISALIGNED),
                 text("Unfavorable (<50)").size(theme::text_xs()),
             ]
             .spacing(6)

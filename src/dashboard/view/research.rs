@@ -1,5 +1,5 @@
 use iced::widget::{button, column, horizontal_rule, row, scrollable, text, Column};
-use iced::{Alignment, Color, Element, Length};
+use iced::{Alignment, Element, Length};
 
 use crate::helpers::{describe_8k_items, format_market_value, format_shares};
 use crate::state::{Dashboard, Message};
@@ -290,9 +290,9 @@ impl Dashboard {
                     let tone_color = match ev.tone {
                         Some(t) if t > 2.0 => theme::ZONE_OPTIMAL,
                         Some(t) if t > 0.0 => theme::ZONE_FAVORABLE,
-                        Some(t) if t > -2.0 => Color::from_rgb(0.6, 0.6, 0.6),
+                        Some(t) if t > -2.0 => theme::ZONE_NEUTRAL,
                         Some(_) => theme::ZONE_MISALIGNED,
-                        None => Color::from_rgb(0.5, 0.5, 0.5),
+                        None => theme::ZONE_NEUTRAL,
                     };
 
                     row![

@@ -117,6 +117,7 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
                 a.is_read = true;
             }
             state.unread_alert_count = 0;
+            state.notifications_fired = false; // allow re-notify for future alerts
             if let Some(pool) = &state.pool {
                 let p = Arc::clone(pool);
                 Some(Task::perform(

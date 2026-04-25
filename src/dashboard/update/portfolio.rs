@@ -23,8 +23,9 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
                 let pool3 = Arc::clone(pool);
                 Some(Task::perform(
                     async move {
-                        let _ =
-                            crate::db::import_tickers_to_portfolio(pool2, tickers).await;
+                        if let Err(e) = crate::db::import_tickers_to_portfolio(pool2, tickers).await {
+                            eprintln!("Portfolio import error: {e}");
+                        }
                         crate::db::fetch_portfolio(pool3).await
                     },
                     Message::PortfolioLoaded,

@@ -798,7 +798,7 @@ pub async fn analyze_llm(
     if !response.status().is_success() {
         let status = response.status();
         let err_body = response.text().await.unwrap_or_default();
-        return Err(format!("API error {status}: {}", &err_body[..err_body.len().min(200)]));
+        return Err(format!("API error {status}: {}", err_body.chars().take(200).collect::<String>()));
     }
 
     let resp: serde_json::Value = response

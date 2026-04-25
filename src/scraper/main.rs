@@ -273,7 +273,7 @@ async fn main() -> Result<()> {
             Arc::clone(&fh_limiter),
             fmp_key.clone(),
             &ticker,
-        ).await;
+        ).await?;
         println!("=== Done: {ticker} ===");
         return Ok(());
     }
@@ -350,7 +350,7 @@ async fn fetch_single_ticker(
     fh_limiter: Arc<governor::DefaultDirectRateLimiter>,
     fmp_key: Option<Arc<String>>,
     ticker: &str,
-) {
+) -> anyhow::Result<()> {
     // 1. Astrology: ensure natal chart + daily transits + scores
     println!("[{ticker}] Phase 1: Astrology...");
     astrology::seed_natal_charts(Arc::clone(&pool)).await;
@@ -402,6 +402,7 @@ async fn fetch_single_ticker(
     lagrange::compute_all_scores(Arc::clone(&pool)).await;
 
     log_fetch(&pool, "dashboard", Some(ticker), "single_ticker_fetch", "ok", None).await;
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
