@@ -255,6 +255,12 @@ impl Dashboard {
                     if k == "refresh_interval_secs" {
                         self.settings_refresh_input = v.clone();
                     }
+                    if k == "agent_mode" {
+                        self.agent_mode = match v.as_str() {
+                            "LLM" => crate::agents::AgentMode::Llm,
+                            _ => crate::agents::AgentMode::Template,
+                        };
+                    }
                     if k == "font_scale" {
                         let (scale, label) = match v.as_str() {
                             "Compact" => (0.85, "Compact"),

@@ -6,7 +6,7 @@ use pursuit_week4_automation::models::{
     HoldingRow, InsiderTradeRow, LagrangeAlert, LagrangeHistory, MacroIndicator, NatalPosition,
     NewsArticle, PortfolioPosition, PriceRow, SentimentScore, ShortInterest,
 };
-use crate::agents::{AgentAnalysis, AgentPersona};
+use crate::agents::{AgentAnalysis, AgentMode, AgentPersona};
 use crate::backtest::{BacktestConfig, BacktestResult};
 use crate::strategy::Strategy;
 use crate::db::{CompareRow, NamedWatchlist, PortfolioPnlRow, RetroEvent, SectorSummary, TransactionRow, UniverseRow, WatchlistRow};
@@ -76,6 +76,7 @@ impl UniverseSortCol {
             Self::Short  => "lh.short_score",
         }
     }
+    #[allow(dead_code)]
     pub fn label(self) -> &'static str {
         match self {
             Self::Ticker => "Ticker",
@@ -205,6 +206,14 @@ pub struct Dashboard {
     pub calendar_days:            Vec<crate::calendar::CalendarDay>,
     pub calendar_year:            i32,
     pub calendar_month:           u32,
+    // Fetch ticker
+    pub fetching_ticker:          bool,
+    pub fetch_ticker_error:       Option<String>,
+    // LLM agent mode
+    pub agent_mode:               AgentMode,
+    pub agent_loading:            bool,
+    pub agent_llm_error:          Option<String>,
+    pub api_key_input:            String,
 }
 
 impl Default for Dashboard {
@@ -310,6 +319,12 @@ impl Default for Dashboard {
             calendar_days:            vec![],
             calendar_year:            chrono::Local::now().year(),
             calendar_month:           chrono::Local::now().month(),
+            fetching_ticker:          false,
+            fetch_ticker_error:       None,
+            agent_mode:               AgentMode::Template,
+            agent_loading:            false,
+            agent_llm_error:          None,
+            api_key_input:            String::new(),
         }
     }
 }
@@ -448,4 +463,11 @@ pub enum Message {
     EscapePressed,
     RefreshNow,
     Tick,
+    // Fetch single ticker via scraper subprocess
+    FetchThisTicker,
+    FetchTickerComplete(Result<(), String>),
+    // LLM agent mode
+    SetAgentMode(crate::agents::AgentMode),
+    LlmAnalysisComplete(Result<AgentAnalysis, String>),
+    ApiKeyInput(String),
 }

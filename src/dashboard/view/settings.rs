@@ -55,6 +55,32 @@ impl Dashboard {
             refresh_row,
         ].spacing(6));
 
+        // ── API Keys card ───────────────────────────────────
+        let current_key = self.settings.get("anthropic_api_key").cloned().unwrap_or_default();
+        let key_display = if current_key.len() > 8 {
+            format!("{}...{}", &current_key[..4], &current_key[current_key.len()-4..])
+        } else if !current_key.is_empty() {
+            "****".to_string()
+        } else {
+            "Not set".to_string()
+        };
+        let api_keys_card = card(column![
+            section_heading(icons::KEY, "API Keys"),
+            horizontal_rule(1),
+            row![
+                text("Anthropic API Key:").size(theme::text_sm()),
+                text_input("sk-ant-...", &self.api_key_input)
+                    .on_input(Message::ApiKeyInput)
+                    .on_submit(Message::SaveSetting("anthropic_api_key".to_string(), self.api_key_input.clone()))
+                    .width(Length::Fixed(280.0))
+                    .size(theme::text_sm()),
+                button(text("Save").size(theme::text_sm()))
+                    .on_press(Message::SaveSetting("anthropic_api_key".to_string(), self.api_key_input.clone())),
+            ].spacing(8).align_y(Alignment::Center),
+            text(format!("Current: {key_display}")).size(theme::text_xs()),
+            text("Used for LLM-backed agent analysis (Fundamentals tab). Model: claude-sonnet.").size(theme::text_xs()),
+        ].spacing(4));
+
         // ── Alerts card ─────────────────────────────────────
         let alerts_card = card(column![
             section_heading(icons::BELL, "Alert Thresholds"),
@@ -78,6 +104,7 @@ impl Dashboard {
         column![
             appearance_card,
             data_card,
+            api_keys_card,
             alerts_card,
             info_card,
         ].spacing(10).padding(8).into()

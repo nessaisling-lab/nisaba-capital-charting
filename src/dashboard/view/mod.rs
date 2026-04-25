@@ -147,9 +147,27 @@ impl Dashboard {
             autocomplete,
             recently_viewed_row,
             text(&self.status).size(theme::text_base()),
-            row![
-                button(refresh_label).on_press(Message::RefreshNow),
-            ].spacing(8),
+            {
+                let fetch_btn: Element<Message> = if self.fetching_ticker {
+                    button(
+                        row![
+                            text(icons::DOWNLOAD.to_string()).font(icons::BOOTSTRAP).size(theme::text_sm()),
+                            text("Fetching...").size(theme::text_sm()),
+                        ].spacing(4).align_y(Alignment::Center)
+                    ).into()
+                } else {
+                    button(
+                        row![
+                            text(icons::DOWNLOAD.to_string()).font(icons::BOOTSTRAP).size(theme::text_sm()),
+                            text(format!("Fetch {}", self.selected_ticker)).size(theme::text_sm()),
+                        ].spacing(4).align_y(Alignment::Center)
+                    ).on_press(Message::FetchThisTicker).into()
+                };
+                row![
+                    button(refresh_label).on_press(Message::RefreshNow),
+                    fetch_btn,
+                ].spacing(8)
+            },
             horizontal_rule(1),
             tab_bar,
             horizontal_rule(1),

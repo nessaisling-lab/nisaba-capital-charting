@@ -255,6 +255,29 @@ async fn main() -> Result<()> {
     let api_key     = Arc::new(api_key);
     let user_agent  = Arc::new(user_agent);
 
+    // ---- Check for single-ticker mode (--ticker AAPL) -----------------------
+    let args: Vec<String> = std::env::args().collect();
+    let single_ticker = args.iter()
+        .position(|a| a == "--ticker")
+        .and_then(|i| args.get(i + 1))
+        .cloned();
+
+    if let Some(ticker) = single_ticker {
+        println!("=== Single-ticker mode: {ticker} ===");
+        fetch_single_ticker(
+            Arc::clone(&pool),
+            Arc::clone(&http_client),
+            Arc::clone(&api_key),
+            Arc::clone(&av_limiter),
+            finnhub_key.clone(),
+            Arc::clone(&fh_limiter),
+            fmp_key.clone(),
+            &ticker,
+        ).await;
+        println!("=== Done: {ticker} ===");
+        return Ok(());
+    }
+
     // ---- Startup run -------------------------------------------------------
     run_all_fetches(
         Arc::clone(&pool),
@@ -312,6 +335,73 @@ async fn main() -> Result<()> {
     tokio::signal::ctrl_c().await?;
     println!("Shutting down.");
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Single-ticker fetch — triggered by dashboard "Fetch" button via CLI
+// ---------------------------------------------------------------------------
+
+async fn fetch_single_ticker(
+    pool: Arc<sqlx::PgPool>,
+    client: Arc<reqwest::Client>,
+    api_key: Arc<String>,
+    av_limiter: Arc<governor::DefaultDirectRateLimiter>,
+    finnhub_key: Option<Arc<String>>,
+    fh_limiter: Arc<governor::DefaultDirectRateLimiter>,
+    fmp_key: Option<Arc<String>>,
+    ticker: &str,
+) {
+    // 1. Astrology: ensure natal chart + daily transits + scores
+    println!("[{ticker}] Phase 1: Astrology...");
+    astrology::seed_natal_charts(Arc::clone(&pool)).await;
+    astrology::compute_daily_transits(Arc::clone(&pool)).await;
+    astrology::compute_astro_scores(Arc::clone(&pool)).await;
+
+    // 2. Price data (Alpha Vantage)
+    println!("[{ticker}] Phase 2: Price data...");
+    av_limiter.until_ready().await;
+    match prices::fetch_and_store(ticker, &pool, &client, &api_key).await {
+        Ok(n) => println!("[{ticker}] Prices: {n} new rows"),
+        Err(e) => eprintln!("[{ticker}] Price error: {e:#}"),
+    }
+
+    // 3. Finnhub news + recommendations
+    if let Some(ref fh_key) = finnhub_key {
+        println!("[{ticker}] Phase 3: Finnhub...");
+        fh_limiter.until_ready().await;
+        match finnhub::fetch_finnhub_news(ticker, &pool, &client, fh_key).await {
+            Ok(n) => println!("[{ticker}] Finnhub news: {n} articles"),
+            Err(e) => eprintln!("[{ticker}] Finnhub news error: {e:#}"),
+        }
+        fh_limiter.until_ready().await;
+        match finnhub::fetch_finnhub_recommendations(ticker, &pool, &client, fh_key).await {
+            Ok(n) => println!("[{ticker}] Finnhub ratings: {n} new"),
+            Err(e) => eprintln!("[{ticker}] Finnhub ratings error: {e:#}"),
+        }
+    }
+
+    // 4. Sentiment (Alpha Vantage)
+    println!("[{ticker}] Phase 4: Sentiment...");
+    let one_ticker = vec![ticker.to_string()];
+    sentiment::fetch_av_sentiment_all(
+        Arc::clone(&pool), Arc::clone(&client), Arc::clone(&api_key), &one_ticker,
+    ).await;
+
+    // 5. Fundamentals (FMP)
+    if let Some(ref fmp) = fmp_key {
+        println!("[{ticker}] Phase 5: Fundamentals...");
+        match fundamentals::fetch_and_store(ticker, &pool, &client, fmp).await {
+            Ok(true) => println!("[{ticker}] Fundamentals: stored"),
+            Ok(false) => println!("[{ticker}] Fundamentals: already up to date"),
+            Err(e) => eprintln!("[{ticker}] Fundamentals error: {e:#}"),
+        }
+    }
+
+    // 6. Lagrange composite score
+    println!("[{ticker}] Phase 6: Lagrange score...");
+    lagrange::compute_all_scores(Arc::clone(&pool)).await;
+
+    log_fetch(&pool, "dashboard", Some(ticker), "single_ticker_fetch", "ok", None).await;
 }
 
 // ---------------------------------------------------------------------------

@@ -14,6 +14,13 @@
 
 use pursuit_week4_automation::models::FundamentalMetric;
 
+/// Template or LLM analysis mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AgentMode {
+    Template,
+    Llm,
+}
+
 /// Which investment persona is active.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentPersona {
@@ -648,4 +655,209 @@ fn no_fundamentals_fallback(
     );
 
     Some((analysis, verdict, metrics))
+}
+
+// ---------------------------------------------------------------------------
+// LLM-backed analysis via Anthropic Claude API
+// ---------------------------------------------------------------------------
+
+/// Build the system prompt for a persona + financial context.
+fn build_system_prompt(persona: AgentPersona, ctx: &AgentContext) -> String {
+    let persona_desc = match persona {
+        AgentPersona::Buffett => "\
+You are Warren Buffett, the Oracle of Omaha. You evaluate companies through the lens of durable \
+competitive moats, free cash flow generation, and margin of safety. You are patient, folksy, and \
+speak in plain language. You acknowledge astrological signals when they align with fundamentals, \
+but never rely on them alone. You care about return on equity, debt levels, and whether you'd be \
+happy owning the entire business for a decade.",
+        AgentPersona::Graham => "\
+You are Benjamin Graham, the father of value investing. You are methodical, quantitative, and \
+skeptical of anything that cannot be measured. You focus on P/E under 15, P/B under 1.5, the \
+Graham Number, current ratio above 2, and dividend history. You are politely dismissive of \
+astrology but acknowledge market psychology exists. You never overpay, even for quality.",
+        AgentPersona::Lynch => "\
+You are Peter Lynch, the legendary Fidelity Magellan fund manager. Your mantra is 'know what you \
+own and why you own it.' You love the PEG ratio, growth at a reasonable price, and companies whose \
+products you can see and touch. You see astrology as a market sentiment indicator, like the \
+magazine cover indicator. You are enthusiastic, practical, and classify stocks into categories.",
+        AgentPersona::Munger => "\
+You are Charlie Munger, Warren Buffett's partner and a polymath investor. You think in mental \
+models drawn from psychology, physics, and biology. You focus on business quality over price: high \
+return on equity, wide operating margins, and rational management. You view astrology as one lens \
+among many for pattern recognition. You are blunt, witty, and allergic to foolishness.",
+    };
+
+    let context_block = format_context_for_llm(ctx);
+
+    format!(
+        "{persona_desc}\n\n\
+         ## Financial Data for {ticker}\n\n\
+         {context_block}\n\n\
+         ## Response Format\n\n\
+         Respond with a JSON object (no markdown fences) containing:\n\
+         - \"headline\": one-line summary, max 120 characters\n\
+         - \"analysis\": 3-5 sentence analysis in character\n\
+         - \"verdict\": one of \"StrongBuy\", \"Buy\", \"Hold\", \"Sell\", \"StrongSell\"\n\
+         - \"key_metrics\": array of [metric_name, value, assessment] arrays (3-6 items)\n\
+         - \"astro_take\": your in-character take on the astrological signals (1-2 sentences)\n\n\
+         Stay in character throughout. Do not break persona.",
+        ticker = ctx.ticker
+    )
+}
+
+/// Serialize AgentContext fields to readable text for the LLM prompt.
+fn format_context_for_llm(ctx: &AgentContext) -> String {
+    let mut lines = vec![format!("Ticker: {}", ctx.ticker)];
+
+    if let Some(price) = ctx.current_price {
+        lines.push(format!("Current Price: ${price:.2}"));
+    }
+    if let Some(astro) = ctx.astro_score {
+        lines.push(format!("Astro Score: {astro:.1}/100"));
+    }
+    if let Some(ref label) = ctx.astro_label {
+        lines.push(format!("Astro Zone: {label}"));
+    }
+    if let Some(score) = ctx.lagrange_score {
+        lines.push(format!("Lagrange Composite Score: {score:.1}"));
+    }
+    if let Some(ref label) = ctx.lagrange_label {
+        lines.push(format!("Lagrange Zone: {label}"));
+    }
+    if let Some(ref conc) = ctx.concordance {
+        lines.push(format!("Concordance (Astro-Financial): {conc}"));
+    }
+    if ctx.mercury_rx {
+        lines.push("Mercury Retrograde: ACTIVE (caution on communications/contracts)".to_string());
+    }
+    if let Some(ref phase) = ctx.moon_phase {
+        lines.push(format!("Moon Phase: {phase}"));
+    }
+    if let Some(ref theme) = ctx.dominant_theme {
+        lines.push(format!("Dominant Astrological Theme: {theme}"));
+    }
+
+    if let Some(ref f) = ctx.fundamentals {
+        lines.push("\n--- Fundamental Metrics ---".to_string());
+        if let Some(v) = f.market_cap { lines.push(format!("Market Cap: ${v}")); }
+        if let Some(v) = f.pe_ratio { lines.push(format!("P/E Ratio: {v:.2}")); }
+        if let Some(v) = f.pb_ratio { lines.push(format!("P/B Ratio: {v:.2}")); }
+        if let Some(v) = f.ps_ratio { lines.push(format!("P/S Ratio: {v:.2}")); }
+        if let Some(v) = f.ev_ebitda { lines.push(format!("EV/EBITDA: {v:.2}")); }
+        if let Some(v) = f.peg_ratio { lines.push(format!("PEG Ratio: {v:.2}")); }
+        if let Some(v) = f.roe { lines.push(format!("ROE: {v:.1}%")); }
+        if let Some(v) = f.roa { lines.push(format!("ROA: {v:.1}%")); }
+        if let Some(v) = f.net_margin { lines.push(format!("Net Margin: {v:.1}%")); }
+        if let Some(v) = f.operating_margin { lines.push(format!("Operating Margin: {v:.1}%")); }
+        if let Some(v) = f.debt_equity { lines.push(format!("Debt/Equity: {v:.2}")); }
+        if let Some(v) = f.current_ratio { lines.push(format!("Current Ratio: {v:.2}")); }
+        if let Some(v) = f.fcf { lines.push(format!("Free Cash Flow: ${v}")); }
+        if let Some(v) = f.revenue { lines.push(format!("Revenue: ${v}")); }
+        if let Some(v) = f.net_income { lines.push(format!("Net Income: ${v}")); }
+        if let Some(v) = f.eps { lines.push(format!("EPS: ${v:.2}")); }
+        if let Some(v) = f.dividend_yield { lines.push(format!("Dividend Yield: {v:.2}%")); }
+    } else {
+        lines.push("\nFundamental data not available. Analyze based on astro/price signals.".to_string());
+    }
+
+    lines.join("\n")
+}
+
+/// Call Anthropic Claude API for LLM-backed agent analysis.
+pub async fn analyze_llm(
+    persona: AgentPersona,
+    ctx: AgentContext,
+    api_key: String,
+) -> Result<AgentAnalysis, String> {
+    let system_prompt = build_system_prompt(persona, &ctx);
+
+    let client = reqwest::Client::new();
+    let body = serde_json::json!({
+        "model": "claude-sonnet-4-20250514",
+        "max_tokens": 1024,
+        "system": system_prompt,
+        "messages": [{
+            "role": "user",
+            "content": format!(
+                "Analyze {} and provide your investment assessment as {}.",
+                ctx.ticker, persona.name()
+            )
+        }]
+    });
+
+    let response = client
+        .post("https://api.anthropic.com/v1/messages")
+        .header("x-api-key", &api_key)
+        .header("anthropic-version", "2023-06-01")
+        .header("content-type", "application/json")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("HTTP error: {e}"))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let err_body = response.text().await.unwrap_or_default();
+        return Err(format!("API error {status}: {}", &err_body[..err_body.len().min(200)]));
+    }
+
+    let resp: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("JSON parse error: {e}"))?;
+
+    parse_llm_response(persona, &resp)
+}
+
+/// Parse Claude's response JSON into an AgentAnalysis.
+fn parse_llm_response(
+    persona: AgentPersona,
+    resp: &serde_json::Value,
+) -> Result<AgentAnalysis, String> {
+    let text = resp["content"][0]["text"]
+        .as_str()
+        .ok_or_else(|| "No text content in API response".to_string())?;
+
+    // Try direct JSON parse, then fall back to extracting JSON from markdown
+    let parsed: serde_json::Value = serde_json::from_str(text)
+        .or_else(|_| {
+            let start = text.find('{').ok_or("No JSON object found in response")?;
+            let end = text.rfind('}').ok_or("No closing brace found")? + 1;
+            serde_json::from_str(&text[start..end])
+                .map_err(|e| format!("JSON parse: {e}"))
+        })
+        .map_err(|e: String| format!("Failed to parse LLM response: {e}"))?;
+
+    let verdict = match parsed["verdict"].as_str().unwrap_or("Hold") {
+        "StrongBuy" => AgentVerdict::StrongBuy,
+        "Buy" => AgentVerdict::Buy,
+        "Sell" => AgentVerdict::Sell,
+        "StrongSell" => AgentVerdict::StrongSell,
+        _ => AgentVerdict::Hold,
+    };
+
+    let key_metrics = parsed["key_metrics"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|item| {
+                    let a = item.as_array()?;
+                    Some((
+                        a.first()?.as_str()?.to_string(),
+                        a.get(1)?.as_str()?.to_string(),
+                        a.get(2)?.as_str()?.to_string(),
+                    ))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    Ok(AgentAnalysis {
+        persona,
+        headline: parsed["headline"].as_str().unwrap_or("LLM analysis complete").to_string(),
+        analysis: parsed["analysis"].as_str().unwrap_or(text).to_string(),
+        verdict,
+        key_metrics,
+        astro_take: parsed["astro_take"].as_str().unwrap_or("").to_string(),
+    })
 }

@@ -3,12 +3,48 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v4.2.0
-**Next milestone:** v5.0.0 (TBD)
+**Current version:** v5.0.0
+**Next milestone:** v5.1.0 (TBD)
 
 ---
 
 ## Changelog
+
+### v5.0.0 — "The Council" (2026-04-25)
+
+**Theme:** LLM-backed agent analysis, single-ticker data fetch from the dashboard, and compiler warnings cleanup. The four investment personas (Buffett, Graham, Lynch, Munger) can now consult Claude via the Anthropic Messages API for live, context-aware analysis alongside their existing template-based reasoning. Users can fetch fresh data for any ticker without leaving the dashboard.
+
+1. **Compiler warnings cleanup (47 -> 0)** — eliminated all 47 compiler warnings across both binaries. Design-system files (`icons.rs`, `theme.rs`) use module-level `#![allow(dead_code)]` since their unused constants form a curated palette for incremental adoption. Individual items (`font.rs:MONO`, `greeks.rs:OptionType::label()`, `state.rs:UniverseSortCol::label()`, `shared.rs:section_heading/titled_card`) use item-level `#[allow(dead_code)]`. Removed truly dead imports in `view/overview.rs` (unused `crate::icons` and `titled_card`).
+   - *Files:* `src/dashboard/icons.rs`, `src/dashboard/theme.rs`, `src/dashboard/font.rs`, `src/dashboard/greeks.rs`, `src/dashboard/state.rs`, `src/dashboard/view/shared.rs`, `src/dashboard/view/overview.rs`
+   - *Insight:* Module-level `#![allow(dead_code)]` (with `!`) suppresses warnings for all items in the file, while item-level `#[allow(dead_code)]` (without `!`) only suppresses the single item it annotates. The distinction matters for design-system files where you intentionally define more constants than currently referenced.
+
+2. **"Fetch this ticker" button** — users can now fetch fresh data for the selected ticker directly from the dashboard. The dashboard locates the scraper binary adjacent to its own executable (via `std::env::current_exe().parent()`) and spawns it as a subprocess with `--ticker AAPL` using `tokio::process::Command`. The scraper's new `--ticker` CLI mode runs a focused 6-phase pipeline: (1) astrology seed + transits + scores, (2) price data via AlphaVantage, (3) Finnhub news + recommendations, (4) sentiment analysis, (5) FMP fundamentals, (6) Lagrange score recomputation. On completion, the dashboard auto-refreshes from the DB. Button appears in both the main header (next to Refresh) and the empty-fundamentals state. Disabled with "Fetching..." text while the subprocess runs. Toast notifications provide progress feedback.
+   - *Files:* `src/scraper/main.rs` (+CLI parsing, +fetch_single_ticker ~60 lines), `src/scraper/prices.rs` (+pub(crate)), `src/scraper/fundamentals.rs` (+pub(crate)), `src/scraper/finnhub.rs` (+2x pub(crate)), `src/dashboard/state.rs` (+2 fields, +2 messages), `src/dashboard/update/data.rs` (+FetchThisTicker/FetchTickerComplete handlers), `src/dashboard/view/mod.rs` (+fetch button in header), `src/dashboard/view/fundamentals.rs` (+fetch button in empty state)
+   - *Insight:* Subprocess spawning via `tokio::process::Command` is simpler than restructuring the scraper as a library. The two binaries share no mutable state, communicate only through the PostgreSQL database, and `std::env::current_exe().parent()` reliably finds the sibling binary in both debug and release builds. Windows gets `.exe` suffix via `cfg!(windows)`.
+
+3. **LLM-backed agent analysis via Anthropic Claude API** — the four investment personas can now generate live analysis by calling the Anthropic Messages API (`api.anthropic.com/v1/messages`) using `claude-sonnet-4-20250514`. Each persona gets a tailored system prompt encoding their investment philosophy (Buffett: moat + FCF + margin of safety, Graham: deep value + P/B < 1.5, Lynch: PEG ratio + "know what you own", Munger: mental models + quality). The system prompt includes all available financial context (price, astro score, Lagrange score, concordance, moon phase, mercury retrograde, and 20+ fundamental metrics from AgentContext). Claude returns structured JSON parsed into the existing `AgentAnalysis` struct (headline, analysis, verdict, key_metrics, astro_take). Response parsing uses a dual-path strategy: direct JSON parse, then fallback extraction of JSON from markdown-wrapped responses via `find('{')/rfind('}')`.
+   - *Files:* `src/dashboard/agents.rs` (+AgentMode enum, +build_system_prompt, +format_context_for_llm, +analyze_llm, +parse_llm_response ~200 lines)
+   - *Insight:* LLMs often wrap JSON in markdown code fences even when instructed not to. The dual-path parser handles both clean JSON and ````json ... ``` `` wrapped responses. Using `claude-sonnet` (fast, cheap) rather than opus keeps response time under 3 seconds and cost under $0.01 per analysis call.
+
+4. **Agent mode toggle + state machine** — the Fundamentals tab now shows an "Analysis Mode: [Template] [LLM]" toggle above the persona buttons. Template mode runs the existing deterministic template analysis synchronously. LLM mode spawns an async `Task::perform` that calls the Anthropic API and delivers results via `LlmAnalysisComplete`. Three-state UI: idle (no persona selected), loading ("Consulting the council... Buffett is thinking..."), and results with a mode badge ("(LLM)" or "(Template)"). Graceful fallback chain: no API key -> template with toast, API error -> template with error toast. Agent context extraction refactored into `build_agent_context()` shared by both paths. Agent mode persists in the settings table and loads on startup.
+   - *Files:* `src/dashboard/state.rs` (+4 fields: agent_mode/agent_loading/agent_llm_error/api_key_input, +3 messages: SetAgentMode/LlmAnalysisComplete/ApiKeyInput), `src/dashboard/update/data.rs` (+branched AgentSelected handler, +SetAgentMode/LlmAnalysisComplete/ApiKeyInput handlers), `src/dashboard/update/helpers.rs` (+build_agent_context extracted from recompute_agent_if_active), `src/dashboard/update/mod.rs` (+agent_mode in SettingsLoaded), `src/dashboard/view/fundamentals.rs` (+mode toggle, +loading state, +mode badge, +error display)
+
+5. **API key management in Settings** — new "API Keys" card in the Settings tab with a text input for the Anthropic API key. The key is persisted via the existing `upsert_setting()` mechanism (no migration needed). Current key is displayed masked (first 4 + last 4 characters) for verification without full exposure. Help text explains the key's purpose and which model is used. New `KEY` icon added to the Bootstrap Icons palette.
+   - *Files:* `src/dashboard/view/settings.rs` (+API Keys card), `src/dashboard/icons.rs` (+KEY codepoint)
+
+**Post-upgrade metrics:**
+
+| Metric | v4.2.0 | v5.0.0 |
+|--------|--------|--------|
+| Compiler warnings | 47 | 0 |
+| New Message variants | -- | +5 (FetchThisTicker, FetchTickerComplete, SetAgentMode, LlmAnalysisComplete, ApiKeyInput) |
+| New state fields | -- | +6 (fetching_ticker, fetch_ticker_error, agent_mode, agent_loading, agent_llm_error, api_key_input) |
+| Agent modes | Template only | Template + LLM (Claude Sonnet) |
+| Ticker fetch | Scraper CLI only | Dashboard button + scraper CLI |
+| New files | 0 | 0 |
+| New lines | -- | ~400 |
+| New crate deps | 0 | 0 |
+| Tests | 52 | 52 (all pass) |
 
 ### v4.2.0 — "The Expansion" (2026-04-24)
 

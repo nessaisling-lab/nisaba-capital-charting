@@ -136,7 +136,7 @@ pub async fn fetch_fundamentals(
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-async fn fetch_and_store(
+pub(crate) async fn fetch_and_store(
     ticker: &str,
     pool: &sqlx::PgPool,
     client: &reqwest::Client,

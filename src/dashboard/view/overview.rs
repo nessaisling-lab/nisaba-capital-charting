@@ -4,14 +4,13 @@ use iced::{Alignment, Element, Length};
 
 use crate::charts::{AstroMarker, LagrangeSparkline, PriceChart};
 use crate::helpers;
-use crate::icons;
 use crate::indicators::{compute_lagrange_score, compute_ticker_score, Indicators};
 use crate::patterns;
 use crate::signals::generate_signal_bullets;
 use crate::state::{Dashboard, Message};
 use crate::theme;
 
-use super::shared::{card, make_gauge, titled_card};
+use super::shared::{card, make_gauge};
 
 impl Dashboard {
     pub(crate) fn view_overview(&self) -> Element<'_, Message> {

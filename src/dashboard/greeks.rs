@@ -47,6 +47,7 @@ pub enum OptionType {
 }
 
 impl OptionType {
+    #[allow(dead_code)]
     pub fn label(self) -> &'static str {
         match self {
             Self::Call => "Call",

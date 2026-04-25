@@ -86,13 +86,12 @@ impl Dashboard {
         }
     }
 
-    /// Build an `AgentContext` from current state and run the active persona's analysis.
-    pub(crate) fn recompute_agent_if_active(&mut self) {
-        let Some(persona) = self.active_agent else { return; };
+    /// Build an `AgentContext` from current dashboard state.
+    pub(crate) fn build_agent_context(&self) -> crate::agents::AgentContext {
         let price = self.rows.first()
             .map(|r| r.close.to_string().parse::<f64>().unwrap_or(0.0));
 
-        let ctx = crate::agents::AgentContext {
+        crate::agents::AgentContext {
             ticker: self.selected_ticker.clone(),
             fundamentals: self.fundamentals.clone(),
             astro_score: self.astro_score.as_ref().and_then(|s| s.astro_score.map(|v| v as f64)),
@@ -116,7 +115,13 @@ impl Dashboard {
             current_price: price,
             mercury_rx: self.astro_score.as_ref().and_then(|s| s.mercury_rx).unwrap_or(false),
             moon_phase: self.astro_score.as_ref().and_then(|s| s.moon_phase.clone()),
-        };
+        }
+    }
+
+    /// Build an `AgentContext` from current state and run the active persona's template analysis.
+    pub(crate) fn recompute_agent_if_active(&mut self) {
+        let Some(persona) = self.active_agent else { return; };
+        let ctx = self.build_agent_context();
         self.agent_analysis = Some(crate::agents::analyze(persona, &ctx));
     }
 

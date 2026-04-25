@@ -206,9 +206,64 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
         // Agent selection
         Message::AgentSelected(persona) => {
             state.active_agent = Some(persona);
+            state.agent_llm_error = None;
+            match state.agent_mode {
+                crate::agents::AgentMode::Template => {
+                    state.recompute_agent_if_active();
+                    Some(Task::none())
+                }
+                crate::agents::AgentMode::Llm => {
+                    let api_key = state.settings.get("anthropic_api_key").cloned().unwrap_or_default();
+                    if api_key.is_empty() {
+                        // Fallback to template if no API key
+                        state.push_toast("No API key set — using template analysis");
+                        state.recompute_agent_if_active();
+                        Some(Task::none())
+                    } else {
+                        state.agent_loading = true;
+                        state.agent_analysis = None;
+                        let ctx = state.build_agent_context();
+                        Some(Task::perform(
+                            crate::agents::analyze_llm(persona, ctx, api_key),
+                            Message::LlmAnalysisComplete,
+                        ))
+                    }
+                }
+            }
+        }
+
+        // Agent mode switch
+        Message::SetAgentMode(mode) => {
+            state.agent_mode = mode;
+            state.agent_analysis = None;
+            state.agent_llm_error = None;
+            state.agent_loading = false;
+            // Re-run analysis for active persona in new mode
+            if state.active_agent.is_some() {
+                Some(state.update(Message::AgentSelected(state.active_agent.unwrap())))
+            } else {
+                Some(Task::none())
+            }
+        }
+
+        // LLM analysis result
+        Message::LlmAnalysisComplete(Ok(analysis)) => {
+            state.agent_loading = false;
+            state.agent_llm_error = None;
+            state.agent_analysis = Some(analysis);
+            Some(Task::none())
+        }
+        Message::LlmAnalysisComplete(Err(e)) => {
+            state.agent_loading = false;
+            state.agent_llm_error = Some(e.clone());
+            state.push_toast(format!("LLM error — falling back to template: {}", e.chars().take(80).collect::<String>()));
+            // Fallback to template
             state.recompute_agent_if_active();
             Some(Task::none())
         }
+
+        // API key text input buffer
+        Message::ApiKeyInput(s) => { state.api_key_input = s; Some(Task::none()) }
 
         // Comparison
         Message::CompareInput(s) => { state.compare_input = s; Some(Task::none()) }
@@ -243,6 +298,68 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
         }
         Message::CompareDataLoaded(Ok(data)) => { state.compare_data = data; Some(Task::none()) }
         Message::CompareDataLoaded(Err(_)) => Some(Task::none()),
+
+        // ── Fetch single ticker via scraper subprocess ─────────
+        Message::FetchThisTicker => {
+            state.fetching_ticker = true;
+            state.fetch_ticker_error = None;
+            state.push_toast(format!("Fetching data for {}...", state.selected_ticker));
+            let ticker = state.selected_ticker.clone();
+            Some(Task::perform(
+                async move {
+                    // Find the scraper binary adjacent to our own executable
+                    let scraper_path = std::env::current_exe()
+                        .ok()
+                        .and_then(|p| p.parent().map(|d| {
+                            let name = if cfg!(windows) { "scraper.exe" } else { "scraper" };
+                            d.join(name)
+                        }))
+                        .unwrap_or_else(|| std::path::PathBuf::from("scraper"));
+
+                    let output = tokio::process::Command::new(&scraper_path)
+                        .args(["--ticker", &ticker])
+                        .output()
+                        .await
+                        .map_err(|e| format!("Failed to spawn scraper: {e}"))?;
+
+                    if output.status.success() {
+                        Ok(())
+                    } else {
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+                        Err(format!("Scraper failed: {}", stderr.chars().take(200).collect::<String>()))
+                    }
+                },
+                Message::FetchTickerComplete,
+            ))
+        }
+        Message::FetchTickerComplete(result) => {
+            state.fetching_ticker = false;
+            match result {
+                Ok(()) => {
+                    state.push_toast(format!("{} data fetched!", state.selected_ticker));
+                    // Auto-refresh from DB
+                    if let Some(pool) = &state.pool {
+                        Some(Task::batch([
+                            Dashboard::fetch_all(pool, state.selected_ticker.clone()),
+                            Task::perform(
+                                crate::db::fetch_lagrange_history(
+                                    std::sync::Arc::clone(pool),
+                                    state.selected_ticker.clone(),
+                                ),
+                                Message::LagrangeHistoryLoaded,
+                            ),
+                        ]))
+                    } else {
+                        Some(Task::none())
+                    }
+                }
+                Err(e) => {
+                    state.fetch_ticker_error = Some(e.clone());
+                    state.push_toast(format!("Fetch failed: {e}"));
+                    Some(Task::none())
+                }
+            }
+        }
 
         _ => None,
     }

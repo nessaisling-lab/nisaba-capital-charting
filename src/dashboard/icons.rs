@@ -4,6 +4,10 @@
 //! helper that returns Iced 0.13-compatible `Text` widgets. This avoids
 //! type incompatibility between iced_fonts 0.3 (which targets iced_core 0.14)
 //! and our iced 0.13 application.
+//!
+//! Many constants are defined but not yet referenced — they form a curated
+//! design-system palette for incremental adoption across views.
+#![allow(dead_code)]
 
 use iced::widget::text;
 use iced::{Element, Font};
@@ -71,6 +75,7 @@ pub const GRAPH_UP: char       = '\u{f3f2}';
 pub const GRAPH_DOWN: char     = '\u{f3f1}';
 pub const ACTIVITY: char       = '\u{f66b}';
 pub const WALLET: char         = '\u{f614}';
+pub const KEY: char            = '\u{f449}';
 
 // ---------------------------------------------------------------------------
 // Helper — returns an iced 0.13 Text element with the Bootstrap icon font

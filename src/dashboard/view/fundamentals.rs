@@ -1,7 +1,7 @@
 use iced::widget::{button, column, container, horizontal_rule, row, scrollable, text, text_input, Column, Row};
 use iced::{Alignment, Element, Length};
 
-use crate::agents::{AgentPersona, AgentVerdict};
+use crate::agents::{AgentMode, AgentPersona, AgentVerdict};
 use crate::helpers::{format_market_value_i64, format_shares};
 
 use crate::state::{Dashboard, Message};
@@ -60,6 +60,9 @@ impl Dashboard {
                 text("Fundamental Metrics").size(theme::text_lg()),
                 text("No fundamental data yet. Run the scraper with an FMP API key to fetch valuation ratios, profitability metrics, and balance sheet data.")
                     .size(theme::text_sm()),
+                button(
+                    text(format!("Fetch {} data now", self.selected_ticker)).size(theme::text_sm())
+                ).on_press(Message::FetchThisTicker),
                 text("Source: Financial Modeling Prep /v3/key-metrics-ttm + /v3/ratios-ttm")
                     .size(theme::text_xs()),
             ]
@@ -239,6 +242,17 @@ impl Dashboard {
             }
         };
 
+        // ── Agent Mode Toggle ────────────────────────────────
+        let template_label = if self.agent_mode == AgentMode::Template { "[Template]" } else { "Template" };
+        let llm_label = if self.agent_mode == AgentMode::Llm { "[LLM]" } else { "LLM" };
+        let mode_toggle = row![
+            text("Analysis Mode:").size(theme::text_sm()),
+            button(text(template_label).size(theme::text_sm()))
+                .on_press(Message::SetAgentMode(AgentMode::Template)),
+            button(text(llm_label).size(theme::text_sm()))
+                .on_press(Message::SetAgentMode(AgentMode::Llm)),
+        ].spacing(6).align_y(Alignment::Center);
+
         // ── Agent Personas ──────────────────────────────────
         let agent_buttons: Row<Message> = AgentPersona::all().iter().fold(
             row![text("Ask the Council:").size(theme::text_base())]
@@ -257,11 +271,20 @@ impl Dashboard {
             },
         );
 
-        let agent_section: Element<'_, Message> = if let Some(ref analysis) = self.agent_analysis {
+        let agent_section: Element<'_, Message> = if self.agent_loading {
+            let persona_name = self.active_agent.map(|p| p.name()).unwrap_or("Agent");
+            column![
+                text(format!("Consulting the council... {} is thinking...", persona_name)).size(theme::text_base()),
+            ].spacing(6).into()
+        } else if let Some(ref analysis) = self.agent_analysis {
             let verdict_color = match analysis.verdict {
                 AgentVerdict::StrongBuy | AgentVerdict::Buy => theme::ZONE_OPTIMAL,
                 AgentVerdict::Hold | AgentVerdict::InsufficientData => theme::ZONE_NEUTRAL,
                 AgentVerdict::Sell | AgentVerdict::StrongSell => theme::ZONE_MISALIGNED,
+            };
+            let mode_badge = match self.agent_mode {
+                AgentMode::Llm => " (LLM)",
+                AgentMode::Template => " (Template)",
             };
             let metrics_rows: Vec<Element<Message>> = analysis.key_metrics.iter().map(|(metric, value, assessment)| {
                 row![
@@ -270,8 +293,8 @@ impl Dashboard {
                     text(assessment.clone()).size(theme::text_xs()).width(Length::Fill),
                 ].spacing(8).into()
             }).collect();
-            column![
-                text(format!("{} — {}", analysis.persona.name(), analysis.persona.philosophy())).size(theme::text_sm()),
+            let mut content = column![
+                text(format!("{}{} — {}", analysis.persona.name(), mode_badge, analysis.persona.philosophy())).size(theme::text_sm()),
                 horizontal_rule(1),
                 text(analysis.headline.clone()).size(theme::text_base()),
                 text(format!("Verdict: {}", analysis.verdict.label())).size(theme::text_md()).color(verdict_color),
@@ -280,7 +303,11 @@ impl Dashboard {
                 Column::with_children(metrics_rows).spacing(3),
                 horizontal_rule(1),
                 text(format!("On the stars: {}", analysis.astro_take)).size(theme::text_xs()),
-            ].spacing(6).into()
+            ].spacing(6);
+            if let Some(ref err) = self.agent_llm_error {
+                content = content.push(text(format!("LLM error: {}", err)).size(theme::text_xs()).color(theme::ZONE_MISALIGNED));
+            }
+            content.into()
         } else {
             column![
                 text("Select an agent to get their investment analysis:").size(theme::text_sm()),
@@ -414,6 +441,7 @@ impl Dashboard {
             horizontal_rule(1),
             greeks_section,
             horizontal_rule(1),
+            mode_toggle,
             agent_buttons,
             agent_section,
             horizontal_rule(1),

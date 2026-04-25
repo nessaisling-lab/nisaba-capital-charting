@@ -266,7 +266,7 @@ fn finnhub_industry_to_sector(industry: &str) -> String {
 // Individual fetch functions
 // ---------------------------------------------------------------------------
 
-async fn fetch_finnhub_news(
+pub(crate) async fn fetch_finnhub_news(
     ticker: &str,
     pool: &sqlx::PgPool,
     client: &reqwest::Client,
@@ -381,7 +381,7 @@ async fn fetch_finnhub_earnings(
     Ok(inserted)
 }
 
-async fn fetch_finnhub_recommendations(
+pub(crate) async fn fetch_finnhub_recommendations(
     ticker: &str,
     pool: &sqlx::PgPool,
     client: &reqwest::Client,

@@ -1,3 +1,10 @@
+//! Theme system — circadian auto-switching, Catppuccin Mocha/Latte palettes,
+//! and semantic color functions for canvas widgets.
+//!
+//! Full palette kept as a design system. Not all colors/functions are
+//! referenced yet — they are adopted incrementally across views.
+#![allow(dead_code)]
+
 use iced::Color;
 
 // ---------------------------------------------------------------------------

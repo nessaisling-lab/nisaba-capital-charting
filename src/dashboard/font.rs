@@ -42,6 +42,7 @@ pub const INTER_BOLD: Font = Font {
 };
 
 /// JetBrains Mono — prices, scores, percentages, numeric columns.
+#[allow(dead_code)]
 pub const MONO: Font = Font {
     family: Family::Name("JetBrains Mono"),
     weight: Weight::Normal,
