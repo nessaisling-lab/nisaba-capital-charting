@@ -1,22 +1,21 @@
 # TODOS
 
-## docker-compose.yml for local PostgreSQL
+## Open
 
-**What:** Add a `docker-compose.yml` to the repo root that starts a PostgreSQL instance.
-**Why:** "Install PostgreSQL" is a 30-minute Windows adventure. `docker compose up -d` is 30 seconds and reproducible.
-**Pros:** Reproducible setup, no system PostgreSQL needed, works on instructor's machine for demo.
-**Cons:** Requires Docker Desktop installed.
-**Context:** 10-line file. Would set `POSTGRES_PASSWORD=dev`, `POSTGRES_DB=financial_dashboard`, expose port 5432. The DATABASE_URL in `.env.example` already matches this config.
-**Blocked by:** Nothing — can be added any time before the demo.
+### docker-compose.yml for local PostgreSQL
+**What:** `docker-compose.yml` to start PostgreSQL. 10-line file, `POSTGRES_PASSWORD=dev`, port 5432.
+**Blocked by:** User wants to explore Docker first.
 
-## ~~Paper engine: position sizing drift (rebalancing)~~ DONE (v6.1.0)
+### Sub-score computation (Fin/Macro/Short/Concordance)
+**What:** Lagrange composite currently equals astro score. Fin, Macro, Short, and Concordance sub-scores are never computed.
+**Impact:** Universe Explorer, alerts, and paper engine all score on astrology alone.
 
-Implemented sell-only rebalancing with 25% drift threshold. Positions exceeding target weight are trimmed; freed cash funds next cycle's buys.
+### "Fetch this ticker" button
+**What:** Single-ticker on-demand scraper fetch from the dashboard UI.
+**Blocked by:** Needs scraper-side work (currently batch-only pipeline).
 
-## ~~Data reliability: price source upgrade + priority queue~~ DONE (v6.2.0)
-
-Priority queue implemented: paper engine positions + Lagrange buy candidates are merged into the pipeline's priority list before Phase 2. All 6 downstream data sources (AV price, Tiingo, sentiment, Finnhub, short interest, EDGAR) now cover paper engine tickers. Tiingo SQL upgraded to tier-0 priority for paper positions. Price source upgrade (Tiingo paid tier) deferred — the priority queue alone eliminates stale-price risk for the paper engine's ~30 tickers/day needs within the free-tier budget.
-
-## ~~Paper engine: NYSE trading calendar / holiday awareness~~ DONE (v6.1.0)
-
-Implemented `is_nyse_holiday()` covering 9 holidays with observed-date shifting + weekend guard. 5 unit tests.
+## Completed (v6.0-v7.0)
+- v7.0: Renaissance book UI/UX overhaul (Parchment/Leather themes, 24-stage circadian, Fraunces/Source Serif typography)
+- v6.2: Paper engine priority pipeline (all data sources cover paper tickers)
+- v6.1: Equity curve, NYSE holidays, rebalancing, stop-losses
+- v6.0: Paper trading engine (Lagrange signal-driven simulation)
