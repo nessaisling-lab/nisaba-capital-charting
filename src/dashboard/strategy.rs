@@ -20,6 +20,8 @@ pub enum Condition {
     MacdCrossDown,
     PriceAboveSma50,
     PriceBelowSma50,
+    LagrangeAbove(f64),
+    LagrangeBelow(f64),
 }
 
 impl Condition {
@@ -43,6 +45,8 @@ impl Condition {
             Self::MacdCrossDown => "MACD Cross Down".to_string(),
             Self::PriceAboveSma50 => "Price > SMA50".to_string(),
             Self::PriceBelowSma50 => "Price < SMA50".to_string(),
+            Self::LagrangeAbove(v) => format!("Lagrange > {v:.0}"),
+            Self::LagrangeBelow(v) => format!("Lagrange < {v:.0}"),
         }
     }
 }
@@ -96,6 +100,7 @@ pub struct DaySnapshot {
     pub macd: Option<f32>,
     pub macd_prev: Option<f32>,
     pub sma50: Option<f32>,
+    pub lagrange_score: Option<f64>,
 }
 
 impl Strategy {
@@ -140,6 +145,8 @@ impl Strategy {
             }
             Condition::PriceAboveSma50 => day.sma50.map(|s| day.close > s as f64).unwrap_or(false),
             Condition::PriceBelowSma50 => day.sma50.map(|s| day.close < s as f64).unwrap_or(false),
+            Condition::LagrangeAbove(threshold) => day.lagrange_score.map(|s| s >= *threshold).unwrap_or(false),
+            Condition::LagrangeBelow(threshold) => day.lagrange_score.map(|s| s <= *threshold).unwrap_or(false),
         }
     }
 }
@@ -263,6 +270,7 @@ mod tests {
             macd: None,
             macd_prev: None,
             sma50: None,
+            lagrange_score: None,
         }
     }
 
@@ -302,5 +310,53 @@ mod tests {
         // Only RSI condition met
         let day = snap(2025, 1, 1, 100.0, 50.0, 25.0);
         assert!(strategy.should_buy(&day)); // OR logic: one is enough
+    }
+
+    #[test]
+    fn test_lagrange_above_condition() {
+        let strategy = Strategy {
+            name: "Paper Buy".to_string(),
+            buy_conditions: vec![Condition::LagrangeAbove(75.0)],
+            buy_logic: Logic::And,
+            sell_conditions: vec![Condition::LagrangeBelow(40.0)],
+            sell_logic: Logic::And,
+        };
+
+        // Lagrange above threshold -> buy
+        let mut day = snap(2025, 1, 1, 100.0, 50.0, 50.0);
+        day.lagrange_score = Some(80.0);
+        assert!(strategy.should_buy(&day));
+
+        // Lagrange in hold zone -> no buy, no sell
+        day.lagrange_score = Some(55.0);
+        assert!(!strategy.should_buy(&day));
+        assert!(!strategy.should_sell(&day));
+
+        // Lagrange below sell threshold -> sell
+        day.lagrange_score = Some(35.0);
+        assert!(strategy.should_sell(&day));
+    }
+
+    #[test]
+    fn test_lagrange_missing_score() {
+        let strategy = Strategy {
+            name: "Paper".to_string(),
+            buy_conditions: vec![Condition::LagrangeAbove(75.0)],
+            buy_logic: Logic::And,
+            sell_conditions: vec![Condition::LagrangeBelow(40.0)],
+            sell_logic: Logic::And,
+        };
+
+        // No Lagrange score -> neither buy nor sell (safe default)
+        let mut day = snap(2025, 1, 1, 100.0, 50.0, 50.0);
+        day.lagrange_score = None;
+        assert!(!strategy.should_buy(&day));
+        assert!(!strategy.should_sell(&day));
+    }
+
+    #[test]
+    fn test_lagrange_label() {
+        assert_eq!(Condition::LagrangeAbove(75.0).label(), "Lagrange > 75");
+        assert_eq!(Condition::LagrangeBelow(40.0).label(), "Lagrange < 40");
     }
 }

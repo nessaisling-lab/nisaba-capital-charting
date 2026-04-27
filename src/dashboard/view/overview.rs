@@ -3,6 +3,7 @@ use iced::widget::{column, container, horizontal_rule, row, scrollable, text, Co
 use iced::{Alignment, Element, Length};
 
 use crate::charts::{AstroMarker, LagrangeSparkline, PriceChart};
+use crate::font;
 use crate::helpers;
 use crate::indicators::{compute_lagrange_score, compute_ticker_score, Indicators};
 use crate::patterns;
@@ -96,6 +97,7 @@ impl Dashboard {
             container(
                 column![
                     text(format!("{} — Awaiting Data", self.selected_ticker))
+                        .font(font::DISPLAY)
                         .size(theme::text_lg()),
                     text("No price history loaded for this ticker yet.").size(theme::text_base()),
                     text("Run the scraper to fetch OHLCV data, then refresh.").size(theme::text_sm()),
@@ -359,7 +361,7 @@ impl Dashboard {
         // ── Signal Intelligence ─────────────────────────────
         let signal_section = if self.rows.is_empty() {
             column![
-                text("Signal Intelligence").size(theme::text_lg()),
+                text("Signal Intelligence").font(font::DISPLAY).size(theme::text_lg()),
                 text("No price data yet — run the scraper to fetch OHLCV history for this ticker.")
                     .size(theme::text_base()),
             ]
@@ -367,7 +369,7 @@ impl Dashboard {
         } else {
             match &self.indicators {
                 None => column![
-                    text("Signal Intelligence").size(theme::text_lg()),
+                    text("Signal Intelligence").font(font::DISPLAY).size(theme::text_lg()),
                     text("Loading indicators...").size(theme::text_base()),
                 ]
                 .spacing(4),
@@ -401,6 +403,7 @@ impl Dashboard {
                     .size(theme::text_base());
                     column![
                         text(format!("Signal Intelligence: {}", self.selected_ticker))
+                            .font(font::DISPLAY)
                             .size(theme::text_lg()),
                         horizontal_rule(1),
                         Column::with_children(bullet_items).spacing(4),
@@ -415,7 +418,7 @@ impl Dashboard {
         // ── Scored Universe / Ranking ───────────────────────
         let watchlist_section = if self.watchlist.is_empty() {
             column![
-                text("Scored Universe").size(theme::text_lg()),
+                text("Scored Universe").font(font::DISPLAY).size(theme::text_lg()),
                 text("Loading...").size(theme::text_base()),
             ]
             .spacing(4)
@@ -430,6 +433,7 @@ impl Dashboard {
                     "Scored Universe  —  {} tickers",
                     self.watchlist.len()
                 ))
+                .font(font::DISPLAY)
                 .size(theme::text_lg())
                 .width(Length::Fill),
                 iced::widget::button(text(sort_label).size(theme::text_base()))
@@ -530,7 +534,7 @@ impl Dashboard {
         // ── Polymarket ──────────────────────────────────────
         let polymarket_section: Element<'_, Message> = if self.polymarket.is_empty() {
             column![
-                text("Prediction Markets (Polymarket)").size(theme::text_md()),
+                text("Prediction Markets (Polymarket)").font(font::DISPLAY).size(theme::text_md()),
                 text("No prediction market data yet. Run the scraper to fetch top markets.")
                     .size(theme::text_sm()),
             ]
@@ -587,7 +591,7 @@ impl Dashboard {
                 })
                 .collect();
             column![
-                text("Prediction Markets (Polymarket)").size(theme::text_md()),
+                text("Prediction Markets (Polymarket)").font(font::DISPLAY).size(theme::text_md()),
                 scrollable(Column::with_children(pm_items).spacing(3))
                     .height(Length::Fixed(140.0)),
             ]

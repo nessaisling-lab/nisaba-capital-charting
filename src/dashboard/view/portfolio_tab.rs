@@ -1,6 +1,7 @@
 use iced::widget::{button, column, horizontal_rule, row, text, text_input, Column, Row};
 use iced::{Alignment, Element, Length};
 
+use crate::font;
 use crate::helpers;
 use crate::state::{Dashboard, Message};
 use crate::theme;
@@ -61,7 +62,7 @@ impl Dashboard {
         ].spacing(8);
 
         let watchlist_mgr = column![
-            text("Watchlists").size(theme::text_md()),
+            text("Watchlists").font(font::DISPLAY).size(theme::text_md()),
             wl_dropdown,
             wl_create_row,
             horizontal_rule(1),
@@ -107,7 +108,7 @@ impl Dashboard {
             }).collect();
 
             column![
-                text("Transaction Log").size(theme::text_md()),
+                text("Transaction Log").font(font::DISPLAY).size(theme::text_md()),
                 input_row,
                 horizontal_rule(1),
                 Column::with_children(tx_rows).spacing(1),
@@ -179,7 +180,7 @@ impl Dashboard {
             let total_color = if total_pnl > 0.0 { theme::ZONE_OPTIMAL } else if total_pnl < 0.0 { theme::ZONE_MISALIGNED } else { theme::ZONE_NEUTRAL };
 
             column![
-                text("Portfolio").size(theme::text_md()),
+                text("Portfolio").font(font::DISPLAY).size(theme::text_md()),
                 horizontal_rule(1),
                 hdr,
                 Column::with_children(pos_rows).spacing(2),
@@ -192,7 +193,7 @@ impl Dashboard {
             ].spacing(4)
         } else if self.portfolio.is_empty() {
             column![
-                text("Portfolio").size(theme::text_md()),
+                text("Portfolio").font(font::DISPLAY).size(theme::text_md()),
                 text("No positions tracked yet.").size(theme::text_base()),
                 text("Add rows to portfolio_positions via portfolio_seed.sql.").size(theme::text_sm()),
             ].spacing(4)
@@ -216,7 +217,7 @@ impl Dashboard {
 
             let total_basis: f32 = self.portfolio.iter().map(|p| p.shares * p.avg_cost).sum();
             column![
-                text("Portfolio").size(theme::text_md()),
+                text("Portfolio").font(font::DISPLAY).size(theme::text_md()),
                 horizontal_rule(1),
                 hdr,
                 Column::with_children(pos_rows).spacing(2),

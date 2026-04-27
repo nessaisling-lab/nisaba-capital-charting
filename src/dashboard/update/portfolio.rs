@@ -150,6 +150,7 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
                         macd,
                         macd_prev,
                         sma50,
+                        lagrange_score: None, // not available in backtest context
                     }
                 })
                 .collect();

@@ -2,6 +2,7 @@ pub mod ticker_data;
 pub mod astro;
 pub mod universe;
 pub mod portfolio;
+pub mod paper;
 
 use sqlx::PgPool;
 use std::sync::Arc;

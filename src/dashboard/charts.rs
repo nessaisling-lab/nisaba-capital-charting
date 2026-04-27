@@ -385,11 +385,7 @@ impl canvas::Program<Message> for PriceChart {
                     );
                     let tip_x = if bar_x < pad_left + w / 2.0 { bar_x + 8.0 } else { bar_x - 96.0 };
                     let tip_y = pad_top + 4.0;
-                    let tip_bg = if theme::is_dark(_theme) {
-                        Color::from_rgba(0.0, 0.0, 0.0, 0.78)
-                    } else {
-                        Color::from_rgba(0.15, 0.15, 0.20, 0.88)
-                    };
+                    let tip_bg = Color { a: 0.90, ..theme::palette().surface };
                     frame.fill_rectangle(
                         Point::new(tip_x, tip_y),
                         iced::Size::new(90.0, 58.0),
@@ -536,3 +532,291 @@ impl<Message> canvas::Program<Message> for LagrangeSparkline {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Equity Curve — Paper Trail performance chart (portfolio vs SPY benchmark)
+// ---------------------------------------------------------------------------
+
+/// Normalizes a value series to percentage change from the first value.
+fn normalize_to_pct(values: &[f64]) -> Vec<f64> {
+    if values.len() < 2 {
+        return vec![];
+    }
+    let base = values[0];
+    if base <= 0.0 {
+        return vec![0.0; values.len()];
+    }
+    values.iter().map(|v| (v - base) / base * 100.0).collect()
+}
+
+pub struct EquityCurve {
+    pub portfolio_values: Vec<f64>,
+    pub spy_values:       Vec<f64>,
+}
+
+impl EquityCurve {
+    fn draw_line(frame: &mut canvas::Frame, pts: &[Point], color: Color, width: f32) {
+        if pts.len() < 2 { return; }
+        let path = canvas::Path::new(|b| {
+            b.move_to(pts[0]);
+            for p in &pts[1..] {
+                b.line_to(*p);
+            }
+        });
+        frame.stroke(&path, canvas::Stroke {
+            style: canvas::Style::Solid(color),
+            width,
+            ..canvas::Stroke::default()
+        });
+    }
+}
+
+impl canvas::Program<Message> for EquityCurve {
+    type State = Option<Point>;
+
+    fn update(
+        &self,
+        state: &mut Option<Point>,
+        event: canvas::Event,
+        bounds: Rectangle,
+        cursor: mouse::Cursor,
+    ) -> (canvas::event::Status, Option<Message>) {
+        match event {
+            canvas::Event::Mouse(mouse::Event::CursorMoved { .. }) => {
+                *state = cursor.position_in(bounds);
+                (canvas::event::Status::Captured, None)
+            }
+            canvas::Event::Mouse(mouse::Event::CursorLeft) => {
+                *state = None;
+                (canvas::event::Status::Captured, None)
+            }
+            _ => (canvas::event::Status::Ignored, None),
+        }
+    }
+
+    fn mouse_interaction(
+        &self,
+        _state: &Option<Point>,
+        bounds: Rectangle,
+        cursor: mouse::Cursor,
+    ) -> mouse::Interaction {
+        if cursor.is_over(bounds) { mouse::Interaction::Crosshair }
+        else { mouse::Interaction::default() }
+    }
+
+    fn draw(
+        &self,
+        state: &Option<Point>,
+        renderer: &iced::Renderer,
+        _theme: &iced::Theme,
+        bounds: Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> Vec<canvas::Geometry> {
+        let mut frame = canvas::Frame::new(renderer, bounds.size());
+        frame.fill_rectangle(Point::ORIGIN, bounds.size(), theme::canvas_bg(_theme));
+
+        let port_pct = normalize_to_pct(&self.portfolio_values);
+        let spy_pct  = normalize_to_pct(&self.spy_values);
+
+        if port_pct.len() < 2 {
+            frame.fill_text(canvas::Text {
+                content: "Not enough data for equity curve yet".to_string(),
+                position: Point::new(8.0, bounds.height / 2.0 - 6.0),
+                color: theme::fg_muted(_theme),
+                size: iced::Pixels(10.0),
+                ..canvas::Text::default()
+            });
+            return vec![frame.into_geometry()];
+        }
+
+        let pad_left   = 55.0_f32;
+        let pad_right  = 15.0_f32;
+        let pad_top    = 20.0_f32;
+        let pad_bottom = 20.0_f32;
+        let w = bounds.width  - pad_left - pad_right;
+        let h = bounds.height - pad_top  - pad_bottom;
+        let n = port_pct.len();
+
+        // Find Y range across both series
+        let mut y_min: f64 = port_pct.iter().cloned().fold(f64::INFINITY, f64::min);
+        let mut y_max: f64 = port_pct.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        for &v in &spy_pct {
+            if v < y_min { y_min = v; }
+            if v > y_max { y_max = v; }
+        }
+        // Ensure 0% baseline is always visible
+        if y_min > 0.0 { y_min = -1.0; }
+        if y_max < 0.0 { y_max = 1.0; }
+        // Add 5% padding
+        let pad_y = (y_max - y_min) * 0.05;
+        y_min -= pad_y;
+        y_max += pad_y;
+        let y_range = y_max - y_min;
+        if y_range < 0.001 { return vec![frame.into_geometry()]; }
+
+        let x_of = |i: usize| -> f32 {
+            pad_left + (i as f32 / (n - 1).max(1) as f32) * w
+        };
+        let y_of = |pct: f64| -> f32 {
+            pad_top + ((y_max - pct) / y_range) as f32 * h
+        };
+
+        // Grid lines + Y labels (percentage)
+        let grid_count = 5;
+        for i in 0..=grid_count {
+            let t = i as f64 / grid_count as f64;
+            let pct_val = y_min + t * y_range;
+            let y = y_of(pct_val);
+            let grid = canvas::Path::new(|b| {
+                b.move_to(Point::new(pad_left, y));
+                b.line_to(Point::new(pad_left + w, y));
+            });
+            frame.stroke(&grid, canvas::Stroke {
+                style: canvas::Style::Solid(theme::grid_line(_theme)),
+                width: 1.0,
+                ..canvas::Stroke::default()
+            });
+            frame.fill_text(canvas::Text {
+                content: format!("{pct_val:+.1}%"),
+                position: Point::new(pad_left - 5.0, y),
+                color: theme::fg_muted(_theme),
+                size: iced::Pixels(9.0),
+                horizontal_alignment: iced::alignment::Horizontal::Right,
+                vertical_alignment: iced::alignment::Vertical::Center,
+                ..canvas::Text::default()
+            });
+        }
+
+        // 0% baseline (emphasized)
+        let zero_y = y_of(0.0);
+        if zero_y >= pad_top && zero_y <= pad_top + h {
+            let baseline = canvas::Path::new(|b| {
+                b.move_to(Point::new(pad_left, zero_y));
+                b.line_to(Point::new(pad_left + w, zero_y));
+            });
+            frame.stroke(&baseline, canvas::Stroke {
+                style: canvas::Style::Solid(Color { a: 0.3, ..theme::palette().ink }),
+                width: 1.5,
+                ..canvas::Stroke::default()
+            });
+        }
+
+        // SPY line (draw first, behind portfolio)
+        let spy_color = Color::from_rgba(0.5, 0.5, 0.6, 0.7);
+        if spy_pct.len() >= 2 {
+            let spy_n = spy_pct.len().min(n);
+            let spy_pts: Vec<Point> = (0..spy_n)
+                .map(|i| Point::new(x_of(i), y_of(spy_pct[i])))
+                .collect();
+            Self::draw_line(&mut frame, &spy_pts, spy_color, 1.5);
+
+            // End label
+            if let Some(&last_spy) = spy_pct.last() {
+                let lx = x_of(spy_n.saturating_sub(1));
+                let ly = y_of(last_spy);
+                frame.fill_text(canvas::Text {
+                    content: format!("SPY {last_spy:+.1}%"),
+                    position: Point::new(lx + 4.0, ly),
+                    color: spy_color,
+                    size: iced::Pixels(9.0),
+                    vertical_alignment: iced::alignment::Vertical::Center,
+                    ..canvas::Text::default()
+                });
+            }
+        }
+
+        // Portfolio line (green)
+        let port_color = Color::from_rgb(0.2, 0.8, 0.4);
+        let port_pts: Vec<Point> = (0..n)
+            .map(|i| Point::new(x_of(i), y_of(port_pct[i])))
+            .collect();
+        Self::draw_line(&mut frame, &port_pts, port_color, 2.0);
+
+        // End label for portfolio
+        if let Some(&last_port) = port_pct.last() {
+            let lx = x_of(n - 1);
+            let ly = y_of(last_port);
+            frame.fill_text(canvas::Text {
+                content: format!("Portfolio {last_port:+.1}%"),
+                position: Point::new(lx + 4.0, ly - 12.0),
+                color: port_color,
+                size: iced::Pixels(9.0),
+                vertical_alignment: iced::alignment::Vertical::Center,
+                ..canvas::Text::default()
+            });
+        }
+
+        // Title
+        frame.fill_text(canvas::Text {
+            content: "Equity Curve (% return)".to_string(),
+            position: Point::new(pad_left + 6.0, 4.0),
+            color: theme::fg_dim(_theme),
+            size: iced::Pixels(11.0),
+            ..canvas::Text::default()
+        });
+
+        // Legend
+        frame.fill_text(canvas::Text {
+            content: "Portfolio".to_string(),
+            position: Point::new(bounds.width - 120.0, 4.0),
+            color: port_color,
+            size: iced::Pixels(9.0),
+            ..canvas::Text::default()
+        });
+        frame.fill_text(canvas::Text {
+            content: "SPY".to_string(),
+            position: Point::new(bounds.width - 60.0, 4.0),
+            color: spy_color,
+            size: iced::Pixels(9.0),
+            ..canvas::Text::default()
+        });
+
+        // Hover crosshair + tooltip
+        if let Some(pos) = state {
+            if pos.x >= pad_left && pos.x <= pad_left + w && n > 1 {
+                let frac = ((pos.x - pad_left) / w).clamp(0.0, 1.0);
+                let bar_i = ((frac * (n - 1) as f32).round() as usize).min(n - 1);
+                let bar_x = x_of(bar_i);
+
+                // Vertical crosshair
+                let vline = canvas::Path::new(|b| {
+                    b.move_to(Point::new(bar_x, pad_top));
+                    b.line_to(Point::new(bar_x, pad_top + h));
+                });
+                frame.stroke(&vline, canvas::Stroke {
+                    style: canvas::Style::Solid(theme::fg_dim(_theme)),
+                    width: 1.0,
+                    ..canvas::Stroke::default()
+                });
+
+                // Tooltip
+                let port_val = port_pct.get(bar_i).copied().unwrap_or(0.0);
+                let spy_val = spy_pct.get(bar_i).copied().unwrap_or(0.0);
+                let alpha_val = port_val - spy_val;
+                let label = format!(
+                    "Day {}\nPortfolio: {:+.2}%\nSPY: {:+.2}%\nAlpha: {:+.2}%",
+                    bar_i + 1, port_val, spy_val, alpha_val
+                );
+                let tip_x = if bar_x < pad_left + w / 2.0 { bar_x + 8.0 } else { bar_x - 110.0 };
+                let tip_bg = if theme::is_dark(_theme) {
+                    Color::from_rgba(0.0, 0.0, 0.0, 0.78)
+                } else {
+                    Color::from_rgba(0.15, 0.15, 0.20, 0.88)
+                };
+                frame.fill_rectangle(
+                    Point::new(tip_x, pad_top + 4.0),
+                    Size::new(105.0, 50.0),
+                    tip_bg,
+                );
+                frame.fill_text(canvas::Text {
+                    content: label,
+                    position: Point::new(tip_x + 4.0, pad_top + 8.0),
+                    color: Color::WHITE,
+                    size: iced::Pixels(9.0),
+                    ..canvas::Text::default()
+                });
+            }
+        }
+
+        vec![frame.into_geometry()]
+    }
+}

@@ -1,12 +1,12 @@
 //! Tab navigation system — Astrology as the flagship first tab.
 //!
-//! The dashboard uses a 7-tab layout. Astrology is the default and primary tab
+//! The dashboard uses an 8-tab layout. Astrology is the default and primary tab
 //! because it's THE product differentiator. Everything else exists to verify
 //! and contextualize the astrological signal.
 
 use crate::icons;
 
-/// The seven dashboard tabs, in display order.
+/// The eight dashboard tabs, in display order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
     /// PRIMARY: natal wheel, horoscope reading, transits, moon phase, Top 5/Bottom 5
@@ -21,6 +21,8 @@ pub enum Tab {
     Research,
     /// Portfolio positions + macro strip
     Portfolio,
+    /// Paper trading simulation track record
+    PaperTrail,
     /// User settings: theme, refresh, API keys
     Settings,
 }
@@ -35,6 +37,7 @@ impl Tab {
             Tab::Fundamentals,
             Tab::Research,
             Tab::Portfolio,
+            Tab::PaperTrail,
             Tab::Settings,
         ]
     }
@@ -47,6 +50,7 @@ impl Tab {
             Tab::Fundamentals => "Fundamentals",
             Tab::Research     => "Research",
             Tab::Portfolio    => "Portfolio",
+            Tab::PaperTrail   => "Paper Trail",
             Tab::Settings     => "Settings",
         }
     }
@@ -60,6 +64,7 @@ impl Tab {
             Tab::Fundamentals => icons::BAR_CHART,
             Tab::Research     => icons::NEWSPAPER,
             Tab::Portfolio    => icons::BRIEFCASE,
+            Tab::PaperTrail   => icons::GRAPH_UP,
             Tab::Settings     => icons::GEAR,
         }
     }

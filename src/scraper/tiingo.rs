@@ -71,20 +71,29 @@ pub async fn fetch_all_prices_tiingo(
     }
 
     // Build a prioritised ticker list:
-    //   (a) watchlist tickers first
-    //   (b) tickers with natal chart but < 26 price rows
-    let order = crate::enrich_common::watchlist_priority_sql();
+    //   (a) watchlist + paper portfolio tickers first (tier 0)
+    //   (b) tickers with natal chart but < 26 price rows (tier 1)
+    let wl = crate::watchlist()
+        .iter()
+        .map(|t| format!("'{t}'"))
+        .collect::<Vec<_>>()
+        .join(", ");
     let tickers: Vec<String> = sqlx::query_scalar(&format!(
         "SELECT cm.ticker
          FROM company_metadata cm
          WHERE cm.ipo_date IS NOT NULL
            AND (
              cm.ticker = ANY($1)
+             OR cm.ticker IN (SELECT ticker FROM paper_portfolio)
              OR (
                SELECT COUNT(*) FROM price_data pd WHERE pd.ticker = cm.ticker
              ) < {LAGRANGE_MIN_ROWS}
            )
-         ORDER BY {order}
+         ORDER BY CASE
+           WHEN cm.ticker IN ({wl}) THEN 0
+           WHEN cm.ticker IN (SELECT ticker FROM paper_portfolio) THEN 0
+           ELSE 1
+         END, cm.ticker
          LIMIT {budget}"
     ))
     .bind(crate::watchlist())

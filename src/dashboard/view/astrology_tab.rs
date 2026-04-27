@@ -4,6 +4,7 @@ use iced::{Alignment, Element, Length};
 
 use crate::astrology::{build_transits_section, build_wheel_legend, NatalWheel};
 use crate::calendar::AstroCalendar;
+use crate::font;
 use crate::state::{Dashboard, Message};
 use crate::strategy::Condition;
 use crate::theme;
@@ -24,7 +25,7 @@ impl Dashboard {
 
         let astrology_section: Element<Message> = if self.natal_positions.is_empty() {
             column![
-                text(format!("{} Astrology", self.selected_ticker)).size(theme::text_lg()),
+                text(format!("{} Astrology", self.selected_ticker)).font(font::DISPLAY).size(theme::text_lg()),
                 horizontal_rule(1),
                 text("No birth chart yet for this ticker.").size(theme::text_base()),
                 text("The scraper enriches ~50 tickers per day via SEC EDGAR.").size(theme::text_sm()),
@@ -42,7 +43,7 @@ impl Dashboard {
             .height(Length::Fixed(300.0));
 
             let wheel_col = column![
-                text(format!("{} Birth Chart", self.selected_ticker)).size(theme::text_lg()),
+                text(format!("{} Birth Chart", self.selected_ticker)).font(font::DISPLAY).size(theme::text_lg()),
                 natal_wheel,
                 build_wheel_legend(),
             ]
@@ -93,7 +94,7 @@ impl Dashboard {
 
                 column![
                     horizontal_rule(1),
-                    text("Horoscope Reading").size(theme::text_lg()),
+                    text("Horoscope Reading").font(font::DISPLAY).size(theme::text_lg()),
                     text(&h.overall_outlook).size(theme::text_base()),
                     row![
                         text(format!("Theme: {}", h.dominant_theme)).size(theme::text_sm()),
@@ -148,7 +149,7 @@ impl Dashboard {
             if let Some(ref bt) = self.backtest_result {
                 if let Some(ref msg) = bt.insufficient_data {
                     return column![
-                        text("Astro Backtest").size(theme::text_md()),
+                        text("Astro Backtest").font(font::DISPLAY).size(theme::text_md()),
                         config_row,
                         horizontal_rule(1),
                         text(msg.as_str())
@@ -237,7 +238,7 @@ impl Dashboard {
                 .into()
             } else {
                 column![
-                    text("Astro Backtest").size(theme::text_md()),
+                    text("Astro Backtest").font(font::DISPLAY).size(theme::text_md()),
                     config_row,
                     text("Press 'Run Backtest' to test the astro signal for this ticker.")
                         .size(theme::text_sm()),
@@ -316,7 +317,7 @@ impl Dashboard {
             .spacing(4);
 
             let mut strat_col = column![
-                text("Strategy Builder").size(theme::text_md()),
+                text("Strategy Builder").font(font::DISPLAY).size(theme::text_md()),
                 row![text("BUY when").size(theme::text_sm()), buy_logic_btn]
                     .spacing(6)
                     .align_y(Alignment::Center),
@@ -368,7 +369,7 @@ impl Dashboard {
         let calendar_section: Element<'_, Message> = {
             let nav = row![
                 button(text("< Prev").size(theme::text_sm())).on_press(Message::CalendarPrevMonth),
-                text("Astro Calendar").size(theme::text_md()),
+                text("Astro Calendar").font(font::DISPLAY).size(theme::text_md()),
                 button(text("Next >").size(theme::text_sm())).on_press(Message::CalendarNextMonth),
             ]
             .spacing(8)

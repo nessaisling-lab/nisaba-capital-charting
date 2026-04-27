@@ -28,6 +28,7 @@ use crate::db::{
     fetch_transactions, fetch_universe_count, fetch_universe_page,
     fetch_watchlist_summaries, fetch_astro_calendar, fetch_fear_greed,
     load_tickers, upsert_setting,
+    paper::{fetch_paper_account, fetch_paper_positions, fetch_paper_trades, fetch_paper_daily_values},
 };
 use crate::state::{Dashboard, Message};
 
@@ -138,6 +139,11 @@ impl Dashboard {
                         Task::perform(fetch_rss_articles(Arc::clone(pool)), Message::RssArticlesLoaded),
                         Task::perform(fetch_polymarket(Arc::clone(pool)), Message::PolymarketLoaded),
                         Task::perform(fetch_gdelt(Arc::clone(pool)), Message::GdeltLoaded),
+                        // Paper Trail data
+                        Task::perform(fetch_paper_account(Arc::clone(pool)), Message::PaperAccountLoaded),
+                        Task::perform(fetch_paper_positions(Arc::clone(pool)), Message::PaperPositionsLoaded),
+                        Task::perform(fetch_paper_trades(Arc::clone(pool)), Message::PaperTradesLoaded),
+                        Task::perform(fetch_paper_daily_values(Arc::clone(pool)), Message::PaperValuesLoaded),
                         {
                             let retro_start = chrono::Local::now().date_naive() - chrono::Duration::days(365);
                             let retro_end = chrono::Local::now().date_naive();
@@ -181,7 +187,18 @@ impl Dashboard {
             }
             Message::ToggleTheme => {
                 self.theme_mode = self.theme_mode.next();
-                self.theme = crate::theme::iced_theme(self.theme_mode);
+                let hour = self.circadian_override.unwrap_or_else(crate::theme::current_hour);
+                self.theme = crate::theme::iced_theme(self.theme_mode, hour);
+                Task::none()
+            }
+            Message::CircadianSliderChanged(hour) => {
+                self.circadian_override = Some(hour);
+                self.theme = crate::theme::iced_theme(self.theme_mode, hour);
+                Task::none()
+            }
+            Message::CircadianSliderReset => {
+                self.circadian_override = None;
+                self.theme = crate::theme::iced_theme(self.theme_mode, crate::theme::current_hour());
                 Task::none()
             }
             Message::TogglePriceTable => {
@@ -227,8 +244,9 @@ impl Dashboard {
             }
             Message::Tick => {
                 self.expire_toasts();
-                if self.theme_mode == crate::theme::ThemeMode::Auto {
-                    self.theme = crate::theme::iced_theme(self.theme_mode);
+                // Refresh palette on tick (skip if user has slider override)
+                if self.circadian_override.is_none() {
+                    self.theme = crate::theme::iced_theme(self.theme_mode, crate::theme::current_hour());
                 }
                 if let Some(pool) = &self.pool {
                     Task::batch([
@@ -245,12 +263,11 @@ impl Dashboard {
                 for (k, v) in pairs {
                     if k == "theme_mode" {
                         self.theme_mode = match v.as_str() {
-                            "Light" => crate::theme::ThemeMode::AlwaysLight,
-                            "Dark" => crate::theme::ThemeMode::AlwaysDark,
-                            "TokyoNight" => crate::theme::ThemeMode::TokyoNight,
+                            "Parchment" | "Light" => crate::theme::ThemeMode::Parchment,
+                            "Leather" | "Dark" => crate::theme::ThemeMode::Leather,
                             _ => crate::theme::ThemeMode::Auto,
                         };
-                        self.theme = crate::theme::iced_theme(self.theme_mode);
+                        self.theme = crate::theme::iced_theme(self.theme_mode, crate::theme::current_hour());
                     }
                     if k == "refresh_interval_secs" {
                         self.settings_refresh_input = v.clone();
@@ -284,12 +301,11 @@ impl Dashboard {
                 self.settings.insert(key.clone(), value.clone());
                 if key == "theme_mode" {
                     self.theme_mode = match value.as_str() {
-                        "Light" => crate::theme::ThemeMode::AlwaysLight,
-                        "Dark" => crate::theme::ThemeMode::AlwaysDark,
-                        "TokyoNight" => crate::theme::ThemeMode::TokyoNight,
+                        "Parchment" | "Light" => crate::theme::ThemeMode::Parchment,
+                        "Leather" | "Dark" => crate::theme::ThemeMode::Leather,
                         _ => crate::theme::ThemeMode::Auto,
                     };
-                    self.theme = crate::theme::iced_theme(self.theme_mode);
+                    self.theme = crate::theme::iced_theme(self.theme_mode, crate::theme::current_hour());
                 }
                 if key == "font_scale" {
                     let (scale, label) = match value.as_str() {
@@ -315,6 +331,29 @@ impl Dashboard {
                 Task::none()
             }
             Message::SettingSaved(Err(_)) => Task::none(),
+
+            // ── Paper Trail ────────────────────────────────────────────
+            Message::PaperAccountLoaded(Ok(acc)) => {
+                self.paper_account = acc;
+                Task::none()
+            }
+            Message::PaperAccountLoaded(Err(_)) => Task::none(),
+            Message::PaperPositionsLoaded(Ok(pos)) => {
+                self.paper_positions = pos;
+                Task::none()
+            }
+            Message::PaperPositionsLoaded(Err(_)) => Task::none(),
+            Message::PaperTradesLoaded(Ok(trades)) => {
+                self.paper_trades = trades;
+                Task::none()
+            }
+            Message::PaperTradesLoaded(Err(_)) => Task::none(),
+            Message::PaperValuesLoaded(Ok((paper, spy))) => {
+                self.paper_daily_values = paper;
+                self.paper_spy_values = spy;
+                Task::none()
+            }
+            Message::PaperValuesLoaded(Err(_)) => Task::none(),
 
             // Catch-all: message was already handled by a domain module
             // or is unknown. This shouldn't happen in practice.

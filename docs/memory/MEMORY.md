@@ -1,0 +1,8 @@
+- [Product vision](user_vision.md) — Bloomberg-class Rust terminal: FinceptTerminal + Buffett philosophy + Apple UX
+- [Version docs](feedback_version_docs.md) — Update DESIGN.md with detailed explanations after every version completion
+- [v3.0 bugs](bugs_v3_review.md) — Score polarization, theme mismatch, dead code, API limits found in post-release review
+- [v3.1.6+ backlog](bugs_v3_dashboard_review.md) — 6 bugs + 8 UX improvements + 7 features from 2026-04-23 video review (158 frames)
+- [FinceptTerminal + v3.1 plan](reference_fincept_apis.md) — v3.1.x "The Network": DBnomics, RSS, Polymarket ported from FinceptTerminal C++ sources
+- [v4.0 "The Forge" plan](project_v4_forge_plan.md) — Approved 3-phase roadmap: tech debt, Catppuccin UI/UX, candlestick charts + new features
+- [Auto-compact](feedback_autocompact.md) — Always auto-compact after finishing tasks; document each task
+- [Video review](feedback_video_review.md) — Extract MP4 frames with ffmpeg before reviewing; never Read MP4 directly

@@ -12,6 +12,7 @@ mod holdings;
 mod lagrange;
 mod macro_data;
 mod options;
+mod paper_engine;
 mod polymarket;
 mod prices;
 mod rss_news;
@@ -460,19 +461,45 @@ async fn run_all_fetches(
     }
 
     // =========================================================================
+    // PHASE 1.5: PAPER ENGINE PRIORITY TICKERS
+    // =========================================================================
+    // The paper engine needs fresh prices for open positions (stop-loss eval)
+    // and buy candidates (sizing). Merge these into the priority list so ALL
+    // Phase 2 steps (prices, sentiment, Finnhub, etc.) cover them.
+    // =========================================================================
+
+    println!("\n1.5 Collecting paper engine priority tickers...");
+    let paper_tickers = paper_engine::collect_priority_tickers(pool.as_ref()).await;
+    let priority = if paper_tickers.is_empty() {
+        println!("  No paper engine tickers to prioritize.");
+        priority
+    } else {
+        println!("  Paper engine tickers: {} (positions + candidates)", paper_tickers.len());
+        let mut combined = priority;
+        for t in paper_tickers {
+            if !combined.contains(&t) {
+                combined.push(t);
+            }
+        }
+        println!("  Combined priority list: {} tickers", combined.len());
+        combined
+    };
+
+    // =========================================================================
     // PHASE 2: TARGETED FINANCIAL VERIFICATION (guided by astro rankings)
     // =========================================================================
     // The astro-prioritized tickers get financial data first. With limited API
     // budgets (AV: 5/min, FMP: 120/day), this ensures the most astrologically
-    // interesting tickers are verified before budget is exhausted.
+    // interesting tickers are verified before budget is exhausted. Paper engine
+    // tickers are now merged into the priority list (Phase 1.5).
     // =========================================================================
 
     println!("\n╔══════════════════════════════════════════════════════════╗");
-    println!("║  PHASE 2: FINANCIAL DATA (astro-prioritized first)     ║");
+    println!("║  PHASE 2: FINANCIAL DATA (astro + paper prioritized)   ║");
     println!("╚══════════════════════════════════════════════════════════╝\n");
 
     if !priority.is_empty() {
-        println!("2.0 Fetching price data for astro-priority tickers...");
+        println!("2.0 Fetching price data for priority tickers ({} total)...", priority.len());
         prices::fetch_priority_prices(
             Arc::clone(&pool), Arc::clone(&client), Arc::clone(&api_key),
             Arc::clone(&av_limiter), &priority,
@@ -605,7 +632,21 @@ async fn run_all_fetches(
     println!("╚══════════════════════════════════════════════════════════╝\n");
 
     println!("4.1 Computing Lagrange scores...");
-    lagrange::compute_all_scores(pool).await;
+    lagrange::compute_all_scores(Arc::clone(&pool)).await;
+
+    // =========================================================================
+    // PHASE 5: PAPER TRADING SIMULATION (The Paper Trail)
+    // =========================================================================
+    // Runs after all scores are computed. Evaluates positions against Lagrange
+    // thresholds, executes simulated BUY/SELL trades, updates paper account.
+    // Idempotent: skips if already simulated for today's trading date.
+    // =========================================================================
+
+    println!("\n╔══════════════════════════════════════════════════════════╗");
+    println!("║  PHASE 5: PAPER TRADING (The Paper Trail simulation)   ║");
+    println!("╚══════════════════════════════════════════════════════════╝\n");
+
+    paper_engine::run_simulation(pool).await;
 
     println!("\n Pipeline complete.\n");
 }

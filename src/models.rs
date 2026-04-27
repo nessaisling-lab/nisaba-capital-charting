@@ -260,6 +260,40 @@ pub struct PortfolioPosition {
     pub notes:    Option<String>,
 }
 
+/// Paper trading account state
+#[derive(Debug, Clone, FromRow)]
+pub struct PaperAccount {
+    pub id:              i32,
+    pub initial_capital: rust_decimal::Decimal,
+    pub cash_balance:    rust_decimal::Decimal,
+    pub last_sim_date:   Option<NaiveDate>,
+    pub created_at:      chrono::DateTime<chrono::Utc>,
+}
+
+/// One open position in the paper portfolio
+#[derive(Debug, Clone, FromRow)]
+pub struct PaperPosition {
+    pub id:          i32,
+    pub ticker:      String,
+    pub shares:      rust_decimal::Decimal,
+    pub entry_price: rust_decimal::Decimal,
+    pub entry_date:  NaiveDate,
+    pub entry_score: Option<f32>,
+}
+
+/// One simulated trade in the paper trade log
+#[derive(Debug, Clone, FromRow)]
+pub struct PaperTrade {
+    pub id:         i32,
+    pub ticker:     String,
+    pub action:     String,
+    pub shares:     rust_decimal::Decimal,
+    pub price:      rust_decimal::Decimal,
+    pub score:      Option<f32>,
+    pub trade_date: NaiveDate,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
 /// One row from gdelt_events (geopolitical events)
 #[derive(Debug, Clone, FromRow)]
 pub struct GdeltEvent {

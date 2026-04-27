@@ -321,7 +321,7 @@ pub(crate) async fn fire_toast(alerts: Vec<LagrangeAlert>) {
 
 /// Global keyboard shortcut handler.
 ///
-/// Ctrl+1..7  switch tabs
+/// Ctrl+1..8  switch tabs
 /// Ctrl+T     focus the ticker search box
 /// Ctrl+R     refresh all data
 /// Escape     clear search input and autocomplete
@@ -335,7 +335,8 @@ pub(crate) fn handle_key_press(key: Key, modifiers: Modifiers) -> Option<Message
                 "4" => Some(Message::TabSelected(Tab::Fundamentals)),
                 "5" => Some(Message::TabSelected(Tab::Research)),
                 "6" => Some(Message::TabSelected(Tab::Portfolio)),
-                "7" => Some(Message::TabSelected(Tab::Settings)),
+                "7" => Some(Message::TabSelected(Tab::PaperTrail)),
+                "8" => Some(Message::TabSelected(Tab::Settings)),
                 "t" | "T" => Some(Message::FocusSearch),
                 "r" | "R" => Some(Message::RefreshNow),
                 _ => None,

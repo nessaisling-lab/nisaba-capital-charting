@@ -1,4 +1,4 @@
-use iced::widget::{button, column, horizontal_rule, row, text, text_input};
+use iced::widget::{button, column, horizontal_rule, row, slider, text, text_input};
 use iced::{Alignment, Element, Length};
 
 use crate::font;
@@ -13,16 +13,15 @@ impl Dashboard {
 
         // ── Appearance card ─────────────────────────────────
         let theme_row = row![
-            text("Theme:").font(font::INTER_BOLD).size(theme::text_sm()),
+            text("Theme:").font(font::BODY_BOLD).size(theme::text_sm()),
             button(text("Auto").size(theme::text_sm())).on_press(Message::SaveSetting("theme_mode".to_string(), "Auto".to_string())),
-            button(text("Latte").size(theme::text_sm())).on_press(Message::SaveSetting("theme_mode".to_string(), "Light".to_string())),
-            button(text("Mocha").size(theme::text_sm())).on_press(Message::SaveSetting("theme_mode".to_string(), "Dark".to_string())),
-            button(text("Tokyo").size(theme::text_sm())).on_press(Message::SaveSetting("theme_mode".to_string(), "TokyoNight".to_string())),
+            button(text("Parchment").size(theme::text_sm())).on_press(Message::SaveSetting("theme_mode".to_string(), "Parchment".to_string())),
+            button(text("Leather").size(theme::text_sm())).on_press(Message::SaveSetting("theme_mode".to_string(), "Leather".to_string())),
             text(format!("  (current: {theme_label})")).size(theme::text_sm()),
         ].spacing(8).align_y(Alignment::Center);
 
         let font_row = row![
-            text("Text Size:").font(font::INTER_BOLD).size(theme::text_sm()),
+            text("Text Size:").font(font::BODY_BOLD).size(theme::text_sm()),
             button(text("Compact").size(theme::text_sm())).on_press(Message::SaveSetting("font_scale".to_string(), "Compact".to_string())),
             button(text("Default").size(theme::text_sm())).on_press(Message::SaveSetting("font_scale".to_string(), "Default".to_string())),
             button(text("Large").size(theme::text_sm())).on_press(Message::SaveSetting("font_scale".to_string(), "Large".to_string())),
@@ -30,11 +29,39 @@ impl Dashboard {
             text(format!("  (current: {})", self.font_scale_label)).size(theme::text_sm()),
         ].spacing(8).align_y(Alignment::Center);
 
+        // ── Circadian slider ────────────────────────────────
+        let effective_hour = self.circadian_override.unwrap_or_else(crate::theme::current_hour);
+        let hour_name = match effective_hour {
+            5..=7   => "Dawn",
+            8..=11  => "Morning",
+            12..=13 => "Midday",
+            14..=16 => "Afternoon",
+            17..=19 => "Dusk",
+            20..=22 => "Evening",
+            _       => "Night",
+        };
+        let slider_label = if self.circadian_override.is_some() {
+            format!("Circadian: {:02}:00 — {} (override)", effective_hour, hour_name)
+        } else {
+            format!("Circadian: {:02}:00 — {} (auto)", effective_hour, hour_name)
+        };
+        let circadian_row = column![
+            row![
+                text(slider_label).size(theme::text_sm()),
+                iced::widget::Space::with_width(Length::Fill),
+                button(text("Reset to clock").size(theme::text_xs()))
+                    .on_press(Message::CircadianSliderReset),
+            ].spacing(8).align_y(Alignment::Center),
+            slider(0..=23, effective_hour as u16, |v| Message::CircadianSliderChanged(v as u32))
+                .width(Length::Fill),
+        ].spacing(4);
+
         let appearance_card = card(column![
             section_heading(icons::GEAR, "Appearance"),
             horizontal_rule(1),
             theme_row,
             font_row,
+            circadian_row,
         ].spacing(6));
 
         // ── Data card ───────────────────────────────────────

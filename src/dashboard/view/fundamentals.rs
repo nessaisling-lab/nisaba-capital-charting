@@ -2,6 +2,7 @@ use iced::widget::{button, column, container, horizontal_rule, row, scrollable, 
 use iced::{Alignment, Element, Length};
 
 use crate::agents::{AgentMode, AgentPersona, AgentVerdict};
+use crate::font;
 use crate::helpers::{format_market_value_i64, format_shares};
 
 use crate::state::{Dashboard, Message};
@@ -25,7 +26,7 @@ impl Dashboard {
             };
 
             let val_col: Column<Message> = column![
-                text("Valuation").size(theme::text_md()),
+                text("Valuation").font(font::DISPLAY).size(theme::text_md()),
                 row![text("Market Cap").size(theme::text_sm()).width(Length::FillPortion(2)), text(fm(f.market_cap)).size(theme::text_sm()).width(Length::FillPortion(3))].spacing(4),
                 row![text("P/E Ratio").size(theme::text_sm()).width(Length::FillPortion(2)), text(fr(f.pe_ratio)).size(theme::text_sm()).width(Length::FillPortion(3))].spacing(4),
                 row![text("P/B Ratio").size(theme::text_sm()).width(Length::FillPortion(2)), text(fr(f.pb_ratio)).size(theme::text_sm()).width(Length::FillPortion(3))].spacing(4),
@@ -38,7 +39,7 @@ impl Dashboard {
             ].spacing(4);
 
             let prof_col: Column<Message> = column![
-                text("Profitability & Health").size(theme::text_md()),
+                text("Profitability & Health").font(font::DISPLAY).size(theme::text_md()),
                 row![text("ROE").size(theme::text_sm()).width(Length::FillPortion(2)), text(fp(f.roe)).size(theme::text_sm()).width(Length::FillPortion(3))].spacing(4),
                 row![text("ROA").size(theme::text_sm()).width(Length::FillPortion(2)), text(fp(f.roa)).size(theme::text_sm()).width(Length::FillPortion(3))].spacing(4),
                 row![text("Net Margin").size(theme::text_sm()).width(Length::FillPortion(2)), text(fp(f.net_margin)).size(theme::text_sm()).width(Length::FillPortion(3))].spacing(4),
@@ -52,12 +53,12 @@ impl Dashboard {
 
             let grid = row![val_col, prof_col].spacing(20);
             let header_text = format!("Fundamentals — {} (as of {})", f.ticker, f.fetch_date);
-            column![text(header_text).size(theme::text_lg()), grid,]
+            column![text(header_text).font(font::DISPLAY).size(theme::text_lg()), grid,]
                 .spacing(8)
                 .into()
         } else {
             column![
-                text("Fundamental Metrics").size(theme::text_lg()),
+                text("Fundamental Metrics").font(font::DISPLAY).size(theme::text_lg()),
                 text("No fundamental data yet. Run the scraper with an FMP API key to fetch valuation ratios, profitability metrics, and balance sheet data.")
                     .size(theme::text_sm()),
                 button(
@@ -123,12 +124,12 @@ impl Dashboard {
                     ].spacing(2),
                 ].spacing(20);
                 column![
-                    text("DCF Intrinsic Value Calculator").size(theme::text_md()),
+                    text("DCF Intrinsic Value Calculator").font(font::DISPLAY).size(theme::text_md()),
                     input_row, result_row,
                 ].spacing(6).into()
             } else {
                 column![
-                    text("DCF Intrinsic Value Calculator").size(theme::text_md()),
+                    text("DCF Intrinsic Value Calculator").font(font::DISPLAY).size(theme::text_md()),
                     input_row,
                     text("Requires FCF + shares outstanding data. Run scraper with FMP key.").size(theme::text_xs()),
                 ].spacing(6).into()
@@ -230,12 +231,12 @@ impl Dashboard {
                     ].spacing(2),
                 ].spacing(20);
                 column![
-                    text("Options Greeks (Black-Scholes)").size(theme::text_md()),
+                    text("Options Greeks (Black-Scholes)").font(font::DISPLAY).size(theme::text_md()),
                     input_row, iv_row, results,
                 ].spacing(6).into()
             } else {
                 column![
-                    text("Options Greeks (Black-Scholes)").size(theme::text_md()),
+                    text("Options Greeks (Black-Scholes)").font(font::DISPLAY).size(theme::text_md()),
                     input_row, iv_row,
                     text("Enter strike price and click Compute. Spot auto-fills from current price.").size(theme::text_xs()),
                 ].spacing(6).into()
@@ -400,7 +401,7 @@ impl Dashboard {
             };
 
             column![
-                text("Comparative Analysis").size(theme::text_md()),
+                text("Comparative Analysis").font(font::DISPLAY).size(theme::text_md()),
                 compare_input_row,
                 peer_row,
                 chip_row,
@@ -459,7 +460,7 @@ impl Dashboard {
     pub(crate) fn build_earnings_section(&self) -> Column<'_, Message> {
         if self.earnings.is_empty() {
             column![
-                text(format!("{} Earnings", self.selected_ticker)).size(theme::text_md()),
+                text(format!("{} Earnings", self.selected_ticker)).font(font::DISPLAY).size(theme::text_md()),
                 text("No earnings dates found for this ticker.").size(theme::text_base()),
                 text("The scraper fetches earnings dates from Finnhub.").size(theme::text_sm()),
             ].spacing(4)
@@ -487,7 +488,7 @@ impl Dashboard {
                 ].spacing(8).into()
             }).collect();
             column![
-                text("Earnings Calendar").size(theme::text_md()),
+                text("Earnings Calendar").font(font::DISPLAY).size(theme::text_md()),
                 hdr,
                 scrollable(Column::with_children(items).spacing(4)).height(Length::Fixed(130.0)),
             ].spacing(4)

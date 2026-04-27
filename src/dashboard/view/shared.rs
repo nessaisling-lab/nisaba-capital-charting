@@ -11,22 +11,33 @@ use crate::theme;
 // Reusable layout components
 // ---------------------------------------------------------------------------
 
-/// Wrap content in a card panel (rounded background, padding, full width).
+/// Wrap content in a card panel — warm surface with subtle rule border.
 pub fn card<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
     container(content)
-        .padding(12)
+        .padding(16)
         .width(Length::Fill)
-        .style(container::rounded_box)
+        .style(|_theme: &iced::Theme| {
+            let p = theme::palette();
+            container::Style {
+                background: Some(iced::Background::Color(p.surface)),
+                border: iced::Border {
+                    color: p.rule,
+                    width: 1.0,
+                    radius: 4.0.into(),
+                },
+                ..Default::default()
+            }
+        })
         .into()
 }
 
-/// Section heading with icon + bold title.
+/// Section heading with icon + Fraunces display title.
 pub fn section_heading<'a>(icon_char: char, title: &str) -> Element<'a, Message> {
     row![
         text(icon_char.to_string()).font(icons::BOOTSTRAP).size(theme::text_md()),
-        text(title.to_string()).font(font::INTER_BOLD).size(theme::text_md()),
+        text(title.to_string()).font(font::DISPLAY).size(theme::text_md()),
     ]
-    .spacing(6)
+    .spacing(8)
     .align_y(Alignment::Center)
     .into()
 }

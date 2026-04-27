@@ -1,0 +1,33 @@
+ab056ee fix(v5.0.1): polish — panic fixes, color consistency, error propagation
+93edf81 feat(v5.0.0): "The Council" — LLM agents, single-ticker fetch, zero warnings
+dde7aef feat(v4.2.0): Phase 3 "The Expansion" — candlesticks, Greeks, sortable tables, toasts, GDELT
+d53da2d fix(rss): use char-based truncation to prevent panic on multi-byte UTF-8
+1f7ff2c feat(v4.1.0): Phase 2 "The Glass" — UI/UX overhaul
+25d4c61 docs: update DESIGN.md to v4.0.0 with Phase 1 changelog
+f4e77b2 fix(swisseph): use Moshier ephemeris consistently, fixing NaN and state corruption
+be9d079 refactor(v4.0.0): Phase 1 "Structural Steel" — tech debt reduction
+60063f9 feat(v3.1.5-v3.1.9): complete backlog + v4.0 "The Forge" roadmap
+096710e feat(v3.1.3-v3.1.4): font scale setting, astro priority scrape, 6 video-review bug fixes
+095a1ad docs: update DESIGN.md to v3.1.2 with full v3.1.x changelog
+b274131 feat(v3.1.2): Polymarket prediction markets integration
+db18f41 feat(v3.1.1): RSS news aggregation from 25 sources
+5c752db feat(v3.1.0): DBnomics international economics scraper
+39abe5d docs: update DESIGN.md to v3.0.7 with full changelog
+fa346e9 fix(v3.0.7): 6 bug fixes + 4 UX improvements across dashboard and scraper
+6fdec4a feat: v2.0-v3.0.6 full implementation + v3.1 planning + FinceptTerminal reference
+0b4381b docs: update DESIGN.md to v1.1.0 with design review changelog + architecture fixes
+19c322e style(design): FINDING-009 — increase scrollable section heights
+d827415 style(design): FINDING-010 — warm empty states with structured messaging
+717abbd style(design): FINDING-005,008 — systematic type scale; section hierarchy
+b502273 style(design): FINDING-006,007 — normalize table row spacing to 4px; format volume with commas
+d2dcd58 style(design): FINDING-001,002,003,004 — add theme.rs color tokens; fix chart/sparkline theme awareness
+0721f45 feat: v1.0.0 enrichment pipeline, Tiingo, alerts, recently-viewed, sector/industry
+0938ebe docs: update DESIGN.md to v0.7.0 with full changelog
+7c1437c fix(short_interest): revert to regShoDaily endpoint; keep symbol guard
+e89a1c8 fix: correct FINRA endpoint + symbol guard; macro strip decimal formatting
+c03b350 fix(dashboard): correct column names for macro_indicators and watchlist queries
+53c53f4 fix(lagrange): correct SQL column names to match model struct fields
+46b3d9c feat(v0.7.0): Lagrange history sparkline, portfolio tracker, CPI YoY%, watchlist color-coding
+b83d7d5 feat: v0.6.0 — Lagrange Score, expanded data sources, signal intelligence
+01d270c feat: scaffold two-binary financial dashboard (scraper + Iced GUI)
+ede4ec1 chore: add gstack skill routing rules to CLAUDE.md

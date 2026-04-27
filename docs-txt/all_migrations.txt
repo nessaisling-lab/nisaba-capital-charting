@@ -1,0 +1,650 @@
+-- Migration 001: Initial schema
+-- Run with: sqlx migrate run
+
+-- Master watchlist
+CREATE TABLE IF NOT EXISTS tickers (
+    id         SERIAL PRIMARY KEY,
+    ticker     TEXT UNIQUE NOT NULL,
+    cik        TEXT,
+    name       TEXT,
+    sector     TEXT,
+    active     BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Seed AAPL for MVP
+INSERT INTO tickers (ticker, name, sector)
+VALUES ('AAPL', 'Apple Inc.', 'Technology')
+ON CONFLICT (ticker) DO NOTHING;
+
+-- Daily OHLCV from Alpha Vantage
+CREATE TABLE IF NOT EXISTS price_data (
+    id         SERIAL PRIMARY KEY,
+    ticker     TEXT NOT NULL REFERENCES tickers(ticker),
+    date       DATE NOT NULL,
+    open       NUMERIC(12,4) NOT NULL,
+    high       NUMERIC(12,4) NOT NULL,
+    low        NUMERIC(12,4) NOT NULL,
+    close      NUMERIC(12,4) NOT NULL,
+    volume     BIGINT NOT NULL,
+    fetched_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (ticker, date)
+);
+
+-- EDGAR filing feed (8-K, Form 4, 13F) — stub for post-MVP
+CREATE TABLE IF NOT EXISTS filings (
+    id               SERIAL PRIMARY KEY,
+    cik              TEXT NOT NULL,
+    ticker           TEXT,
+    form_type        TEXT NOT NULL,
+    filed_date       DATE NOT NULL,
+    period_of_report DATE,
+    accession_number TEXT UNIQUE NOT NULL,
+    edgar_url        TEXT NOT NULL,
+    fetched_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Form 4 parsed detail — stub for post-MVP
+CREATE TABLE IF NOT EXISTS insider_trades (
+    id                 SERIAL PRIMARY KEY,
+    accession_number   TEXT NOT NULL REFERENCES filings(accession_number),
+    ticker             TEXT NOT NULL,
+    insider_name       TEXT NOT NULL,
+    insider_title      TEXT,
+    transaction_date   DATE NOT NULL,
+    transaction_type   TEXT NOT NULL,
+    shares             NUMERIC(16,4) NOT NULL,
+    price_per_share    NUMERIC(12,4) NOT NULL,
+    shares_owned_after NUMERIC(16,4),
+    fetched_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 13F quarterly holdings — stub for post-MVP
+CREATE TABLE IF NOT EXISTS institutional_holdings (
+    id                    SERIAL PRIMARY KEY,
+    accession_number      TEXT NOT NULL REFERENCES filings(accession_number),
+    institution_cik       TEXT NOT NULL,
+    institution_name      TEXT NOT NULL,
+    report_period         DATE NOT NULL,
+    ticker                TEXT,
+    cusip                 TEXT NOT NULL,
+    shares_held           BIGINT NOT NULL,
+    market_value          NUMERIC(18,2) NOT NULL,
+    investment_discretion TEXT,
+    fetched_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Ingestion audit trail
+CREATE TABLE IF NOT EXISTS fetch_log (
+    id            SERIAL PRIMARY KEY,
+    source        TEXT NOT NULL,
+    ticker        TEXT,
+    fetch_type    TEXT NOT NULL,
+    fetched_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    status        TEXT NOT NULL,
+    error_message TEXT
+);
+-- Migration 002: Seed full watchlist tickers
+INSERT INTO tickers (ticker, name, sector) VALUES
+    ('MSFT',  'Microsoft Corp.',       'Technology'),
+    ('GOOGL', 'Alphabet Inc.',         'Technology'),
+    ('AMZN',  'Amazon.com Inc.',       'Consumer Discretionary'),
+    ('NVDA',  'Nvidia Corp.',          'Technology'),
+    ('META',  'Meta Platforms Inc.',   'Technology'),
+    ('TSLA',  'Tesla Inc.',            'Consumer Discretionary'),
+    ('JPM',   'JPMorgan Chase & Co.',  'Financials'),
+    ('V',     'Visa Inc.',             'Financials'),
+    ('UNH',   'UnitedHealth Group',    'Healthcare')
+ON CONFLICT (ticker) DO NOTHING;
+-- Migration 003: Add items column to filings for 8-K event type metadata
+-- Items is a comma-separated list of SEC item codes e.g. "2.02,9.01"
+ALTER TABLE filings ADD COLUMN IF NOT EXISTS items TEXT;
+-- Migration 004: News articles from Finnhub company news API
+CREATE TABLE IF NOT EXISTS news_articles (
+    id BIGSERIAL PRIMARY KEY,
+    ticker TEXT NOT NULL,
+    headline TEXT NOT NULL,
+    summary TEXT,
+    source TEXT,
+    url TEXT,
+    published_at TIMESTAMPTZ NOT NULL,
+    UNIQUE(ticker, url)
+);
+-- Migration 005: Earnings calendar from Finnhub earnings calendar API
+CREATE TABLE IF NOT EXISTS earnings_dates (
+    ticker TEXT NOT NULL,
+    earnings_date DATE NOT NULL,
+    eps_estimate NUMERIC,
+    eps_actual NUMERIC,
+    revenue_estimate BIGINT,
+    PRIMARY KEY (ticker, earnings_date)
+);
+-- Migration 006: Analyst recommendation trends from Finnhub
+CREATE TABLE IF NOT EXISTS analyst_ratings (
+    ticker TEXT NOT NULL,
+    period TEXT NOT NULL,           -- "YYYY-MM" format from Finnhub
+    strong_buy INT DEFAULT 0,
+    buy INT DEFAULT 0,
+    hold INT DEFAULT 0,
+    sell INT DEFAULT 0,
+    strong_sell INT DEFAULT 0,
+    fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (ticker, period)
+);
+-- Migration 007: News sentiment scores from Alpha Vantage NEWS_SENTIMENT
+CREATE TABLE IF NOT EXISTS sentiment_scores (
+    ticker TEXT NOT NULL,
+    fetch_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    sentiment_score NUMERIC,        -- -1.0 to +1.0
+    sentiment_label TEXT,           -- "Bullish", "Somewhat-Bullish", "Neutral", etc.
+    PRIMARY KEY (ticker, fetch_date)
+);
+-- Migration 0008: Company metadata for astrological birth charts
+-- IPO date + time + exchange coordinates serve as the "birth moment" for each company.
+-- All times are market open (09:30 EST = 14:30 UTC).
+-- NYSE coordinates: 40.7069° N, 74.0089° W (11 Wall Street)
+-- NASDAQ coordinates: 40.7589° N, 73.9851° W (Rockefeller Center, NYC)
+
+CREATE TABLE IF NOT EXISTS company_metadata (
+    ticker        TEXT PRIMARY KEY,
+    company_name  TEXT NOT NULL,
+    ipo_date      DATE NOT NULL,
+    ipo_time      TIME NOT NULL DEFAULT '09:30:00',
+    exchange      TEXT NOT NULL DEFAULT 'NYSE',
+    latitude      DOUBLE PRECISION NOT NULL,
+    longitude     DOUBLE PRECISION NOT NULL,
+    founding_date DATE,
+    notes         TEXT
+);
+
+INSERT INTO company_metadata
+    (ticker, company_name, ipo_date, ipo_time, exchange, latitude, longitude, founding_date, notes)
+VALUES
+    ('MSFT',  'Microsoft Corporation',      '1986-03-13', '09:30:00', 'NASDAQ', 40.7589, -73.9851,
+     '1975-04-04', 'Listed on NASDAQ at market open'),
+
+    ('GOOGL', 'Alphabet Inc.',              '2004-08-19', '09:30:00', 'NASDAQ', 40.7589, -73.9851,
+     '1998-09-04', 'Dutch auction IPO, opened at $100.01'),
+
+    ('AMZN',  'Amazon.com Inc.',            '1997-05-15', '09:30:00', 'NASDAQ', 40.7589, -73.9851,
+     '1994-07-05', 'IPO price $18, Bezos rang the opening bell from Seattle'),
+
+    ('NVDA',  'NVIDIA Corporation',         '1999-01-22', '09:30:00', 'NASDAQ', 40.7589, -73.9851,
+     '1993-04-05', 'IPO price $12, raised $42M'),
+
+    ('META',  'Meta Platforms Inc.',        '2012-05-18', '09:30:00', 'NASDAQ', 40.7589, -73.9851,
+     '2004-02-04', 'Largest tech IPO at the time, $38/share open'),
+
+    ('TSLA',  'Tesla Inc.',                 '2010-06-29', '09:30:00', 'NASDAQ', 40.7589, -73.9851,
+     '2003-07-01', 'IPO price $17, first US automaker IPO since Ford in 1956'),
+
+    ('JPM',   'JPMorgan Chase & Co.',       '2000-12-31', '09:30:00', 'NYSE',   40.7069, -74.0089,
+     '1799-09-01', 'Current entity formed by Chase Manhattan + J.P. Morgan merger Dec 2000'),
+
+    ('V',     'Visa Inc.',                  '2008-03-19', '09:30:00', 'NYSE',   40.7069, -74.0089,
+     '1958-09-18', 'Largest US IPO at the time, raised $17.9B'),
+
+    ('UNH',   'UnitedHealth Group Inc.',    '1984-10-17', '09:30:00', 'NYSE',   40.7069, -74.0089,
+     '1977-01-01', 'Formerly United HealthCare Corporation')
+
+ON CONFLICT (ticker) DO NOTHING;
+-- Migration 0009: Pre-computed natal planet positions per company
+-- Populated by the scraper's one-time natal chart seeder (runs if table is empty).
+-- Ecliptic longitude 0-360° based on IPO date + time from company_metadata.
+-- Planet names: Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn, Uranus, Neptune, Pluto
+
+CREATE TABLE IF NOT EXISTS natal_positions (
+    ticker     TEXT NOT NULL REFERENCES company_metadata(ticker) ON DELETE CASCADE,
+    planet     TEXT NOT NULL,
+    longitude  DOUBLE PRECISION NOT NULL,  -- ecliptic longitude 0-360°
+    sign       TEXT NOT NULL,              -- 'Aries', 'Taurus', ..., 'Pisces'
+    degree     DOUBLE PRECISION NOT NULL,  -- 0-30, degree within the sign
+    retrograde BOOLEAN NOT NULL DEFAULT false,
+    PRIMARY KEY (ticker, planet)
+);
+
+CREATE INDEX IF NOT EXISTS natal_positions_ticker_idx ON natal_positions (ticker);
+-- Migration 0010: Daily planetary transit positions
+-- Refreshed once per day by the scraper cron job.
+-- Retrograde flag is set when a planet's longitude is decreasing vs the prior day.
+
+CREATE TABLE IF NOT EXISTS daily_transits (
+    fetch_date  DATE NOT NULL,
+    planet      TEXT NOT NULL,
+    longitude   DOUBLE PRECISION NOT NULL,  -- ecliptic longitude 0-360°
+    sign        TEXT NOT NULL,
+    retrograde  BOOLEAN NOT NULL DEFAULT false,
+    PRIMARY KEY (fetch_date, planet)
+);
+
+CREATE INDEX IF NOT EXISTS daily_transits_date_idx ON daily_transits (fetch_date DESC);
+-- Migration 0011: Per-ticker astrological Fear & Greed scores
+-- Computed daily by the scraper after daily_transits is populated.
+-- active_aspects stores the list of active transit-to-natal aspects as JSONB
+-- for display in the dashboard's transits table.
+--
+-- active_aspects schema (array of objects):
+-- [
+--   {
+--     "transit_planet": "Jupiter",
+--     "natal_planet": "Sun",
+--     "aspect": "Trine",
+--     "orb": 1.4,
+--     "score_delta": 12.3,
+--     "effect": "Favorable"
+--   },
+--   ...
+-- ]
+
+CREATE TABLE IF NOT EXISTS astro_scores (
+    ticker          TEXT NOT NULL,
+    score_date      DATE NOT NULL,
+    astro_score     DOUBLE PRECISION,      -- 0-100
+    astro_label     TEXT,                  -- 'Extreme Fear' .. 'Extreme Greed'
+    moon_phase      TEXT,                  -- 'New Moon', 'Waxing Crescent', etc.
+    moon_phase_deg  DOUBLE PRECISION,      -- 0-360 phase angle
+    mercury_rx      BOOLEAN DEFAULT false,
+    active_aspects  JSONB,
+    PRIMARY KEY (ticker, score_date)
+);
+
+CREATE INDEX IF NOT EXISTS astro_scores_ticker_date_idx ON astro_scores (ticker, score_date DESC);
+-- FRED macroeconomic indicators (Fed funds rate, CPI, unemployment, etc.)
+CREATE TABLE IF NOT EXISTS macro_indicators (
+    id          BIGSERIAL PRIMARY KEY,
+    series_id   TEXT        NOT NULL,   -- FRED series ID e.g. "FEDFUNDS"
+    series_name TEXT        NOT NULL,   -- human label e.g. "Fed Funds Rate"
+    obs_date    DATE        NOT NULL,
+    value       NUMERIC(18,6),          -- NULL allowed (FRED uses "." for missing)
+    fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (series_id, obs_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_macro_series ON macro_indicators (series_id, obs_date DESC);
+
+-- Short interest data (Quandl/Nasdaq Data Link — FINRA short interest by ticker)
+CREATE TABLE IF NOT EXISTS short_interest (
+    id              BIGSERIAL PRIMARY KEY,
+    ticker          TEXT    NOT NULL,
+    settlement_date DATE    NOT NULL,
+    short_volume    BIGINT,
+    total_volume    BIGINT,
+    short_pct       NUMERIC(7,4),   -- short_volume / total_volume * 100
+    fetched_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (ticker, settlement_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_short_ticker ON short_interest (ticker, settlement_date DESC);
+
+-- Options flow — put/call ratio and open interest summary (Polygon.io)
+CREATE TABLE IF NOT EXISTS options_flow (
+    id              BIGSERIAL PRIMARY KEY,
+    ticker          TEXT        NOT NULL,
+    snapshot_date   DATE        NOT NULL,
+    call_volume     BIGINT,
+    put_volume      BIGINT,
+    put_call_ratio  NUMERIC(8,4),
+    call_oi         BIGINT,     -- open interest calls
+    put_oi          BIGINT,     -- open interest puts
+    pc_oi_ratio     NUMERIC(8,4),
+    fetched_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (ticker, snapshot_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_options_ticker ON options_flow (ticker, snapshot_date DESC);
+-- Migration 0013: Lagrange score history + portfolio positions
+
+-- Daily Lagrange Score snapshots (one row per ticker per day)
+CREATE TABLE IF NOT EXISTS lagrange_history (
+    id           SERIAL PRIMARY KEY,
+    ticker       TEXT        NOT NULL,
+    score_date   DATE        NOT NULL,
+    score        REAL        NOT NULL,
+    label        TEXT        NOT NULL,
+    fin_score    REAL,
+    astro_score  REAL,
+    macro_score  REAL,
+    short_score  REAL,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (ticker, score_date)
+);
+
+-- Portfolio positions (user-editable via portfolio_seed.sql)
+CREATE TABLE IF NOT EXISTS portfolio_positions (
+    id           SERIAL PRIMARY KEY,
+    ticker       TEXT        NOT NULL UNIQUE,
+    shares       REAL        NOT NULL DEFAULT 0,
+    avg_cost     REAL        NOT NULL DEFAULT 0,
+    notes        TEXT,
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+-- Migration 0014: Add data provenance columns to company_metadata
+-- data_source: 'manual' (hand-seeded in 0008) vs 'polygon' (bulk seeded from Polygon.io API)
+-- seeded_at:   timestamp when natal chart was last computed for this company
+
+ALTER TABLE company_metadata
+    ADD COLUMN IF NOT EXISTS data_source TEXT NOT NULL DEFAULT 'manual',
+    ADD COLUMN IF NOT EXISTS seeded_at   TIMESTAMPTZ;
+-- Migration 0015: Recently viewed tickers
+-- Tracks the last 10 tickers the user selected in the dashboard.
+-- PRIMARY KEY on ticker so each ticker appears at most once (upsert updates viewed_at).
+
+CREATE TABLE IF NOT EXISTS recently_viewed (
+    ticker    TEXT        NOT NULL PRIMARY KEY,
+    viewed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+-- Migration 0016: Lagrange alert threshold crossings
+-- Fires when a ticker enters Optimal (76-100) or Misaligned (0-24) territory.
+-- ON CONFLICT DO NOTHING makes the crossing detection idempotent (safe to re-run).
+
+CREATE TABLE IF NOT EXISTS lagrange_alerts (
+    id          SERIAL      PRIMARY KEY,
+    ticker      TEXT        NOT NULL,
+    alert_date  DATE        NOT NULL,
+    score       REAL        NOT NULL,
+    label       TEXT        NOT NULL,   -- 'Optimal' or 'Misaligned'
+    prev_label  TEXT,                   -- zone the ticker was in the day before
+    alert_type  TEXT        NOT NULL,   -- 'entered_optimal' | 'entered_misaligned'
+    is_read     BOOLEAN     NOT NULL DEFAULT false,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (ticker, alert_date, alert_type)
+);
+-- Migration 0017: make ipo_date nullable so we can insert tickers from Polygon
+-- even when list_date is missing, then fill dates later via AV OVERVIEW enrichment.
+ALTER TABLE company_metadata ALTER COLUMN ipo_date DROP NOT NULL;
+-- Drop the FK from price_data → tickers so Tiingo can insert rows for
+-- any ticker in company_metadata without requiring a tickers table entry.
+-- The tickers table is intentionally limited to the scored watchlist;
+-- price_data needs to grow to the full universe.
+ALTER TABLE price_data DROP CONSTRAINT IF EXISTS price_data_ticker_fkey;
+
+-- Composite index for efficient date-range and coverage queries used by
+-- Tiingo's "day after latest stored price" look-ahead and by dashboard CTEs.
+CREATE INDEX IF NOT EXISTS idx_price_data_ticker_date ON price_data (ticker, date DESC);
+-- scoring_active: separates "visible in watchlist panel" from "included in
+-- Lagrange scoring universe". Defaults to true so all current tickers keep
+-- their scores. Set to false to suppress a ticker from scoring without
+-- removing it from the tickers table.
+ALTER TABLE tickers ADD COLUMN IF NOT EXISTS scoring_active BOOLEAN NOT NULL DEFAULT true;
+
+CREATE INDEX IF NOT EXISTS idx_tickers_scoring_active ON tickers (scoring_active) WHERE scoring_active = true;
+-- Migration 0020: Add sector and industry columns to company_metadata
+-- Required for v1.2.0 Universe Explorer filtering (filter by sector/zone)
+-- Populated by fmp_enrich.rs from /v3/profile response during daily enrichment
+
+ALTER TABLE company_metadata
+    ADD COLUMN IF NOT EXISTS sector   TEXT,
+    ADD COLUMN IF NOT EXISTS industry TEXT;
+
+-- Index for fast sector/industry filtering in the Explorer panel
+CREATE INDEX IF NOT EXISTS idx_company_metadata_sector   ON company_metadata (sector)   WHERE sector IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_company_metadata_industry ON company_metadata (industry) WHERE industry IS NOT NULL;
+
+-- Add ticker_count to lagrange_history for Explorer pagination
+-- Tracks how many tickers were in the scoring universe on a given day
+ALTER TABLE lagrange_history
+    ADD COLUMN IF NOT EXISTS ticker_count INTEGER;
+-- Migration 0021: Extended natal chart data for Swiss Ephemeris upgrade
+--
+-- The natal_positions table already supports NorthNode, SouthNode, and Chiron
+-- as regular planet rows (planet TEXT column is freeform). This migration adds:
+--   1. natal_angles: Ascendant + MC computed from Swiss Eph house system
+--   2. longitude_speed column on daily_transits for applying/separating detection
+--
+-- No existing data is modified. New columns are nullable for backward compatibility.
+
+-- Natal chart angles (Ascendant + Midheaven) per ticker.
+-- Computed using Whole Sign houses at NYSE location (40.71°N, 74.01°W).
+CREATE TABLE IF NOT EXISTS natal_angles (
+    ticker    TEXT NOT NULL REFERENCES company_metadata(ticker) ON DELETE CASCADE,
+    ascendant DOUBLE PRECISION,  -- ecliptic longitude 0-360°
+    mc        DOUBLE PRECISION,  -- Midheaven longitude 0-360°
+    PRIMARY KEY (ticker)
+);
+
+-- Add longitude_speed to daily_transits for applying/separating detection.
+-- Positive = direct motion, negative = retrograde. Degrees per day.
+ALTER TABLE daily_transits
+    ADD COLUMN IF NOT EXISTS longitude_speed DOUBLE PRECISION;
+
+-- Re-seed natal charts: delete existing to force re-computation with Swiss Eph.
+-- The scraper's seed_natal_charts() will re-populate with 12-13 bodies
+-- (10 classical + nodes + Chiron) at sub-arcsecond accuracy.
+-- Uncomment the line below to force a full re-seed:
+-- DELETE FROM natal_positions;
+-- v2.0.3: Horoscope readings table
+-- Stores the narrative interpretation generated by the interpretation engine.
+-- The reading column is JSONB containing: overall_outlook, dominant_theme,
+-- key_transits, moon_guidance, mercury_warning, timing_window, confidence.
+
+CREATE TABLE IF NOT EXISTS horoscope_readings (
+    ticker         TEXT      NOT NULL,
+    reading_date   DATE      NOT NULL,
+    reading        JSONB     NOT NULL,
+    dominant_theme TEXT      NOT NULL,
+    confidence     DOUBLE PRECISION NOT NULL DEFAULT 50.0,
+    created_at     TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (ticker, reading_date)
+);
+
+-- Index for filtering by theme across all tickers
+CREATE INDEX IF NOT EXISTS idx_horoscope_theme ON horoscope_readings (dominant_theme);
+
+-- Index for recent readings
+CREATE INDEX IF NOT EXISTS idx_horoscope_date ON horoscope_readings (reading_date DESC);
+-- v2.0.5: Add concordance column to lagrange_history
+-- Concordance measures whether astrology and financials agree or diverge.
+-- Values: 'Strong Confirm', 'Mild Confirm', 'Divergence', 'Mild Deny', 'Strong Deny'
+
+ALTER TABLE lagrange_history ADD COLUMN IF NOT EXISTS concordance TEXT;
+-- v2.2.1: Fundamental financial metrics table
+-- Stores key valuation ratios and financial data per ticker per date.
+-- Source: FMP /v3/key-metrics and /v3/ratios endpoints.
+-- One row per ticker per fetch date; latest row is the "current" fundamentals.
+
+CREATE TABLE IF NOT EXISTS fundamental_metrics (
+    id            SERIAL PRIMARY KEY,
+    ticker        TEXT NOT NULL,
+    fetch_date    DATE NOT NULL DEFAULT CURRENT_DATE,
+
+    -- Valuation ratios
+    market_cap       BIGINT,
+    pe_ratio         DOUBLE PRECISION,
+    pb_ratio         DOUBLE PRECISION,
+    ps_ratio         DOUBLE PRECISION,
+    ev_ebitda        DOUBLE PRECISION,
+    peg_ratio        DOUBLE PRECISION,
+    price_to_fcf     DOUBLE PRECISION,
+
+    -- Profitability
+    roe              DOUBLE PRECISION,
+    roa              DOUBLE PRECISION,
+    net_margin       DOUBLE PRECISION,
+    operating_margin DOUBLE PRECISION,
+
+    -- Balance sheet
+    debt_equity      DOUBLE PRECISION,
+    current_ratio    DOUBLE PRECISION,
+
+    -- Cash flow
+    fcf              BIGINT,
+    operating_cf     BIGINT,
+
+    -- Income statement highlights
+    revenue          BIGINT,
+    net_income       BIGINT,
+    eps              DOUBLE PRECISION,
+
+    -- Dividend
+    dividend_yield   DOUBLE PRECISION,
+
+    -- Shares
+    shares_outstanding BIGINT,
+
+    UNIQUE (ticker, fetch_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fundamental_metrics_ticker
+    ON fundamental_metrics (ticker, fetch_date DESC);
+-- v2.6.3: Named watchlists — users can create multiple watchlists
+-- Each watchlist has a name and contains ticker symbols.
+-- The "Default" watchlist inherits the existing active tickers.
+
+CREATE TABLE IF NOT EXISTS watchlists (
+    id          SERIAL PRIMARY KEY,
+    name        TEXT NOT NULL UNIQUE,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS watchlist_members (
+    id            SERIAL PRIMARY KEY,
+    watchlist_id  INTEGER NOT NULL REFERENCES watchlists(id) ON DELETE CASCADE,
+    ticker        TEXT NOT NULL,
+    added_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (watchlist_id, ticker)
+);
+
+CREATE INDEX IF NOT EXISTS idx_watchlist_members_wl ON watchlist_members (watchlist_id);
+
+-- Seed the "Default" watchlist from existing active tickers
+INSERT INTO watchlists (name) VALUES ('Default') ON CONFLICT DO NOTHING;
+
+INSERT INTO watchlist_members (watchlist_id, ticker)
+SELECT w.id, t.ticker
+FROM tickers t, watchlists w
+WHERE t.active = true AND w.name = 'Default'
+ON CONFLICT DO NOTHING;
+-- v3.0.3: Portfolio transaction log
+-- Buy/sell log that auto-computes positions from transaction history.
+
+CREATE TABLE IF NOT EXISTS transactions (
+    id          SERIAL PRIMARY KEY,
+    ticker      TEXT NOT NULL,
+    action      TEXT NOT NULL CHECK (action IN ('BUY', 'SELL')),
+    shares      REAL NOT NULL CHECK (shares > 0),
+    price       REAL NOT NULL CHECK (price > 0),
+    trade_date  DATE NOT NULL DEFAULT CURRENT_DATE,
+    notes       TEXT,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_transactions_ticker ON transactions (ticker);
+CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions (trade_date DESC);
+-- v3.0.4: Settings key-value store
+-- Persists user preferences: theme mode, refresh interval, API keys, etc.
+
+CREATE TABLE IF NOT EXISTS settings (
+    key     TEXT PRIMARY KEY,
+    value   TEXT NOT NULL
+);
+
+-- Seed defaults
+INSERT INTO settings (key, value) VALUES
+    ('theme_mode', 'Auto'),
+    ('refresh_interval_secs', '30')
+ON CONFLICT DO NOTHING;
+-- v3.1.0: DBnomics international economics data
+-- Reuses macro_indicators table with DBNOMICS: prefix on series_id.
+-- No new table needed — same schema as FRED observations.
+-- Series: ECB Euribor, BIS PBoC rate, IMF GDP forecast, Eurostat CPI,
+--         OECD Leading Indicator, BIS Total Credit.
+
+-- Partial index for efficient DBnomics-only queries
+CREATE INDEX IF NOT EXISTS idx_macro_dbnomics
+    ON macro_indicators (series_id, obs_date DESC)
+    WHERE series_id LIKE 'DBNOMICS:%';
+-- v3.1.1: RSS news aggregation (ported from FinceptTerminal NewsService.cpp)
+-- Stores articles from 25+ RSS/Atom feeds across wire services, financial media,
+-- central banks, and analysis sources. Separate from Finnhub news_articles
+-- because RSS articles are market-wide, not per-ticker.
+
+CREATE TABLE IF NOT EXISTS rss_articles (
+    id           SERIAL PRIMARY KEY,
+    feed_source  TEXT        NOT NULL,   -- e.g. "Reuters", "SEC", "Fed"
+    category     TEXT        NOT NULL,   -- e.g. "wire", "markets", "central_bank", "analysis"
+    headline     TEXT        NOT NULL,
+    summary      TEXT,                   -- first 300 chars of description, HTML stripped
+    link         TEXT        NOT NULL,
+    published_at TIMESTAMPTZ NOT NULL,
+    fetched_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (link)
+);
+
+CREATE INDEX IF NOT EXISTS idx_rss_published ON rss_articles (published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_rss_category ON rss_articles (category);
+CREATE INDEX IF NOT EXISTS idx_rss_source ON rss_articles (feed_source);
+-- v3.1.2: Polymarket prediction markets (ported from FinceptTerminal PolymarketService.cpp)
+-- Stores top prediction markets from Polymarket's Gamma API.
+-- Tracks question, outcome probabilities, volume, and category.
+-- Used for macro sentiment gauges on the Overview tab.
+
+CREATE TABLE IF NOT EXISTS polymarket_markets (
+    id             SERIAL PRIMARY KEY,
+    market_id      TEXT        NOT NULL,   -- Polymarket market ID
+    question       TEXT        NOT NULL,   -- e.g. "Will the Fed cut rates in June 2025?"
+    category       TEXT,                   -- e.g. "Economics", "Politics", "Crypto"
+    outcome_yes    NUMERIC(6,4),           -- probability of "Yes" (0.0 to 1.0)
+    outcome_no     NUMERIC(6,4),           -- probability of "No"
+    volume         NUMERIC(18,2),          -- total trading volume in USDC
+    liquidity      NUMERIC(18,2),          -- current liquidity
+    active         BOOLEAN NOT NULL DEFAULT TRUE,
+    end_date       TEXT,                   -- ISO date string or null
+    slug           TEXT,
+    fetched_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (market_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_polymarket_category ON polymarket_markets (category);
+CREATE INDEX IF NOT EXISTS idx_polymarket_volume ON polymarket_markets (volume DESC);
+-- v4.0.4: Move hardcoded WATCHLIST, CIK_MAP, CUSIP_MAP, INSTITUTION_MAP
+-- from const arrays in main.rs to DB-backed config tables.
+-- Scraper loads from these tables at startup; falls back to defaults if empty.
+
+CREATE TABLE IF NOT EXISTS scraper_watchlist (
+    ticker      TEXT PRIMARY KEY,
+    cik         TEXT,           -- SEC CIK number for EDGAR lookups
+    cusip       TEXT,           -- CUSIP for 13F holdings matching
+    active      BOOLEAN NOT NULL DEFAULT true,
+    added_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO scraper_watchlist (ticker, cik, cusip) VALUES
+    ('AAPL',  '0000320193', '037833100'),
+    ('MSFT',  '0000789019', '594918104'),
+    ('GOOGL', '0001652044', '02079K305'),
+    ('AMZN',  '0001018724', '023135106'),
+    ('NVDA',  '0001045810', '67066G104'),
+    ('META',  '0001326801', '30303M102'),
+    ('TSLA',  '0001318605', '88160R101'),
+    ('JPM',   '0000019617', '46625H100'),
+    ('V',     '0001403161', '92826C839'),
+    ('UNH',   '0000731766', '91324P102')
+ON CONFLICT DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS scraper_institutions (
+    cik     TEXT PRIMARY KEY,
+    name    TEXT NOT NULL,
+    active  BOOLEAN NOT NULL DEFAULT true
+);
+
+INSERT INTO scraper_institutions (cik, name) VALUES
+    ('0000102909', 'Vanguard Group Inc.'),
+    ('0001364742', 'BlackRock Inc.'),
+    ('0000093751', 'State Street Corporation'),
+    ('0000315066', 'Fidelity Management & Research')
+ON CONFLICT DO NOTHING;
+-- GDELT geopolitical events (free, no API key)
+CREATE TABLE IF NOT EXISTS gdelt_events (
+    id              SERIAL PRIMARY KEY,
+    url             TEXT NOT NULL UNIQUE,
+    title           TEXT NOT NULL,
+    source_country  TEXT,
+    tone            REAL,           -- average tone (-10 to +10; negative = negative sentiment)
+    themes          TEXT[],         -- GDELT theme codes (e.g., TAX_FNCACT, ECON_TRADE)
+    locations       TEXT[],         -- location names mentioned
+    domain          TEXT,           -- source domain (e.g., reuters.com)
+    published_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    fetched_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_gdelt_published ON gdelt_events (published_at DESC);

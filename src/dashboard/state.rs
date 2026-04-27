@@ -4,7 +4,7 @@ use crate::theme::ThemeMode;
 use pursuit_week4_automation::models::{
     AnalystRating, AstroScore, DailyTransit, EarningsDate, FilingRow, FundamentalMetric,
     HoldingRow, InsiderTradeRow, LagrangeAlert, LagrangeHistory, MacroIndicator, NatalPosition,
-    NewsArticle, PortfolioPosition, PriceRow, SentimentScore, ShortInterest,
+    NewsArticle, PaperTrade, PortfolioPosition, PriceRow, SentimentScore, ShortInterest,
 };
 use crate::agents::{AgentAnalysis, AgentMode, AgentPersona};
 use crate::backtest::{BacktestConfig, BacktestResult};
@@ -162,6 +162,7 @@ pub struct Dashboard {
     pub toasts:                   Vec<(String, std::time::Instant)>,
     pub theme:                    Theme,
     pub theme_mode:               ThemeMode,
+    pub circadian_override:       Option<u32>,  // None = auto clock, Some(0..23) = slider
     // Universe Explorer
     pub universe_rows:            Vec<UniverseRow>,
     pub universe_total:           i64,
@@ -214,6 +215,12 @@ pub struct Dashboard {
     pub agent_loading:            bool,
     pub agent_llm_error:          Option<String>,
     pub api_key_input:            String,
+    // Paper Trail (v6.0)
+    pub paper_account:            Option<crate::db::paper::PaperAccountSummary>,
+    pub paper_positions:          Vec<crate::db::paper::PaperPositionRow>,
+    pub paper_trades:             Vec<PaperTrade>,
+    pub paper_daily_values:       Vec<f64>,  // for Sharpe ratio + chart
+    pub paper_spy_values:         Vec<f64>,  // SPY benchmark series
 }
 
 impl Default for Dashboard {
@@ -282,8 +289,9 @@ impl Default for Dashboard {
             status:                   String::new(),
             refreshing:               false,
             toasts:                   vec![],
-            theme:                    crate::theme::iced_theme(ThemeMode::default()),
+            theme:                    crate::theme::iced_theme(ThemeMode::default(), crate::theme::current_hour()),
             theme_mode:               ThemeMode::default(),
+            circadian_override:       None,
             universe_rows:            vec![],
             universe_total:           0,
             universe_page:            0,
@@ -325,6 +333,11 @@ impl Default for Dashboard {
             agent_loading:            false,
             agent_llm_error:          None,
             api_key_input:            String::new(),
+            paper_account:            None,
+            paper_positions:          vec![],
+            paper_trades:             vec![],
+            paper_daily_values:       vec![],
+            paper_spy_values:         vec![],
         }
     }
 }
@@ -466,8 +479,16 @@ pub enum Message {
     // Fetch single ticker via scraper subprocess
     FetchThisTicker,
     FetchTickerComplete(Result<(), String>),
+    // Circadian slider
+    CircadianSliderChanged(u32),
+    CircadianSliderReset,
     // LLM agent mode
     SetAgentMode(crate::agents::AgentMode),
     LlmAnalysisComplete(Result<AgentAnalysis, String>),
     ApiKeyInput(String),
+    // Paper Trail
+    PaperAccountLoaded(Result<Option<crate::db::paper::PaperAccountSummary>, String>),
+    PaperPositionsLoaded(Result<Vec<crate::db::paper::PaperPositionRow>, String>),
+    PaperTradesLoaded(Result<Vec<PaperTrade>, String>),
+    PaperValuesLoaded(Result<(Vec<f64>, Vec<f64>), String>),
 }

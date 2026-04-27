@@ -2,6 +2,7 @@ use iced::widget::canvas::Canvas;
 use iced::widget::{button, column, container, horizontal_rule, row, scrollable, text, text_input, Column, Row};
 use iced::{Alignment, Element, Length};
 
+use crate::font;
 use crate::heatmap::SectorHeatMap;
 use crate::state::{Dashboard, Message, UniverseSortCol};
 use crate::theme;
@@ -239,7 +240,7 @@ impl Dashboard {
         .align_y(Alignment::Center);
 
         column![
-            text(format!("Universe Explorer — {} scored tickers", total)).size(theme::text_lg()),
+            text(format!("Universe Explorer — {} scored tickers", total)).font(font::DISPLAY).size(theme::text_lg()),
             horizontal_rule(1),
             text("Sector Heat Map (by avg astro score)").size(theme::text_sm()),
             sector_heatmap,
@@ -268,7 +269,7 @@ impl Dashboard {
         };
         if self.alerts.is_empty() {
             column![
-                text(heading).size(theme::text_lg()),
+                text(heading).font(font::DISPLAY).size(theme::text_lg()),
                 text("No alerts yet — fires when a ticker enters Optimal or Misaligned zone")
                     .size(theme::text_base()),
             ]
@@ -358,7 +359,7 @@ impl Dashboard {
                 .collect();
             column![
                 row![
-                    text(heading).size(theme::text_lg()),
+                    text(heading).font(font::DISPLAY).size(theme::text_lg()),
                     action_bar,
                 ].spacing(12).align_y(Alignment::Center),
                 horizontal_rule(1),

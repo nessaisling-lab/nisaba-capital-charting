@@ -1,0 +1,121 @@
+CHANGELOG — Pursuit Week 4 Financial Dashboard
+================================================
+Author: Aisling Leiva
+Stack:  Rust, Iced 0.13, SQLx, PostgreSQL
+From:   2026-04-07 to 2026-04-25
+
+================================================================================
+v5.0.1 — Polish (2026-04-25)
+================================================================================
+[ab056ee] fix(v5.0.1): panic fixes, color consistency, error propagation
+  - Replace .unwrap() with safe extraction in SetAgentMode handler
+  - UTF-8 safe error truncation in LLM API path
+  - fetch_single_ticker now returns Result for proper exit codes
+  - Reset notification flag on mark-all-read
+  - Replace raw Color values with theme constants
+  - Log portfolio import errors instead of silently discarding
+
+================================================================================
+v5.0.0 — "The Council" (2026-04-25)
+================================================================================
+[93edf81] feat(v5.0.0): LLM agents, single-ticker fetch, zero warnings
+  Phase 1: Eliminated all 47 compiler warnings (module-level dead_code
+           suppression for design system files)
+  Phase 2: "Fetch this ticker" button — dashboard spawns scraper subprocess
+           with --ticker CLI mode for focused 6-phase data fetch
+  Phase 3: LLM-backed agent analysis via Anthropic Claude API with
+           Template/LLM mode toggle, loading states, graceful fallback,
+           API key management in Settings
+
+================================================================================
+v4.2.0 — "The Expansion" (2026-04-24)
+================================================================================
+[dde7aef] feat(v4.2.0): candlesticks, Greeks, sortable tables, toasts, GDELT
+  - OHLC candlestick charts replacing area fill
+  - Black-Scholes Options Greeks calculator + IV solver
+  - Server-side sortable Universe table (6 columns)
+  - In-app toast notifications
+  - GDELT geopolitical events in Research tab
+[d53da2d] fix(rss): char-based truncation to prevent panic on multi-byte UTF-8
+
+================================================================================
+v4.1.0 — "The Glass" (2026-04-24)
+================================================================================
+[1f7ff2c] feat(v4.1.0): UI/UX overhaul
+  - Catppuccin Mocha/Latte/Tokyo Night theme system
+  - Bootstrap Icons integration
+  - Card-based layout with section headings
+  - Fear & Greed gauge widgets
+  - Keyboard shortcuts (Ctrl+1..7 tabs, Ctrl+T search, Ctrl+R refresh)
+
+================================================================================
+v4.0.0 — "The Forge" (2026-04-23)
+================================================================================
+[25d4c61] docs: update DESIGN.md to v4.0.0
+[f4e77b2] fix(swisseph): use Moshier ephemeris, fixing NaN and state corruption
+[be9d079] refactor(v4.0.0): Phase 1 "Structural Steel" — tech debt reduction
+  - Modular update dispatcher (5 domain files)
+  - Extracted helpers, db modules, view modules
+  - Removed dead code, fixed clippy warnings
+
+================================================================================
+v3.1.x — "The Network" (2026-04-22 to 2026-04-23)
+================================================================================
+[60063f9] feat(v3.1.5-v3.1.9): complete backlog + v4.0 roadmap
+  - Strategy builder, backtesting, transaction log
+  - Named watchlists, portfolio P&L
+  - Concordance detection, extended aspects
+[096710e] feat(v3.1.3-v3.1.4): font scale setting, astro priority scrape, bug fixes
+[b274131] feat(v3.1.2): Polymarket prediction markets integration
+[db18f41] feat(v3.1.1): RSS news aggregation from 25 sources
+[5c752db] feat(v3.1.0): DBnomics international economics scraper
+
+================================================================================
+v3.0.x — Bug fixes and UX (2026-04-22)
+================================================================================
+[fa346e9] fix(v3.0.7): 6 bug fixes + 4 UX improvements
+[6fdec4a] feat: v2.0-v3.0.6 full implementation + FinceptTerminal reference
+  - Astrology engine (Swiss Ephemeris, natal charts, transits, horoscopes)
+  - Lagrange composite scoring system
+  - Universe Explorer with 1,700+ tickers
+  - Insider trades, filings, holdings, earnings, sentiment
+  - DCF intrinsic value calculator
+
+================================================================================
+v1.0.0 — v1.1.0 (2026-04-22)
+================================================================================
+[0b4381b] docs: update DESIGN.md to v1.1.0 with design review
+[19c322e] style: increase scrollable section heights
+[d827415] style: warm empty states with structured messaging
+[717abbd] style: systematic type scale; section hierarchy
+[b502273] style: normalize table row spacing; format volume with commas
+[d2dcd58] style: add theme.rs color tokens; fix chart/sparkline theme
+[0721f45] feat: v1.0.0 enrichment pipeline, Tiingo, alerts, recently-viewed
+
+================================================================================
+v0.6.0 — v0.7.0 (2026-04-08 to 2026-04-16)
+================================================================================
+[0938ebe] docs: update DESIGN.md to v0.7.0
+[7c1437c] fix(short_interest): revert to regShoDaily endpoint
+[e89a1c8] fix: correct FINRA endpoint + symbol guard
+[c03b350] fix(dashboard): correct column names for macro/watchlist queries
+[53c53f4] fix(lagrange): correct SQL column names to match model fields
+[46b3d9c] feat(v0.7.0): Lagrange history sparkline, portfolio tracker, CPI YoY%
+[b83d7d5] feat(v0.6.0): Lagrange Score, expanded data sources, signal intelligence
+
+================================================================================
+v0.1.0 — Scaffold (2026-04-07 to 2026-04-08)
+================================================================================
+[01d270c] feat: scaffold two-binary financial dashboard (scraper + Iced GUI)
+[ede4ec1] chore: add gstack skill routing rules to CLAUDE.md
+
+================================================================================
+Project Stats (v5.0.1)
+================================================================================
+  Commits:         34
+  Rust source:     ~15,000 lines across 2 binaries
+  SQL migrations:  32
+  Tests:           52 (38 lib + 14 dashboard)
+  Compiler warnings: 0
+  Crate deps:      27
+  Development:     18 days (Apr 7 - Apr 25, 2026)

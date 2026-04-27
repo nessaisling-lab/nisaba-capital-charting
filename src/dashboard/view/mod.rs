@@ -5,11 +5,13 @@ mod universe;
 mod fundamentals;
 mod research;
 mod portfolio_tab;
+mod paper_trail;
 mod settings;
 
 use iced::widget::{button, column, container, horizontal_rule, row, scrollable, text, text_input, Column, Row};
 use iced::{Alignment, Color, Element, Length};
 
+use crate::font;
 use crate::icons;
 use crate::state::{Dashboard, Message};
 use crate::tabs::Tab;
@@ -76,11 +78,12 @@ impl Dashboard {
             Tab::Fundamentals => "Fundamentals & Agents",
             Tab::Research => "Research & Filings",
             Tab::Portfolio => "Portfolio & Positions",
+            Tab::PaperTrail => "Paper Trading Simulation",
             Tab::Settings => "Settings",
         };
         let theme_label = format!("Theme: {}", self.theme_mode.label());
         let header = row![
-            text(format!("{} — {}", self.selected_ticker, tab_subtitle)).size(theme::text_2xl()),
+            text(format!("{} — {}", self.selected_ticker, tab_subtitle)).font(font::DISPLAY).size(theme::text_2xl()),
             iced::widget::Space::with_width(Length::Fill),
             button(text(theme_label).size(theme::text_sm())).on_press(Message::ToggleTheme),
         ].align_y(Alignment::Center);
@@ -112,7 +115,10 @@ impl Dashboard {
                     container(row![])
                         .width(Length::Fill)
                         .height(Length::Fixed(2.0))
-                        .style(container::bordered_box),
+                        .style(|_theme: &iced::Theme| container::Style {
+                            background: Some(iced::Background::Color(theme::palette().gold)),
+                            ..Default::default()
+                        }),
                 ].spacing(2);
                 button(inner)
                     .on_press(Message::TabSelected(tab))
@@ -135,6 +141,7 @@ impl Dashboard {
             Tab::Fundamentals => self.view_fundamentals(),
             Tab::Research     => self.view_research(),
             Tab::Portfolio    => self.view_portfolio(),
+            Tab::PaperTrail   => self.view_paper_trail(),
             Tab::Settings     => self.view_settings(),
         };
 
@@ -188,18 +195,22 @@ impl Dashboard {
                 |col, (msg, _)| {
                     col.push(
                         container(
-                            text(msg.clone()).size(theme::text_sm()).color(Color::WHITE),
+                            text(msg.clone()).size(theme::text_sm()).color(theme::palette().ink),
                         )
                         .padding([6, 14])
-                        .style(|_theme: &iced::Theme| container::Style {
-                            background: Some(iced::Background::Color(
-                                Color::from_rgba(0.1, 0.1, 0.15, 0.92),
-                            )),
-                            border: iced::Border {
-                                radius: 6.0.into(),
+                        .style(|_theme: &iced::Theme| {
+                            let p = theme::palette();
+                            container::Style {
+                                background: Some(iced::Background::Color(
+                                    Color { a: 0.94, ..p.surface },
+                                )),
+                                border: iced::Border {
+                                    color: p.rule,
+                                    width: 1.0,
+                                    radius: 6.0.into(),
+                                },
                                 ..Default::default()
-                            },
-                            ..Default::default()
+                            }
                         }),
                     )
                 },
