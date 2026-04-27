@@ -6,9 +6,10 @@
 **What:** `docker-compose.yml` to start PostgreSQL. 10-line file, `POSTGRES_PASSWORD=dev`, port 5432.
 **Blocked by:** User wants to explore Docker first.
 
-### Sub-score computation (Fin/Macro/Short/Concordance)
-**What:** Lagrange composite currently equals astro score. Fin, Macro, Short, and Concordance sub-scores are never computed.
-**Impact:** Universe Explorer, alerts, and paper engine all score on astrology alone.
+### Data sparsity in Lagrange sub-scores
+**What:** All 4 sub-scores (Astro 40%, Fin 25%, Macro 20%, Short 15%) are computed, but sentiment and short-interest data are sparse. Most tickers default those inputs to neutral 50, compressing scores into the 45-73 range.
+**Fix paths:** (a) Add alternative sentiment source (Finnhub, RSS tone), (b) find free short-interest feed, (c) buy threshold already lowered 75→65 as interim.
+**Impact:** Paper engine now trades with 65 threshold; raising back to 75 once data coverage improves.
 
 ### "Fetch this ticker" button
 **What:** Single-ticker on-demand scraper fetch from the dashboard UI.

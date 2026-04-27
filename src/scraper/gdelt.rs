@@ -25,6 +25,10 @@ const GDELT_API: &str = "https://api.gdeltproject.org/api/v2/doc/doc";
 /// Maximum articles per query
 const MAX_RECORDS: usize = 25;
 
+/// Retry config for transient failures (429, 503, timeouts)
+const MAX_RETRIES: u32 = 3;
+const RETRY_BASE_SECS: u64 = 5;
+
 // ---------------------------------------------------------------------------
 // GDELT JSON response structures
 // ---------------------------------------------------------------------------
@@ -55,6 +59,7 @@ pub async fn fetch_gdelt_events(
     client: Arc<reqwest::Client>,
 ) {
     let mut total_inserted = 0u64;
+    let mut errors = 0u32;
 
     for &(query, category) in GDELT_QUERIES {
         match fetch_one_query(&pool, &client, query, category).await {
@@ -66,14 +71,18 @@ pub async fn fetch_gdelt_events(
             }
             Err(e) => {
                 eprintln!("[GDELT] {category} error (skipping): {e:#}");
+                errors += 1;
             }
         }
     }
 
     if total_inserted > 0 {
         println!("[GDELT] Done. {total_inserted} new geopolitical articles stored.");
+    } else {
+        println!("[GDELT] No new articles inserted.");
     }
-    crate::log_fetch(&pool, "gdelt", None, "gdelt_events", "ok", None).await;
+    let status = if errors == 0 { "ok" } else if total_inserted > 0 { "partial" } else { "error" };
+    crate::log_fetch(&pool, "gdelt", None, "gdelt_events", status, None).await;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,26 +93,78 @@ async fn fetch_one_query(
     pool: &sqlx::PgPool,
     client: &reqwest::Client,
     query: &str,
-    _category: &str,
+    category: &str,
 ) -> Result<u64> {
-    // Build URL with query params manually (reqwest::query needs serde feature)
     let encoded_query = query.replace(' ', "+");
     let url = format!(
         "{}?query={}&mode=ArtList&maxrecords={}&format=json&timespan=1d&sourcelang=eng",
         GDELT_API, encoded_query, MAX_RECORDS
     );
-    let resp = client.get(&url)
-        .timeout(std::time::Duration::from_secs(10))
-        .send().await
-        .context("GDELT HTTP request failed")?;
 
-    if !resp.status().is_success() {
-        anyhow::bail!("GDELT HTTP {}", resp.status());
+    // Retry loop: handles 429, 503, and transient timeouts
+    let body = {
+        let mut last_err = None;
+        let mut result_body = None;
+        for attempt in 0..MAX_RETRIES {
+            match client.get(&url)
+                .timeout(std::time::Duration::from_secs(15))
+                .send().await
+            {
+                Ok(resp) => {
+                    let status = resp.status();
+                    if status == reqwest::StatusCode::TOO_MANY_REQUESTS
+                        || status == reqwest::StatusCode::SERVICE_UNAVAILABLE
+                    {
+                        let wait = RETRY_BASE_SECS * (1 << attempt);
+                        eprintln!("[GDELT] {category}: HTTP {status}, retrying in {wait}s (attempt {}/{})",
+                            attempt + 1, MAX_RETRIES);
+                        tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
+                        last_err = Some(anyhow::anyhow!("GDELT HTTP {status}"));
+                        continue;
+                    }
+                    if !status.is_success() {
+                        anyhow::bail!("GDELT HTTP {status}");
+                    }
+                    result_body = Some(resp.text().await.context("Failed to read GDELT response")?);
+                    break;
+                }
+                Err(e) if e.is_timeout() && attempt + 1 < MAX_RETRIES => {
+                    let wait = RETRY_BASE_SECS * (1 << attempt);
+                    eprintln!("[GDELT] {category}: timeout, retrying in {wait}s (attempt {}/{})",
+                        attempt + 1, MAX_RETRIES);
+                    tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
+                    last_err = Some(e.into());
+                    continue;
+                }
+                Err(e) => {
+                    anyhow::bail!("GDELT request failed: {e}");
+                }
+            }
+        }
+        match result_body {
+            Some(b) => b,
+            None => return Err(last_err.unwrap_or_else(|| anyhow::anyhow!("GDELT: max retries exceeded"))),
+        }
+    };
+
+    // Guard: empty or non-JSON response
+    let body_trimmed = body.trim();
+    if body_trimmed.is_empty() || !body_trimmed.starts_with('{') {
+        if !body_trimmed.is_empty() {
+            eprintln!("[GDELT] {category}: non-JSON response ({}B): {}",
+                body.len(), &body[..body.len().min(120)]);
+        }
+        return Ok(0);
     }
 
-    let body = resp.text().await.context("Failed to read GDELT response")?;
-    let parsed: GdeltResponse = serde_json::from_str(&body)
-        .context("Failed to parse GDELT JSON")?;
+    let parsed: GdeltResponse = match serde_json::from_str(body_trimmed) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("[GDELT] {category}: JSON parse error: {e} — body preview: {}",
+                &body[..body.len().min(200)]);
+            return Ok(0);
+        }
+    };
 
     let articles = match parsed.articles {
         Some(a) => a,

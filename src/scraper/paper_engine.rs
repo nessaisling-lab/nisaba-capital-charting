@@ -17,7 +17,10 @@ use std::sync::Arc;
 
 /// Paper engine configuration — matches design doc provisional defaults.
 /// Stored as constants; the design allows future migration to the settings table.
-const BUY_THRESHOLD: f64 = 75.0;
+/// Lowered from 75.0 → 65.0 while sentiment + short-interest data coverage
+/// is sparse (most tickers default those sub-scores to neutral 50). Raise back
+/// once additional data sources come online or AV rate limits are lifted.
+const BUY_THRESHOLD: f64 = 65.0;
 const SELL_THRESHOLD: f64 = 40.0;
 const MAX_POSITIONS: usize = 20;
 const MAX_CANDIDATES: usize = 10;
