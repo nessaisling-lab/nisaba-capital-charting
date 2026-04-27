@@ -16,3 +16,13 @@ Thumbs.db
 # Logs
 *.log
 InstallationLog.txt
+
+# Plugin / skill tooling (local, not project code)
+.agents/
+.claude/skills/
+.qwen/
+.vibe/
+skills-lock.json
+
+# Claude Code local settings (personal, not shared)
+.claude/settings.local.json
