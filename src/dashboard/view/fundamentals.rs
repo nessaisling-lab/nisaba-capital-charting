@@ -7,6 +7,7 @@ use crate::helpers::{format_market_value_i64, format_shares};
 
 use crate::state::{Dashboard, Message};
 use crate::theme;
+use super::shared::{eyebrow, section_rule};
 
 impl Dashboard {
     pub(crate) fn view_fundamentals(&self) -> Element<'_, Message> {
@@ -115,11 +116,11 @@ impl Dashboard {
                 let margin_label = if dcf.margin_of_safety_pct > 0.0 { "UNDERVALUED" } else { "OVERVALUED" };
                 let result_row = row![
                     column![
-                        text(format!("Intrinsic Value: ${:.2}", dcf.intrinsic_per_share)).size(theme::text_md()),
-                        text(format!("Enterprise Value: {}", format_market_value_i64(dcf.enterprise_value as i64))).size(theme::text_sm()),
+                        text(format!("Intrinsic Value: ${:.2}", dcf.intrinsic_per_share)).font(font::INTER).size(theme::text_md()),
+                        text(format!("Enterprise Value: {}", format_market_value_i64(dcf.enterprise_value as i64))).font(font::INTER).size(theme::text_sm()),
                     ].spacing(2),
                     column![
-                        text(format!("Margin of Safety: {:.1}%", dcf.margin_of_safety_pct)).size(theme::text_md()).color(margin_color),
+                        text(format!("Margin of Safety: {:.1}%", dcf.margin_of_safety_pct)).font(font::INTER).size(theme::text_md()).color(margin_color),
                         text(margin_label).size(theme::text_sm()).color(margin_color),
                     ].spacing(2),
                 ].spacing(20);
@@ -220,14 +221,14 @@ impl Dashboard {
                 let delta_color = if g.delta.abs() > 0.5 { theme::ZONE_OPTIMAL } else { theme::ZONE_NEUTRAL };
                 let results = row![
                     column![
-                        text(format!("Price: ${:.4}", g.price)).size(theme::text_md()),
-                        text(format!("Delta: {:.4}", g.delta)).size(theme::text_sm()).color(delta_color),
-                        text(format!("Gamma: {:.4}", g.gamma)).size(theme::text_sm()),
+                        text(format!("Price: ${:.4}", g.price)).font(font::INTER).size(theme::text_md()),
+                        text(format!("Delta: {:.4}", g.delta)).font(font::INTER).size(theme::text_sm()).color(delta_color),
+                        text(format!("Gamma: {:.4}", g.gamma)).font(font::INTER).size(theme::text_sm()),
                     ].spacing(2),
                     column![
-                        text(format!("Theta: {:.4}/day", g.theta)).size(theme::text_sm()).color(theme::ZONE_MISALIGNED),
-                        text(format!("Vega:  {:.4}/1%", g.vega)).size(theme::text_sm()),
-                        text(format!("Rho:   {:.4}/1%", g.rho)).size(theme::text_sm()),
+                        text(format!("Theta: {:.4}/day", g.theta)).font(font::INTER).size(theme::text_sm()).color(theme::ZONE_MISALIGNED),
+                        text(format!("Vega:  {:.4}/1%", g.vega)).font(font::INTER).size(theme::text_sm()),
+                        text(format!("Rho:   {:.4}/1%", g.rho)).font(font::INTER).size(theme::text_sm()),
                     ].spacing(2),
                 ].spacing(20);
                 column![
@@ -436,23 +437,30 @@ impl Dashboard {
         };
 
         column![
+            eyebrow("VALUATION"),
             fundamentals_section,
-            horizontal_rule(1),
+            section_rule(),
+            eyebrow("DCF CALCULATOR"),
             dcf_section,
-            horizontal_rule(1),
+            section_rule(),
+            eyebrow("OPTIONS GREEKS"),
             greeks_section,
-            horizontal_rule(1),
+            section_rule(),
+            eyebrow("THE COUNCIL"),
             mode_toggle,
             agent_buttons,
             agent_section,
-            horizontal_rule(1),
+            section_rule(),
+            eyebrow("COMPARATIVE ANALYSIS"),
             compare_section,
-            horizontal_rule(1),
+            section_rule(),
+            eyebrow("EARNINGS"),
             earnings_section,
-            horizontal_rule(1),
+            section_rule(),
+            eyebrow("PRICE HISTORY"),
             price_section,
         ]
-        .spacing(10)
+        .spacing(theme::SPACE_SM)
         .into()
     }
 
@@ -511,12 +519,12 @@ impl Dashboard {
         } else {
             let price_rows: Vec<Element<Message>> = self.rows.iter().map(|r| {
                 row![
-                    text(r.date.to_string()).width(Length::FillPortion(2)),
-                    text(format!("{:.2}", r.open)).width(Length::FillPortion(2)),
-                    text(format!("{:.2}", r.high)).width(Length::FillPortion(2)),
-                    text(format!("{:.2}", r.low)).width(Length::FillPortion(2)),
-                    text(format!("{:.2}", r.close)).width(Length::FillPortion(2)),
-                    text(format_shares(r.volume)).width(Length::FillPortion(3)),
+                    text(r.date.to_string()).font(font::INTER).width(Length::FillPortion(2)),
+                    text(format!("{:.2}", r.open)).font(font::INTER).width(Length::FillPortion(2)),
+                    text(format!("{:.2}", r.high)).font(font::INTER).width(Length::FillPortion(2)),
+                    text(format!("{:.2}", r.low)).font(font::INTER).width(Length::FillPortion(2)),
+                    text(format!("{:.2}", r.close)).font(font::INTER).width(Length::FillPortion(2)),
+                    text(format_shares(r.volume)).font(font::INTER).width(Length::FillPortion(3)),
                 ].spacing(10).into()
             }).collect();
             Column::with_children(price_rows).spacing(4)

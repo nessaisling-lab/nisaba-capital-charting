@@ -3,6 +3,7 @@ use iced::{Alignment, Element, Length};
 
 use crate::font;
 use crate::helpers;
+use super::shared::{eyebrow, section_rule};
 use crate::state::{Dashboard, Message};
 use crate::theme;
 
@@ -120,14 +121,17 @@ impl Dashboard {
 
         // ── Final assembly ──────────────────────────────────
         column![
+            eyebrow("PORTFOLIO"),
             iced::widget::container(portfolio_section).padding([10, 14]),
-            horizontal_rule(1),
+            section_rule(),
+            eyebrow("TRANSACTIONS"),
             iced::widget::container(tx_section).padding([10, 14]),
-            horizontal_rule(1),
+            section_rule(),
+            eyebrow("WATCHLISTS"),
             iced::widget::container(watchlist_mgr).padding([10, 14]),
-            horizontal_rule(1),
+            section_rule(),
             macro_strip,
-        ].spacing(10).into()
+        ].spacing(theme::SPACE_SM).into()
     }
 
     /// Build the portfolio P&L section (used by Portfolio tab).
@@ -186,9 +190,9 @@ impl Dashboard {
                 Column::with_children(pos_rows).spacing(2),
                 horizontal_rule(1),
                 row![
-                    text(format!("Cost: ${}", helpers::format_compact(total_cost))).size(theme::text_sm()),
-                    text(format!("Value: ${}", helpers::format_compact(total_value))).size(theme::text_sm()),
-                    text(format!("P&L: {:+.0} ({})", total_pnl, helpers::format_pct(total_pnl_pct))).size(theme::text_base()).color(total_color),
+                    text(format!("Cost: ${}", helpers::format_compact(total_cost))).font(font::INTER).size(theme::text_sm()),
+                    text(format!("Value: ${}", helpers::format_compact(total_value))).font(font::INTER).size(theme::text_sm()),
+                    text(format!("P&L: {:+.0} ({})", total_pnl, helpers::format_pct(total_pnl_pct))).font(font::INTER).size(theme::text_base()).color(total_color),
                 ].spacing(16),
             ].spacing(4)
         } else if self.portfolio.is_empty() {

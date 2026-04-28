@@ -5,6 +5,7 @@ use iced::{Alignment, Element, Length};
 use crate::font;
 use crate::heatmap::SectorHeatMap;
 use crate::state::{Dashboard, Message, UniverseSortCol};
+use super::shared::{eyebrow, section_rule};
 use crate::theme;
 
 impl Dashboard {
@@ -179,9 +180,11 @@ impl Dashboard {
                             .size(theme::text_xs())
                             .width(Length::FillPortion(2)),
                         text(astro_str)
+                            .font(font::INTER)
                             .size(theme::text_sm())
                             .width(Length::Fixed(56.0)),
                         text(format!("{:.0}", u.score))
+                            .font(font::INTER)
                             .size(theme::text_sm())
                             .width(Length::Fixed(56.0)),
                         text(u.label.clone())
@@ -189,12 +192,15 @@ impl Dashboard {
                             .color(zone_color)
                             .width(Length::Fixed(90.0)),
                         text(fin_str)
+                            .font(font::INTER)
                             .size(theme::text_sm())
                             .width(Length::Fixed(44.0)),
                         text(macro_str)
+                            .font(font::INTER)
                             .size(theme::text_sm())
                             .width(Length::Fixed(44.0)),
                         text(short_str)
+                            .font(font::INTER)
                             .size(theme::text_sm())
                             .width(Length::Fixed(44.0)),
                         text(conc.to_string())
@@ -240,11 +246,13 @@ impl Dashboard {
         .align_y(Alignment::Center);
 
         column![
+            eyebrow("UNIVERSE EXPLORER"),
             text(format!("Universe Explorer — {} scored tickers", total)).font(font::DISPLAY).size(theme::text_lg()),
-            horizontal_rule(1),
+            section_rule(),
+            eyebrow("SECTOR MAP"),
             text("Sector Heat Map (by avg astro score)").size(theme::text_sm()),
             sector_heatmap,
-            horizontal_rule(1),
+            section_rule(),
             search_bar,
             scrollable(sector_bar).direction(scrollable::Direction::Horizontal(
                 scrollable::Scrollbar::default()
@@ -252,10 +260,11 @@ impl Dashboard {
             zone_bar,
             pagination,
             universe_table,
-            horizontal_rule(1),
+            section_rule(),
+            eyebrow("LAGRANGE ALERTS"),
             container(alerts_section).padding([10, 14]),
         ]
-        .spacing(8)
+        .spacing(theme::SPACE_SM)
         .into()
     }
 
@@ -335,12 +344,14 @@ impl Dashboard {
                     };
                     row![
                         text(a.alert_date.to_string())
+                            .font(font::INTER)
                             .size(theme::text_base())
                             .width(Length::Fixed(90.0)),
                         text(&a.ticker)
                             .size(theme::text_base())
                             .width(Length::Fixed(64.0)),
                         text(format!("{:.1}", a.score))
+                            .font(font::INTER)
                             .size(theme::text_base())
                             .width(Length::Fixed(56.0)),
                         text(&a.label)

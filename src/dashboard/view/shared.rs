@@ -1,4 +1,4 @@
-use iced::widget::{canvas::Canvas, column, container, horizontal_rule, row, text, Column};
+use iced::widget::{canvas::Canvas, column, container, horizontal_rule, row, text, Column, Space};
 use iced::{Alignment, Element, Length};
 
 use crate::font;
@@ -14,7 +14,7 @@ use crate::theme;
 /// Wrap content in a card panel — warm surface with subtle rule border.
 pub fn card<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
     container(content)
-        .padding(16)
+        .padding(theme::SPACE_MD as u16)
         .width(Length::Fill)
         .style(|_theme: &iced::Theme| {
             let p = theme::palette();
@@ -23,7 +23,7 @@ pub fn card<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message
                 border: iced::Border {
                     color: p.rule,
                     width: 1.0,
-                    radius: 4.0.into(),
+                    radius: theme::RADIUS_CARD.into(),
                 },
                 ..Default::default()
             }
@@ -55,6 +55,44 @@ pub fn titled_card<'a>(
         content.into(),
     ].spacing(6))
 }
+
+// ---------------------------------------------------------------------------
+// v7.1 Spatial primitives — BH redesign spatial language
+// ---------------------------------------------------------------------------
+
+/// Wrap content in a max-width centered container (BH: 1240px).
+pub fn max_container<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
+    container(content)
+        .max_width(theme::MAX_WIDTH)
+        .center_x(Length::Fill)
+        .into()
+}
+
+/// Eyebrow label — uppercase, small, accent-colored section categorizer.
+/// BH redesign: italic uppercase 0.78rem with letter-spacing. Iced has no
+/// letter-spacing, so we use uppercase + bold weight + gold color.
+pub fn eyebrow<'a>(label: &str) -> Element<'a, Message> {
+    text(label.to_uppercase())
+        .font(font::INTER_BOLD)
+        .size(theme::text_xs())
+        .color(theme::palette().gold)
+        .into()
+}
+
+/// Section divider — horizontal rule with vertical breathing room.
+/// Use between major content sections (not inside cards).
+pub fn section_rule<'a>() -> Element<'a, Message> {
+    column![
+        Space::with_height(Length::Fixed(theme::SPACE_SM)),
+        horizontal_rule(1),
+        Space::with_height(Length::Fixed(theme::SPACE_SM)),
+    ]
+    .into()
+}
+
+// ---------------------------------------------------------------------------
+// Gauge + macro helpers
+// ---------------------------------------------------------------------------
 
 /// Gauge helper: renders a title + FearGreedGauge canvas, or a fallback label.
 pub fn make_gauge<'a>(
@@ -105,14 +143,14 @@ impl Dashboard {
                 .is_some()
         };
         let macro_strip_us = row![
-            text(macro_fmt("Fed Funds", "FEDFUNDS", "%", "")).size(theme::text_base()),
-            text(macro_fmt("CPI YoY", "CPIAUCSL_YOY", "%", "")).size(theme::text_base()),
-            text(macro_fmt("Unemploy", "UNRATE", "%", "")).size(theme::text_base()),
-            text(macro_fmt("10Y", "GS10", "%", "")).size(theme::text_base()),
-            text(macro_fmt("2Y", "GS2", "%", "")).size(theme::text_base()),
-            text(macro_fmt("Spread", "T10Y2Y", "%", "")).size(theme::text_base()),
-            text(macro_fmt("VIX", "VIXCLS", "", "")).size(theme::text_base()),
-            text(macro_fmt("WTI Oil", "DCOILWTICO", "", "$")).size(theme::text_base()),
+            text(macro_fmt("Fed Funds", "FEDFUNDS", "%", "")).font(font::INTER).size(theme::text_base()),
+            text(macro_fmt("CPI YoY", "CPIAUCSL_YOY", "%", "")).font(font::INTER).size(theme::text_base()),
+            text(macro_fmt("Unemploy", "UNRATE", "%", "")).font(font::INTER).size(theme::text_base()),
+            text(macro_fmt("10Y", "GS10", "%", "")).font(font::INTER).size(theme::text_base()),
+            text(macro_fmt("2Y", "GS2", "%", "")).font(font::INTER).size(theme::text_base()),
+            text(macro_fmt("Spread", "T10Y2Y", "%", "")).font(font::INTER).size(theme::text_base()),
+            text(macro_fmt("VIX", "VIXCLS", "", "")).font(font::INTER).size(theme::text_base()),
+            text(macro_fmt("WTI Oil", "DCOILWTICO", "", "$")).font(font::INTER).size(theme::text_base()),
         ]
         .spacing(20);
 
@@ -128,11 +166,11 @@ impl Dashboard {
 
         if has_any_intl {
             let macro_strip_intl = row![
-                text(macro_fmt("Euribor 3M", intl_ids[0], "%", "")).size(theme::text_base()),
-                text(macro_fmt("PBoC", intl_ids[1], "%", "")).size(theme::text_base()),
-                text(macro_fmt("EU CPI", intl_ids[2], "%", "")).size(theme::text_base()),
-                text(macro_fmt("OECD CLI", intl_ids[3], "", "")).size(theme::text_base()),
-                text(macro_fmt("Credit/GDP", intl_ids[4], "%", "")).size(theme::text_base()),
+                text(macro_fmt("Euribor 3M", intl_ids[0], "%", "")).font(font::INTER).size(theme::text_base()),
+                text(macro_fmt("PBoC", intl_ids[1], "%", "")).font(font::INTER).size(theme::text_base()),
+                text(macro_fmt("EU CPI", intl_ids[2], "%", "")).font(font::INTER).size(theme::text_base()),
+                text(macro_fmt("OECD CLI", intl_ids[3], "", "")).font(font::INTER).size(theme::text_base()),
+                text(macro_fmt("Credit/GDP", intl_ids[4], "%", "")).font(font::INTER).size(theme::text_base()),
             ]
             .spacing(20);
             column![macro_strip_us, macro_strip_intl].spacing(4)

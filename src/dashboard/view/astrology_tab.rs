@@ -6,6 +6,7 @@ use crate::astrology::{build_transits_section, build_wheel_legend, NatalWheel};
 use crate::calendar::AstroCalendar;
 use crate::font;
 use crate::state::{Dashboard, Message};
+use super::shared::{eyebrow, section_rule};
 use crate::strategy::Condition;
 use crate::theme;
 
@@ -407,17 +408,20 @@ impl Dashboard {
             .into()
         };
 
-        // ── Final assembly ──────────────────────────────────
+        // ── Final assembly ─────────────────���────────────────
         column![
+            eyebrow("NATAL CHART"),
             astrology_section,
-            horizontal_rule(1),
+            section_rule(),
+            eyebrow("ASTRO CALENDAR"),
             container(calendar_section).padding([10, 14]),
-            horizontal_rule(1),
+            section_rule(),
+            eyebrow("BACKTEST"),
             container(backtest_section).padding([10, 14]),
-            horizontal_rule(1),
+            section_rule(),
             container(strategy_section).padding([10, 14]),
         ]
-        .spacing(10)
+        .spacing(theme::SPACE_SM)
         .into()
     }
 }

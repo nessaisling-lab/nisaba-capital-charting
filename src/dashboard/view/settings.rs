@@ -5,7 +5,7 @@ use crate::font;
 use crate::icons;
 use crate::state::{Dashboard, Message};
 use crate::theme;
-use super::shared::{card, section_heading};
+use super::shared::{card, eyebrow, section_heading, section_rule};
 
 impl Dashboard {
     pub(crate) fn view_settings(&self) -> Element<'_, Message> {
@@ -129,11 +129,20 @@ impl Dashboard {
         ].spacing(4));
 
         column![
+            eyebrow("APPEARANCE"),
             appearance_card,
+            section_rule(),
+            eyebrow("DATA & REFRESH"),
             data_card,
+            section_rule(),
+            eyebrow("API KEYS"),
             api_keys_card,
+            section_rule(),
+            eyebrow("ALERTS"),
             alerts_card,
+            section_rule(),
+            eyebrow("DASHBOARD INFO"),
             info_card,
-        ].spacing(10).padding(8).into()
+        ].spacing(theme::SPACE_SM).padding(8).into()
     }
 }

@@ -3,12 +3,73 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v7.0.0
-**Next milestone:** v7.1.0 (TBD)
+**Current version:** v7.1.0
+**Next milestone:** v7.2.0 (TBD)
 
 ---
 
 ## Changelog
+
+### v7.1.0 — "The Ledger — Spatial Polish" (2026-04-27)
+
+**Theme:** Bridging the spatial gap between the Renaissance book aesthetic (shipped in v7.0) and real-world layout. v7.0 got the palette and typography right — circadian colors, four-role fonts, semantic theming. But the layout was still generic: full-bleed content on wide monitors, 200px of header chrome consuming 26% of a 768px viewport, no visual rhythm between sections. This version applies the spatial language extracted from the Berkshire Hathaway HTML redesign reference: 1240px max-width, 8px spacing base, eyebrow labels, 1px rule dividers with breathing room, and a vertical flow overview with the price chart as hero element. Driven by a 185-frame video review that identified 12 visual issues across all 8 tabs.
+
+1. **Bug fix: paper trail buy threshold** — the paper trail view displayed "exceed 75" for the buy threshold, but the paper engine was already lowered to 65 in a prior commit. Updated the stale UI text to match the actual `BUY_THRESHOLD` constant.
+   - *Files:* `src/dashboard/view/paper_trail.rs` (1 string change)
+   - *Insight:* A good example of why threshold values should be referenced from constants rather than hardcoded in UI strings. The scraper-side threshold changed but the dashboard-side text was a separate string literal.
+
+2. **Spacing constants and layout primitives** — added 7 spatial constants to `theme.rs`: `SPACE_XS` (4px), `SPACE_SM` (8px), `SPACE_MD` (16px), `SPACE_LG` (24px), `SPACE_XL` (40px), `MAX_WIDTH` (1240px), `RADIUS_CARD` (4px). Added 3 reusable layout functions to `shared.rs`: `max_container()` wraps content in a 1240px centered container, `eyebrow()` renders an uppercase gold label in Inter SemiBold, `section_rule()` renders a horizontal rule with 8px vertical breathing room. Updated `card()` to reference `SPACE_MD` and `RADIUS_CARD` constants instead of magic numbers.
+   - *Files:* `src/dashboard/theme.rs` (+7 constants), `src/dashboard/view/shared.rs` (+3 functions, card updated)
+   - *Insight:* The 1240px max-width comes directly from the BH redesign's CSS `max-width`. The 8px spacing base was extracted via `designlang` from the BH reference HTML. These aren't arbitrary — they're the exact values that make the reference design scannable. Iced's `max_width()` takes `impl Into<Pixels>` which accepts `f32` directly; the initial `as u32` cast failed because `Pixels` only implements `From<f32>` and `From<u16>`.
+
+3. **Compact 2-row header** — collapsed 7+ vertical header elements (~200px) into 2 rows (~80px). Row 1: ticker name (Fraunces display) + right-aligned refresh/fetch/theme buttons. Row 2: search bar + ticker buttons + recently viewed (single nav strip). Removed the tab subtitle text (redundant with the visible tab bar). Removed the "Loaded 100 rows for AAPL" status text (developer-facing, not user-facing). Replaced magic `spacing(10)` and `padding(20)` with `SPACE_SM` and `SPACE_LG` constants.
+   - *Files:* `src/dashboard/view/mod.rs` (lines 73-184 rewritten)
+   - *Insight:* The status text removal is significant UX-wise. Status messages like "Loaded 100 rows" are useful during development but create visual noise for users. The same information is available in Settings > Dashboard Info for those who need it. The ~120px vertical reclaim means 15% more content visible on a 768px laptop screen.
+
+4. **Max-width container** — wrapped the scrollable content area in `max_container()`, capping content at 1240px centered. On a 1920px monitor, this creates ~340px margins on each side. One-line change (`scrollable(content)` → `scrollable(shared::max_container(content))`) with massive visual impact.
+   - *Files:* `src/dashboard/view/mod.rs` (1 line changed)
+   - *Insight:* The max-width constraint is the single biggest readability improvement. Without it, text lines on wide monitors stretch to 200+ characters, forcing constant eye-tracking across the full viewport width. The 1240px cap keeps text within the BH redesign's 68ch measure guideline.
+
+5. **Eyebrow labels and section rules across all 8 tabs** — inserted `eyebrow("LABEL")` before each major section and `section_rule()` between sections in all 8 tab views. Added imports for `eyebrow` and `section_rule` to all view files. Replaced hard `horizontal_rule(1)` dividers in final assembly columns with breathing-room `section_rule()`. Replaced magic `spacing(10)` with `theme::SPACE_SM` in assembly columns.
+   - *Eyebrows by tab:*
+     - Overview: MARKET SENTIMENT, PRICE ACTION, SIGNAL INTELLIGENCE, SCORED UNIVERSE, PREDICTION MARKETS, MACRO & MARKETS
+     - Astrology: NATAL CHART, ASTRO CALENDAR, BACKTEST
+     - Universe: UNIVERSE EXPLORER, SECTOR MAP, LAGRANGE ALERTS
+     - Fundamentals: VALUATION, DCF CALCULATOR, OPTIONS GREEKS, THE COUNCIL, COMPARATIVE ANALYSIS, EARNINGS, PRICE HISTORY
+     - Research: FILINGS & NEWS, MARKET NEWS, GEOPOLITICS, INSIDER ACTIVITY, INSTITUTIONAL HOLDERS
+     - Portfolio: PORTFOLIO, TRANSACTIONS, WATCHLISTS
+     - Paper Trail: PAPER TRADING, OPEN POSITIONS, PERFORMANCE, EQUITY CURVE, TRADE LOG
+     - Settings: APPEARANCE, DATA & REFRESH, API KEYS, ALERTS, DASHBOARD INFO
+   - *Files:* All 8 view files in `src/dashboard/view/` (imports + eyebrow/section_rule insertions)
+   - *Insight:* Eyebrow labels are the BH redesign's most distinctive structural element — uppercase, small, gold-colored category tags above sections (like "SIXTY YEARS OF COMPOUNDING"). They create a scanning rhythm that lets users jump between sections without reading headings. Combined with section rules that have 8px breathing room (vs the previous raw 1px horizontal_rule), they establish the book-like vertical cadence that makes the BH redesign feel typeset rather than coded.
+
+6. **Font role enforcement** — added ~65 `.font(font::INTER)` calls to numeric display text across 7 view files. All prices, scores, percentages, ratios, and statistical values now render in Inter (the clean sans-serif optimized for tabular numerals). Added `use crate::font` import to `paper_trail.rs` which hadn't needed it before. Added one `.font(font::BODY)` call to Polymarket question text for Source Serif 4 prose rendering.
+   - *Targets:* Overview (indicators, watchlist scores, polymarket %, Lagrange verdict), Shared (13 macro strip values), Paper Trail (account values, positions, stats, SPY benchmark, trade log), Universe (score columns, alert scores), Fundamentals (DCF results, Greeks results, OHLCV prices), Portfolio (P&L totals), Research (insider shares/prices, holdings)
+   - *Files:* `overview.rs`, `shared.rs`, `paper_trail.rs`, `universe.rs`, `fundamentals.rs`, `portfolio_tab.rs`, `research.rs`
+   - *Insight:* v7.0 deliberately left numeric values in the default Source Serif 4 body font, arguing that "serif numerals reinforce the Renaissance book identity." After the BH reference extraction, the design token analysis showed the reference uses Inter for all numeric values. The distinction matters: Fraunces for headings (ornate identity), Source Serif 4 for prose (reading comfort), Inter for data (tabular clarity). Numbers in a financial dashboard are data, not prose — they need Inter's consistent widths for column alignment and quick scanning.
+
+7. **Overview tab restructure** — converted from a two-column split (60/40 FillPortion) to vertical flow with the price chart as hero element. Chart height increased from 250px to 300px. Gauges row unwrapped from card container to let canvas elements breathe. Technical indicators and patterns placed in a 60/40 side-by-side row. Signals and watchlist kept side-by-side in cards. Macro strip and polymarket combined at the bottom under "MACRO & MARKETS" eyebrow.
+   - *Files:* `src/dashboard/view/overview.rs` (assembly section rewritten)
+   - *Insight:* The BH redesign's most impactful layout pattern is leading with a full-width hero visualization (the book value chart spanning the entire content width). Our price chart was previously squeezed into 60% of the viewport. At full width on a 1240px-capped layout, the chart is now ~1200px wide — 2x the previous effective width. More data points are visible, candle bodies are wider and easier to read, and the chart becomes the visual anchor of the Overview tab rather than competing with the signals panel for attention.
+
+**Post-upgrade metrics:**
+
+| Metric | v7.0.0 | v7.1.0 |
+|--------|--------|--------|
+| Header chrome height | ~200px (7 elements) | ~80px (2 rows) |
+| Content max-width | Unbounded (full viewport) | 1240px centered |
+| Spacing system | Magic numbers (10, 20) | 5 named constants (XS/SM/MD/LG/XL) |
+| Layout primitives | 2 (card, section_heading) | 5 (+max_container, eyebrow, section_rule) |
+| Eyebrow labels | 0 | 38 across 8 tabs |
+| Section rules | 0 | ~30 across 8 tabs |
+| Font-annotated numerics | 0 (.font() calls on data text) | ~65 Inter-annotated values |
+| Overview chart width | ~60% of viewport (FillPortion 3/5) | 100% of 1240px container |
+| Overview chart height | 250px | 300px |
+| Overview layout | Two-column split | Vertical flow with hero chart |
+| Unused code warnings | 0 | 0 |
+| Tests | 70 | 70 (all pass) |
+| Build | 0 warnings | 0 warnings |
+| Files modified | N/A | 11 (theme.rs, shared.rs, mod.rs, + 8 view files) |
 
 ### v7.0.0 — "The Ledger" (2026-04-26)
 

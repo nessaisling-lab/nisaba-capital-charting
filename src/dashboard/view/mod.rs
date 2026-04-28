@@ -70,33 +70,42 @@ impl Dashboard {
             )
         };
 
-        // ── Header with tab subtitle + theme toggle ─────────
-        let tab_subtitle = match self.active_tab {
-            Tab::Astrology => "Astrology & Timing",
-            Tab::Overview => "Daily Price Data",
-            Tab::Universe => "Universe Explorer",
-            Tab::Fundamentals => "Fundamentals & Agents",
-            Tab::Research => "Research & Filings",
-            Tab::Portfolio => "Portfolio & Positions",
-            Tab::PaperTrail => "Paper Trading Simulation",
-            Tab::Settings => "Settings",
-        };
+        // ── Header row: ticker + actions (right-aligned) ────
         let theme_label = format!("Theme: {}", self.theme_mode.label());
-        let header = row![
-            text(format!("{} — {}", self.selected_ticker, tab_subtitle)).font(font::DISPLAY).size(theme::text_2xl()),
-            iced::widget::Space::with_width(Length::Fill),
-            button(text(theme_label).size(theme::text_sm())).on_press(Message::ToggleTheme),
-        ].align_y(Alignment::Center);
-
-        // ── Status + refresh ────────────────────────────────
         let refresh_icon = text(icons::ARROW_REPEAT.to_string())
             .font(icons::BOOTSTRAP)
             .size(theme::text_sm());
-        let refresh_label = if self.refreshing {
-            row![refresh_icon, text("Refreshing...").size(theme::text_sm())].spacing(4).align_y(Alignment::Center)
+        let refresh_btn = button(
+            if self.refreshing {
+                row![refresh_icon, text("Refreshing...").size(theme::text_sm())].spacing(4).align_y(Alignment::Center)
+            } else {
+                row![refresh_icon, text("Refresh").size(theme::text_sm())].spacing(4).align_y(Alignment::Center)
+            }
+        ).on_press(Message::RefreshNow);
+        let fetch_btn: Element<Message> = if self.fetching_ticker {
+            button(
+                row![
+                    text(icons::DOWNLOAD.to_string()).font(icons::BOOTSTRAP).size(theme::text_sm()),
+                    text("Fetching...").size(theme::text_sm()),
+                ].spacing(4).align_y(Alignment::Center)
+            ).into()
         } else {
-            row![refresh_icon, text("Refresh").size(theme::text_sm())].spacing(4).align_y(Alignment::Center)
+            button(
+                row![
+                    text(icons::DOWNLOAD.to_string()).font(icons::BOOTSTRAP).size(theme::text_sm()),
+                    text(format!("Fetch {}", self.selected_ticker)).size(theme::text_sm()),
+                ].spacing(4).align_y(Alignment::Center)
+            ).on_press(Message::FetchThisTicker).into()
         };
+        let header_row = row![
+            text(self.selected_ticker.as_str()).font(font::DISPLAY).size(theme::text_2xl()),
+            iced::widget::Space::with_width(Length::Fill),
+            refresh_btn,
+            fetch_btn,
+            button(text(theme_label).size(theme::text_sm())).on_press(Message::ToggleTheme),
+        ]
+        .spacing(theme::SPACE_SM)
+        .align_y(Alignment::Center);
 
         // ── Tab bar (icon + label, active underline) ────────
         let tab_bar: Row<Message> = Tab::all().iter().fold(row![].spacing(2), |r, &tab| {
@@ -145,46 +154,32 @@ impl Dashboard {
             Tab::Settings     => self.view_settings(),
         };
 
+        // ── Nav strip: search + tickers + recently viewed ───
+        let nav_strip = row![
+            search_bar,
+            ticker_buttons,
+            iced::widget::Space::with_width(Length::Fill),
+            recently_viewed_row,
+        ]
+        .spacing(theme::SPACE_SM)
+        .align_y(Alignment::Center);
+
         // ── Final assembly ──────────────────────────────────
         let content = column![
-            header,
+            header_row,
             horizontal_rule(1),
-            ticker_buttons,
-            row![search_bar].spacing(16),
+            nav_strip,
             autocomplete,
-            recently_viewed_row,
-            text(&self.status).size(theme::text_base()),
-            {
-                let fetch_btn: Element<Message> = if self.fetching_ticker {
-                    button(
-                        row![
-                            text(icons::DOWNLOAD.to_string()).font(icons::BOOTSTRAP).size(theme::text_sm()),
-                            text("Fetching...").size(theme::text_sm()),
-                        ].spacing(4).align_y(Alignment::Center)
-                    ).into()
-                } else {
-                    button(
-                        row![
-                            text(icons::DOWNLOAD.to_string()).font(icons::BOOTSTRAP).size(theme::text_sm()),
-                            text(format!("Fetch {}", self.selected_ticker)).size(theme::text_sm()),
-                        ].spacing(4).align_y(Alignment::Center)
-                    ).on_press(Message::FetchThisTicker).into()
-                };
-                row![
-                    button(refresh_label).on_press(Message::RefreshNow),
-                    fetch_btn,
-                ].spacing(8)
-            },
             horizontal_rule(1),
             tab_bar,
             horizontal_rule(1),
             tab_content,
         ]
-        .spacing(10)
-        .padding(20);
+        .spacing(theme::SPACE_SM)
+        .padding(theme::SPACE_LG);
 
         // ── Toast overlay ───────────────────────────────────
-        let main_view: Element<'_, Message> = container(scrollable(content))
+        let main_view: Element<'_, Message> = container(scrollable(shared::max_container(content)))
             .width(Length::Fill).height(Length::Fill).into();
 
         if self.toasts.is_empty() {

@@ -3,12 +3,42 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v5.0.0
-**Next milestone:** v5.1.0 (TBD)
+**Current version:** v7.1.0
+**Next milestone:** v7.2.0 (TBD)
+
+> Note: This file lags behind the primary DESIGN.md in the project root.
+> See DESIGN.md for full v6.0-v7.1 changelogs with file paths and insights.
 
 ---
 
 ## Changelog
+
+### v7.1.0 — "The Ledger — Spatial Polish" (2026-04-27)
+
+**Theme:** Bridging the spatial gap between the Renaissance book aesthetic (v7.0) and real-world layout. Applies the spatial language extracted from the Berkshire Hathaway HTML redesign reference: 1240px max-width, 8px spacing base, eyebrow labels, 1px rule dividers, and vertical flow overview with hero chart.
+
+1. Bug fix: paper trail buy threshold text 75 → 65
+2. Spacing constants (SPACE_XS/SM/MD/LG/XL, MAX_WIDTH, RADIUS_CARD) + layout primitives (max_container, eyebrow, section_rule)
+3. Compact 2-row header (~200px → ~80px), remove dev status text
+4. 1240px max-width centered container
+5. 38 eyebrow labels + ~30 section rules across all 8 tabs
+6. ~65 .font(font::INTER) on numeric values across 7 files
+7. Overview restructure — vertical flow, full-width 300px hero chart
+
+Files modified: 11 | Tests: 70 pass | Warnings: 0
+
+### v7.0.0 — "The Ledger" (2026-04-26)
+
+**Theme:** Complete UI/UX overhaul — Renaissance book aesthetic. Parchment/Leather themes, 24-stage circadian palette interpolation, four-role typography (Fraunces/Source Serif 4/Inter/JetBrains Mono), shared component restyling. See DESIGN.md for full details (8 numbered changes with file paths and insights).
+
+### v6.2.0 — "The Priority Queue" (2026-04-26)
+Paper engine priority pipeline — all data sources cover paper tickers.
+
+### v6.1.0 — "The Benchmark" (2026-04-26)
+Equity curve, NYSE holidays, rebalancing, stop-losses, SPY benchmark comparison.
+
+### v6.0.0 — Paper Trading Engine (2026-04-26)
+Lagrange signal-driven paper trading simulation with $100K capital, buy/sell thresholds, equity curve, trade log, performance statistics.
 
 ### v5.0.0 — "The Council" (2026-04-25)
 

@@ -2,7 +2,62 @@ CHANGELOG — Pursuit Week 4 Financial Dashboard
 ================================================
 Author: Aisling Leiva
 Stack:  Rust, Iced 0.13, SQLx, PostgreSQL
-From:   2026-04-07 to 2026-04-25
+From:   2026-04-07 to 2026-04-27
+
+================================================================================
+v7.1.0 — "The Ledger — Spatial Polish" (2026-04-27)
+================================================================================
+[pending] feat(v7.1.0): spatial polish — layout, typography, vertical flow
+  Phase 1: Fix paper trail buy threshold text 75 → 65
+  Phase 2: Spacing constants (SPACE_XS/SM/MD/LG/XL, MAX_WIDTH, RADIUS_CARD)
+           + layout primitives (max_container, eyebrow, section_rule)
+  Phase 3: Compact 2-row header (~200px → ~80px), remove status text
+  Phase 4: 1240px max-width centered container
+  Phase 5: 38 eyebrow labels + ~30 section rules across all 8 tabs
+  Phase 6: ~65 .font(font::INTER) on numeric values across 7 files
+  Phase 7: Overview restructure — vertical flow, full-width 300px hero chart
+  Files modified: 11 (theme.rs, shared.rs, mod.rs, + 8 view files)
+
+================================================================================
+v7.0.0 — "The Ledger" (2026-04-26)
+================================================================================
+[6b0174a] feat(v7.0.0): Renaissance book UI/UX overhaul
+  - LedgerPalette engine: 11-channel semantic palette with RwLock cache
+  - 8 anchor palettes (4 Parchment + 4 Leather) with 24-stage circadian lerp
+  - ThemeMode: Auto/Parchment/Leather (removed TokyoNight)
+  - Circadian preview slider in Settings (0-23 hour override)
+  - Four-role typography: Fraunces (display), Source Serif 4 (body),
+    Inter (numerics), JetBrains Mono (tabular)
+  - Shared component restyling: card borders, gold tab indicator, toast overlay
+  - 43+ heading instances updated to .font(font::DISPLAY)
+
+================================================================================
+v6.2.0 — "The Priority Queue" (2026-04-26)
+================================================================================
+[6b0174a] Paper engine priority pipeline
+  - collect_priority_tickers() merges paper positions into fetch pipeline
+  - All Phase 2 data sources (sentiment, Finnhub, short, EDGAR) cover paper tickers
+  - Tiingo bulk SQL includes paper_portfolio at tier-0 priority
+
+================================================================================
+v6.1.0 — "The Benchmark" (2026-04-26)
+================================================================================
+[6b0174a] Equity curve, NYSE holidays, rebalancing, stop-losses
+  - SPY benchmark comparison (Sharpe, max drawdown, alpha)
+  - NYSE holiday calendar (2022-2030) — no trades on market holidays
+  - 25% position cap rebalancing
+  - 15% trailing stop-loss exits
+  - Win rate, avg holding days, closed trade statistics
+
+================================================================================
+v6.0.0 — Paper Trading Engine (2026-04-26)
+================================================================================
+[6b0174a] Lagrange signal-driven simulation
+  - Paper trading account with $100K initial capital
+  - Buy when Lagrange score > threshold, sell when < 35
+  - Equity curve chart with daily portfolio valuation
+  - Trade log, open positions, performance statistics
+  - Paper Trail tab in dashboard
 
 ================================================================================
 v5.0.1 — Polish (2026-04-25)
@@ -110,12 +165,13 @@ v0.1.0 — Scaffold (2026-04-07 to 2026-04-08)
 [ede4ec1] chore: add gstack skill routing rules to CLAUDE.md
 
 ================================================================================
-Project Stats (v5.0.1)
+Project Stats (v7.1.0)
 ================================================================================
-  Commits:         34
-  Rust source:     ~15,000 lines across 2 binaries
+  Commits:         38+
+  Rust source:     ~18,000 lines across 2 binaries
   SQL migrations:  32
-  Tests:           52 (38 lib + 14 dashboard)
+  Tests:           70 (48 lib + 17 dashboard + 5 scraper)
   Compiler warnings: 0
   Crate deps:      27
-  Development:     18 days (Apr 7 - Apr 25, 2026)
+  Font assets:     ~1.7MB (Fraunces, Source Serif 4, Inter, JetBrains Mono)
+  Development:     20 days (Apr 7 - Apr 27, 2026)

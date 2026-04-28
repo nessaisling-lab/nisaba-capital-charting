@@ -350,6 +350,23 @@ pub fn text_lg()   -> f32 { s(21.0) }  // primary section headings
 pub fn text_2xl()  -> f32 { s(28.0) }  // page title
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Spacing rhythm — derived from BH redesign spatial language
+// Base: 8px, progression: 4 / 8 / 16 / 24 / 40
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub const SPACE_XS: f32  = 4.0;     // tight: inline icon gaps
+pub const SPACE_SM: f32  = 8.0;     // compact: row items, card internal
+pub const SPACE_MD: f32  = 16.0;    // standard: between related elements
+pub const SPACE_LG: f32  = 24.0;    // section: between content blocks
+pub const SPACE_XL: f32  = 40.0;    // section padding: major areas
+
+/// Max content width — BH redesign: 1240px
+pub const MAX_WIDTH: f32 = 1240.0;
+
+/// Border radii
+pub const RADIUS_CARD: f32 = 4.0;
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Semantic color functions — read from the global palette cache
 //
 // The `_theme` parameter is kept for API compatibility (canvas widgets pass

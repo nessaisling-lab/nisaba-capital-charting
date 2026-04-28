@@ -1,8 +1,9 @@
-use iced::widget::{button, column, horizontal_rule, row, scrollable, text, Column};
+use iced::widget::{button, column, row, scrollable, text, Column};
 use iced::{Alignment, Element, Length};
 
 use crate::font;
 use crate::helpers::{describe_8k_items, format_market_value, format_shares};
+use super::shared::{eyebrow, section_rule};
 use crate::state::{Dashboard, Message};
 use crate::theme;
 
@@ -152,8 +153,8 @@ impl Dashboard {
                         text(t.insider_title.as_deref().unwrap_or("—")).width(Length::FillPortion(3)),
                         text(if t.transaction_type == "A" { "Buy" } else { "Sell" })
                             .width(Length::FillPortion(1)),
-                        text(format!("{:.0}", t.shares)).width(Length::FillPortion(2)),
-                        text(format!("${:.2}", t.price_per_share)).width(Length::FillPortion(2)),
+                        text(format!("{:.0}", t.shares)).font(font::INTER).width(Length::FillPortion(2)),
+                        text(format!("${:.2}", t.price_per_share)).font(font::INTER).width(Length::FillPortion(2)),
                     ]
                     .spacing(8)
                     .into()
@@ -190,8 +191,8 @@ impl Dashboard {
                 .map(|h| {
                     row![
                         text(&h.institution_name).width(Length::FillPortion(4)),
-                        text(format_shares(h.shares_held)).width(Length::FillPortion(3)),
-                        text(format_market_value(&h.market_value)).width(Length::FillPortion(3)),
+                        text(format_shares(h.shares_held)).font(font::INTER).width(Length::FillPortion(3)),
+                        text(format_market_value(&h.market_value)).font(font::INTER).width(Length::FillPortion(3)),
                         text(h.report_period.to_string()).width(Length::FillPortion(2)),
                     ]
                     .spacing(8)
@@ -337,17 +338,22 @@ impl Dashboard {
         .spacing(20);
 
         column![
+            eyebrow("FILINGS & NEWS"),
             news_filings_row,
-            horizontal_rule(1),
+            section_rule(),
+            eyebrow("MARKET NEWS"),
             rss_section,
-            horizontal_rule(1),
+            section_rule(),
+            eyebrow("GEOPOLITICS"),
             gdelt_section,
-            horizontal_rule(1),
+            section_rule(),
+            eyebrow("INSIDER ACTIVITY"),
             insider_section,
-            horizontal_rule(1),
+            section_rule(),
+            eyebrow("INSTITUTIONAL HOLDERS"),
             holdings_section,
         ]
-        .spacing(10)
+        .spacing(theme::SPACE_SM)
         .into()
     }
 }

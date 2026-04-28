@@ -11,7 +11,7 @@ use crate::signals::generate_signal_bullets;
 use crate::state::{Dashboard, Message};
 use crate::theme;
 
-use super::shared::{card, make_gauge};
+use super::shared::{card, eyebrow, make_gauge, section_rule};
 
 impl Dashboard {
     pub(crate) fn view_overview(&self) -> Element<'_, Message> {
@@ -121,7 +121,7 @@ impl Dashboard {
                 astro_markers,
             })
             .width(Length::Fill)
-            .height(Length::Fixed(250.0))
+            .height(Length::Fixed(300.0))
             .into()
         };
 
@@ -203,12 +203,12 @@ impl Dashboard {
                 };
 
                 row![
-                    text(rsi_str).size(theme::text_base()),
-                    text(macd_str).size(theme::text_base()),
-                    text(sma_str).size(theme::text_base()),
-                    text(analyst_str).size(theme::text_base()),
-                    text(sentiment_str).size(theme::text_base()),
-                    text(short_str).size(theme::text_base()),
+                    text(rsi_str).font(font::INTER).size(theme::text_base()),
+                    text(macd_str).font(font::INTER).size(theme::text_base()),
+                    text(sma_str).font(font::INTER).size(theme::text_base()),
+                    text(analyst_str).font(font::INTER).size(theme::text_base()),
+                    text(sentiment_str).font(font::INTER).size(theme::text_base()),
+                    text(short_str).font(font::INTER).size(theme::text_base()),
                 ]
                 .spacing(24)
             }
@@ -400,6 +400,7 @@ impl Dashboard {
                     let verdict = text(format!(
                         "  Lagrange Score: {lagrange:.0}/100 — {lagrange_label}"
                     ))
+                    .font(font::INTER)
                     .size(theme::text_base());
                     column![
                         text(format!("Signal Intelligence: {}", self.selected_ticker))
@@ -497,20 +498,25 @@ impl Dashboard {
                     .on_press(Message::TickerSelected(w.ticker.clone()));
                     row![
                         text(format!("{}", i + 1))
+                            .font(font::INTER)
                             .size(theme::text_base())
                             .width(Length::Fixed(24.0)),
                         ticker_btn,
                         text(format!("{score:.0} {score_zone}"))
+                            .font(font::INTER)
                             .size(theme::text_base())
                             .color(zone_color)
                             .width(Length::Fixed(90.0)),
                         text(astro_str)
+                            .font(font::INTER)
                             .size(theme::text_base())
                             .width(Length::Fixed(100.0)),
                         text(sent_str)
+                            .font(font::INTER)
                             .size(theme::text_base())
                             .width(Length::Fixed(120.0)),
                         text(short_str)
+                            .font(font::INTER)
                             .size(theme::text_base())
                             .width(Length::Fill),
                     ]
@@ -573,15 +579,18 @@ impl Dashboard {
                     let cat = m.category.as_deref().unwrap_or("—");
                     row![
                         text(yes_pct)
+                            .font(font::INTER)
                             .size(theme::text_base())
                             .width(Length::Fixed(48.0)),
                         text(cat.to_string())
                             .size(theme::text_xs())
                             .width(Length::Fixed(70.0)),
                         text(m.question.clone())
+                            .font(font::BODY)
                             .size(theme::text_sm())
                             .width(Length::Fill),
                         text(vol)
+                            .font(font::INTER)
                             .size(theme::text_xs())
                             .width(Length::Fixed(70.0)),
                     ]
@@ -599,37 +608,43 @@ impl Dashboard {
             .into()
         };
 
-        // ── Two-column layout assembly ──────────────────────
+        // ── Vertical flow layout (v7.1) ────────────────────
         let macro_strip = self.build_macro_strip();
 
-        let left_col: Column<Message> = column![
-            timeframe_bar,
-            chart,
-            sparkline_strip,
-            indicator_row,
-            patterns_section,
-            macro_strip,
+        // Technical indicators + patterns side by side
+        let tech_row = row![
+            container(indicator_row).width(Length::FillPortion(3)),
+            container(patterns_section).width(Length::FillPortion(2)),
         ]
-        .spacing(8);
+        .spacing(12);
 
-        let right_col: Column<Message> = column![
-            card(signal_section),
-            card(watchlist_section),
-        ]
-        .spacing(8);
-
-        let two_col = row![
-            container(left_col).width(Length::FillPortion(3)),
-            container(right_col).width(Length::FillPortion(2)),
+        // Signals + watchlist side by side
+        let signal_row = row![
+            container(card(signal_section)).width(Length::FillPortion(3)),
+            container(card(watchlist_section)).width(Length::FillPortion(2)),
         ]
         .spacing(12);
 
         column![
-            card(gauges_row),
-            two_col,
+            eyebrow("MARKET SENTIMENT"),
+            gauges_row,
+            section_rule(),
+            eyebrow("PRICE ACTION"),
+            timeframe_bar,
+            chart,
+            sparkline_strip,
+            section_rule(),
+            eyebrow("TECHNICAL INDICATORS"),
+            tech_row,
+            section_rule(),
+            eyebrow("SIGNAL INTELLIGENCE"),
+            signal_row,
+            section_rule(),
+            eyebrow("MACRO & MARKETS"),
+            macro_strip,
             card(polymarket_section),
         ]
-        .spacing(10)
+        .spacing(theme::SPACE_SM)
         .into()
     }
 }

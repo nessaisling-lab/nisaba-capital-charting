@@ -2,29 +2,30 @@ use iced::widget::{canvas::Canvas, column, horizontal_rule, row, text};
 use iced::{Alignment, Color, Element, Length};
 
 use crate::charts::EquityCurve;
+use crate::font;
 use crate::helpers;
 use crate::icons;
 use crate::state::{Dashboard, Message};
 use crate::theme;
-use crate::view::shared::{card, section_heading};
+use crate::view::shared::{card, eyebrow, section_heading, section_rule};
 
 impl Dashboard {
     pub(crate) fn view_paper_trail(&self) -> Element<'_, Message> {
-        let mut content = column![].spacing(12);
+        let mut content = column![].spacing(theme::SPACE_SM);
 
-        // ── Account Summary Card ────────────────────────────
+        content = content.push(eyebrow("PAPER TRADING"));
         content = content.push(self.build_paper_account_card());
-
-        // ── Positions Table ─────────────────────────────────
+        content = content.push(section_rule());
+        content = content.push(eyebrow("OPEN POSITIONS"));
         content = content.push(self.build_paper_positions_card());
-
-        // ── Statistics Card ─────────────────────────────────
+        content = content.push(section_rule());
+        content = content.push(eyebrow("PERFORMANCE"));
         content = content.push(self.build_paper_stats_card());
-
-        // ── Equity Curve Chart ──────────────────────────────
+        content = content.push(section_rule());
+        content = content.push(eyebrow("EQUITY CURVE"));
         content = content.push(self.build_equity_curve_card());
-
-        // ── Trade Log ───────────────────────────────────────
+        content = content.push(section_rule());
+        content = content.push(eyebrow("TRADE LOG"));
         content = content.push(self.build_paper_trades_card());
 
         content.into()
@@ -63,23 +64,24 @@ impl Dashboard {
                     row![
                         column![
                             text("Initial Capital").size(theme::text_sm()),
-                            text(helpers::format_price(initial)).size(theme::text_md()),
+                            text(helpers::format_price(initial)).font(font::INTER).size(theme::text_md()),
                         ].spacing(2),
                         column![
                             text("Cash Balance").size(theme::text_sm()),
-                            text(helpers::format_price(cash)).size(theme::text_md()),
+                            text(helpers::format_price(cash)).font(font::INTER).size(theme::text_md()),
                         ].spacing(2),
                         column![
                             text("Portfolio Value").size(theme::text_sm()),
-                            text(helpers::format_price(portfolio_val)).size(theme::text_md()),
+                            text(helpers::format_price(portfolio_val)).font(font::INTER).size(theme::text_md()),
                         ].spacing(2),
                         column![
                             text("Total Value").size(theme::text_sm()),
-                            text(helpers::format_price(total_value)).size(theme::text_md()),
+                            text(helpers::format_price(total_value)).font(font::INTER).size(theme::text_md()),
                         ].spacing(2),
                         column![
                             text("Total Return").size(theme::text_sm()),
                             text(format!("{total_return_pct:+.2}%"))
+                                .font(font::INTER)
                                 .size(theme::text_md())
                                 .color(return_color),
                         ].spacing(2),
@@ -108,7 +110,7 @@ impl Dashboard {
         ].spacing(6);
 
         if self.paper_positions.is_empty() {
-            col = col.push(text("No open positions. The paper engine will buy when Lagrange scores exceed 75.").size(theme::text_sm()));
+            col = col.push(text("No open positions. The paper engine will buy when Lagrange scores exceed 65.").size(theme::text_sm()));
         } else {
             // Header row
             let header = row![
@@ -147,13 +149,13 @@ impl Dashboard {
 
                 let r = row![
                     text(&pos.ticker).size(theme::text_base()).width(Length::Fixed(80.0)),
-                    text(format!("{shares:.2}")).size(theme::text_base()).width(Length::Fixed(80.0)),
-                    text(format!("${entry:.2}")).size(theme::text_base()).width(Length::Fixed(90.0)),
-                    text(format!("${current:.2}")).size(theme::text_base()).width(Length::Fixed(90.0)),
-                    text(format!("{pnl_pct:+.2}%")).size(theme::text_base()).width(Length::Fixed(80.0)).color(pnl_color),
-                    text(entry_score_str).size(theme::text_base()).width(Length::Fixed(90.0)),
-                    text(current_score_str).size(theme::text_base()).width(Length::Fixed(100.0)),
-                    text(pos.entry_date.to_string()).size(theme::text_base()).width(Length::Fixed(100.0)),
+                    text(format!("{shares:.2}")).font(font::INTER).size(theme::text_base()).width(Length::Fixed(80.0)),
+                    text(format!("${entry:.2}")).font(font::INTER).size(theme::text_base()).width(Length::Fixed(90.0)),
+                    text(format!("${current:.2}")).font(font::INTER).size(theme::text_base()).width(Length::Fixed(90.0)),
+                    text(format!("{pnl_pct:+.2}%")).font(font::INTER).size(theme::text_base()).width(Length::Fixed(80.0)).color(pnl_color),
+                    text(entry_score_str).font(font::INTER).size(theme::text_base()).width(Length::Fixed(90.0)),
+                    text(current_score_str).font(font::INTER).size(theme::text_base()).width(Length::Fixed(100.0)),
+                    text(pos.entry_date.to_string()).font(font::INTER).size(theme::text_base()).width(Length::Fixed(100.0)),
                 ].spacing(8).align_y(Alignment::Center);
                 col = col.push(r);
             }
@@ -236,28 +238,29 @@ impl Dashboard {
                     column![
                         text("Return").size(theme::text_sm()),
                         text(format!("{portfolio_return_pct:+.2}%"))
+                            .font(font::INTER)
                             .size(theme::text_md())
                             .color(return_color(portfolio_return_pct)),
                     ].spacing(2),
                     column![
                         text("Sharpe Ratio").size(theme::text_sm()),
-                        text(format!("{sharpe:.3}")).size(theme::text_md()),
+                        text(format!("{sharpe:.3}")).font(font::INTER).size(theme::text_md()),
                     ].spacing(2),
                     column![
                         text("Max Drawdown").size(theme::text_sm()),
-                        text(format!("{max_dd:.2}%")).size(theme::text_md()),
+                        text(format!("{max_dd:.2}%")).font(font::INTER).size(theme::text_md()),
                     ].spacing(2),
                     column![
                         text("Win Rate").size(theme::text_sm()),
-                        text(format!("{win_rate:.1}%")).size(theme::text_md()),
+                        text(format!("{win_rate:.1}%")).font(font::INTER).size(theme::text_md()),
                     ].spacing(2),
                     column![
                         text("Avg Hold (days)").size(theme::text_sm()),
-                        text(format!("{avg_hold:.1}")).size(theme::text_md()),
+                        text(format!("{avg_hold:.1}")).font(font::INTER).size(theme::text_md()),
                     ].spacing(2),
                     column![
                         text("Closed Trades").size(theme::text_sm()),
-                        text(format!("{}", closed_returns.len())).size(theme::text_md()),
+                        text(format!("{}", closed_returns.len())).font(font::INTER).size(theme::text_md()),
                     ].spacing(2),
                 ].spacing(30),
             ].spacing(4);
@@ -272,20 +275,22 @@ impl Dashboard {
                         column![
                             text("SPY Return").size(theme::text_sm()),
                             text(format!("{spy_return_pct:+.2}%"))
+                                .font(font::INTER)
                                 .size(theme::text_md())
                                 .color(return_color(spy_return_pct)),
                         ].spacing(2),
                         column![
                             text("SPY Sharpe").size(theme::text_sm()),
-                            text(format!("{spy_sharpe:.3}")).size(theme::text_md()),
+                            text(format!("{spy_sharpe:.3}")).font(font::INTER).size(theme::text_md()),
                         ].spacing(2),
                         column![
                             text("SPY Max DD").size(theme::text_sm()),
-                            text(format!("{spy_max_dd:.2}%")).size(theme::text_md()),
+                            text(format!("{spy_max_dd:.2}%")).font(font::INTER).size(theme::text_md()),
                         ].spacing(2),
                         column![
                             text("Alpha").size(theme::text_sm()),
                             text(format!("{alpha:+.2}%"))
+                                .font(font::INTER)
                                 .size(theme::text_md())
                                 .color(return_color(alpha)),
                         ].spacing(2),
@@ -353,12 +358,12 @@ impl Dashboard {
                     .unwrap_or_else(|| "-".to_string());
 
                 let r = row![
-                    text(trade.trade_date.to_string()).size(theme::text_base()).width(Length::Fixed(100.0)),
+                    text(trade.trade_date.to_string()).font(font::INTER).size(theme::text_base()).width(Length::Fixed(100.0)),
                     text(&trade.action).size(theme::text_base()).width(Length::Fixed(60.0)).color(action_color),
                     text(&trade.ticker).size(theme::text_base()).width(Length::Fixed(80.0)),
-                    text(format!("{shares:.2}")).size(theme::text_base()).width(Length::Fixed(80.0)),
-                    text(format!("${price:.2}")).size(theme::text_base()).width(Length::Fixed(90.0)),
-                    text(score_str).size(theme::text_base()).width(Length::Fixed(70.0)),
+                    text(format!("{shares:.2}")).font(font::INTER).size(theme::text_base()).width(Length::Fixed(80.0)),
+                    text(format!("${price:.2}")).font(font::INTER).size(theme::text_base()).width(Length::Fixed(90.0)),
+                    text(score_str).font(font::INTER).size(theme::text_base()).width(Length::Fixed(70.0)),
                 ].spacing(8).align_y(Alignment::Center);
                 col = col.push(r);
             }
