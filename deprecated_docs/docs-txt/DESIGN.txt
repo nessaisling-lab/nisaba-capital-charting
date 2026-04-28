@@ -3,11 +3,11 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v7.1.0
-**Next milestone:** v7.2.0 (TBD)
+**Current version:** v7.2.0
+**Next milestone:** v7.3.0 (TBD)
 
 > Note: This file lags behind the primary DESIGN.md in the project root.
-> See DESIGN.md for full v6.0-v7.1 changelogs with file paths and insights.
+> See DESIGN.md for full v6.0-v7.2 changelogs with file paths and insights.
 
 ---
 

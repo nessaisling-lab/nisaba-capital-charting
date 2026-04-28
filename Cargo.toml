@@ -1,6 +1,6 @@
 [package]
 name = "pursuit_week4_automation"
-version = "0.1.0"
+version = "7.2.0"
 edition = "2021"
 
 [[bin]]
@@ -32,4 +32,3 @@ swiss-eph = { version = "0.2", features = ["embedded-ephe"] }
 rfd = "0.15"
 csv = "1"
 feed-rs = "2"
-iced_fonts = { version = "0.3.0", features = ["bootstrap"] }

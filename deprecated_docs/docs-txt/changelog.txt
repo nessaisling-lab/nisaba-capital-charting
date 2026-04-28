@@ -5,6 +5,20 @@ Stack:  Rust, Iced 0.13, SQLx, PostgreSQL
 From:   2026-04-07 to 2026-04-27
 
 ================================================================================
+v7.2.0 — "The Motion" (2026-04-27)
+================================================================================
+feat(v7.2.0): animation, Phosphor Icons, responsive fonts, bug fixes
+  - Phosphor Icons: Replaced Bootstrap Icons (1530 icons, regular + bold)
+  - Animation infrastructure: easing functions, adaptive tick (16ms/60fps)
+  - Gauge sweep animation: 600ms ease_out_cubic on data load
+  - Toast fade-out: 500ms opacity transition
+  - Tab indicator crossfade: 200ms ease_in_out_quad
+  - Responsive font scaling: viewport-aware auto-scale
+  - Bug fix: TECHNICAL INDICATORS vertical text wrapping (2×3 grid)
+  - Bug fix: recently-viewed overflow (capped at 6)
+  - Version control: Cargo.toml synced, git tags, CHANGELOG.md
+
+================================================================================
 v7.1.0 — "The Ledger — Spatial Polish" (2026-04-27)
 ================================================================================
 [pending] feat(v7.1.0): spatial polish — layout, typography, vertical flow
@@ -165,13 +179,14 @@ v0.1.0 — Scaffold (2026-04-07 to 2026-04-08)
 [ede4ec1] chore: add gstack skill routing rules to CLAUDE.md
 
 ================================================================================
-Project Stats (v7.1.0)
+Project Stats (v7.2.0)
 ================================================================================
-  Commits:         38+
-  Rust source:     ~18,000 lines across 2 binaries
+  Commits:         40+
+  Rust source:     ~18,500 lines across 2 binaries
   SQL migrations:  32
   Tests:           70 (48 lib + 17 dashboard + 5 scraper)
   Compiler warnings: 0
-  Crate deps:      27
-  Font assets:     ~1.7MB (Fraunces, Source Serif 4, Inter, JetBrains Mono)
+  Crate deps:      26 (removed iced_fonts)
+  Font assets:     ~2.7MB (Fraunces, Source Serif 4, Inter, JetBrains Mono, Phosphor, Phosphor Bold)
+  Git tags:        7 (v4.0.0 - v7.2.0)
   Development:     20 days (Apr 7 - Apr 27, 2026)

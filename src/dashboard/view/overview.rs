@@ -137,14 +137,15 @@ impl Dashboard {
         .spacing(2);
 
         // Indicators
-        let indicator_row = match &self.indicators {
+        let indicator_row: Element<Message> = match &self.indicators {
             None => row![text(if self.rows.is_empty() {
                 "Indicators: —"
             } else {
                 "Indicators: loading..."
             })
             .size(theme::text_base())]
-            .spacing(20),
+            .spacing(20)
+            .into(),
             Some(ind) => {
                 let rsi_val = Indicators::last(&ind.rsi_vals);
                 let sma20_val = Indicators::last(&ind.sma20);
@@ -202,15 +203,20 @@ impl Dashboard {
                     None => "Short%: —".into(),
                 };
 
-                row![
-                    text(rsi_str).font(font::INTER).size(theme::text_base()),
-                    text(macd_str).font(font::INTER).size(theme::text_base()),
-                    text(sma_str).font(font::INTER).size(theme::text_base()),
-                    text(analyst_str).font(font::INTER).size(theme::text_base()),
-                    text(sentiment_str).font(font::INTER).size(theme::text_base()),
-                    text(short_str).font(font::INTER).size(theme::text_base()),
+                column![
+                    row![
+                        text(rsi_str).font(font::INTER).size(theme::text_base()),
+                        text(macd_str).font(font::INTER).size(theme::text_base()),
+                        text(sma_str).font(font::INTER).size(theme::text_base()),
+                    ].spacing(theme::SPACE_LG),
+                    row![
+                        text(analyst_str).font(font::INTER).size(theme::text_base()),
+                        text(sentiment_str).font(font::INTER).size(theme::text_base()),
+                        text(short_str).font(font::INTER).size(theme::text_base()),
+                    ].spacing(theme::SPACE_LG),
                 ]
-                .spacing(24)
+                .spacing(theme::SPACE_XS)
+                .into()
             }
         };
 
@@ -273,9 +279,22 @@ impl Dashboard {
         };
 
         // ── Gauges ──────────────────────────────────────────
+        // Apply gauge sweep animation to crypto sentiment
+        let animated_fg = self.fear_greed.as_ref().map(|(score, label)| {
+            let anim_score = if self.gauge_anim_progress < 1.0 {
+                crate::animation::lerp(
+                    self.gauge_anim_from,
+                    self.gauge_anim_to,
+                    crate::animation::ease_out_cubic(self.gauge_anim_progress),
+                )
+            } else {
+                *score
+            };
+            (anim_score, label.clone())
+        });
         let crypto_gauge = make_gauge(
             "Crypto / Risk Sentiment".to_string(),
-            self.fear_greed.clone(),
+            animated_fg,
             match &self.fear_greed_err {
                 Some(_) => "unavailable".to_string(),
                 None => "loading...".to_string(),

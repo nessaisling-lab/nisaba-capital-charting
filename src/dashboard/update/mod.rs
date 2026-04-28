@@ -19,6 +19,8 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::tabs::Tab;
+
 use crate::db::{
     connect_db, fetch_alerts, fetch_available_sectors, fetch_daily_transits,
     fetch_lagrange_history, fetch_macro_indicators, fetch_market_fear_greed,
@@ -182,6 +184,15 @@ impl Dashboard {
 
             // ── UI / lifecycle ──────────────────────────────────────────
             Message::TabSelected(tab) => {
+                // Trigger tab indicator slide animation
+                let old_idx = Tab::all().iter().position(|&t| t == self.active_tab).unwrap_or(0);
+                let new_idx = Tab::all().iter().position(|&t| t == tab).unwrap_or(0);
+                if old_idx != new_idx {
+                    self.tab_indicator_from = old_idx;
+                    self.tab_indicator_to = new_idx;
+                    self.tab_indicator_progress = 0.0;
+                    self.animating = true;
+                }
                 self.active_tab = tab;
                 Task::none()
             }
@@ -243,6 +254,39 @@ impl Dashboard {
                 }
             }
             Message::Tick => {
+                // ── Animation advancement (16ms ticks) ─────────
+                if self.animating {
+                    let dt = crate::animation::TICK_DELTA;
+                    let mut still_animating = false;
+
+                    // Gauge sweep
+                    if self.gauge_anim_progress < 1.0 {
+                        self.gauge_anim_progress = (self.gauge_anim_progress
+                            + dt / crate::animation::GAUGE_SWEEP_DURATION)
+                            .min(1.0);
+                        still_animating |= self.gauge_anim_progress < 1.0;
+                    }
+                    // Score count-up
+                    if self.score_count_progress < 1.0 {
+                        self.score_count_progress = (self.score_count_progress
+                            + dt / crate::animation::COUNT_UP_DURATION)
+                            .min(1.0);
+                        still_animating |= self.score_count_progress < 1.0;
+                    }
+                    // Tab indicator slide
+                    if self.tab_indicator_progress < 1.0 {
+                        self.tab_indicator_progress = (self.tab_indicator_progress
+                            + dt / crate::animation::TAB_SLIDE_DURATION)
+                            .min(1.0);
+                        still_animating |= self.tab_indicator_progress < 1.0;
+                    }
+
+                    self.animating = still_animating;
+                    // During animation, skip expensive data fetches
+                    return Task::none();
+                }
+
+                // ── Normal 30s tick — data refresh ─────────────
                 self.expire_toasts();
                 // Refresh palette on tick (skip if user has slider override)
                 if self.circadian_override.is_none() {
@@ -256,6 +300,12 @@ impl Dashboard {
                 } else {
                     Task::none()
                 }
+            }
+
+            Message::WindowResized(_id, size) => {
+                self.viewport_width = size.width;
+                crate::theme::set_viewport_width(size.width);
+                Task::none()
             }
 
             // ── Settings ────────────────────────────────────────────────
@@ -362,9 +412,15 @@ impl Dashboard {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
+        let tick_rate = if self.animating {
+            Duration::from_millis(16) // 60fps during animation
+        } else {
+            Duration::from_secs(30)   // idle polling
+        };
         Subscription::batch([
-            iced::time::every(Duration::from_secs(30)).map(|_| Message::Tick),
+            iced::time::every(tick_rate).map(|_| Message::Tick),
             iced::keyboard::on_key_press(handle_key_press),
+            iced::window::resize_events().map(|(id, size)| Message::WindowResized(id, size)),
         ])
     }
 }

@@ -34,7 +34,7 @@ pub fn card<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message
 /// Section heading with icon + Fraunces display title.
 pub fn section_heading<'a>(icon_char: char, title: &str) -> Element<'a, Message> {
     row![
-        text(icon_char.to_string()).font(icons::BOOTSTRAP).size(theme::text_md()),
+        text(icon_char.to_string()).font(icons::PHOSPHOR).size(theme::text_md()),
         text(title.to_string()).font(font::DISPLAY).size(theme::text_md()),
     ]
     .spacing(8)

@@ -329,6 +329,7 @@ pub fn current_hour() -> u32 {
 // ═══════════════════════════════════════════════════════════════════════════
 
 static FONT_SCALE_X100: AtomicU32 = AtomicU32::new(100);
+static VIEWPORT_WIDTH: AtomicU32 = AtomicU32::new(1280);
 
 /// Set the global font scale factor (1.0 = default).
 pub fn set_font_scale(scale: f32) {
@@ -340,7 +341,21 @@ pub fn font_scale() -> f32 {
     FONT_SCALE_X100.load(Ordering::Relaxed) as f32 / 100.0
 }
 
-fn s(base: f32) -> f32 { base * font_scale() }
+/// Set the viewport width for responsive scaling.
+pub fn set_viewport_width(width: f32) {
+    VIEWPORT_WIDTH.store(width as u32, Ordering::Relaxed);
+}
+
+/// Viewport-aware scale multiplier.
+fn viewport_scale() -> f32 {
+    let w = VIEWPORT_WIDTH.load(Ordering::Relaxed);
+    if w < 1024 { 0.85 }
+    else if w < 1440 { 1.0 }
+    else if w < 1920 { 1.05 }
+    else { 1.1 }
+}
+
+fn s(base: f32) -> f32 { base * font_scale() * viewport_scale() }
 
 pub fn text_xs()   -> f32 { s(11.0) }  // sparkline dates, legend labels
 pub fn text_sm()   -> f32 { s(14.0) }  // table headers, gauge labels, captions

@@ -221,6 +221,19 @@ pub struct Dashboard {
     pub paper_trades:             Vec<PaperTrade>,
     pub paper_daily_values:       Vec<f64>,  // for Sharpe ratio + chart
     pub paper_spy_values:         Vec<f64>,  // SPY benchmark series
+    // Animation state (v7.2)
+    pub animating:                bool,      // true when any animation active (16ms tick)
+    pub gauge_anim_progress:      f32,       // 0.0→1.0 needle sweep
+    pub gauge_anim_from:          f32,       // score needle sweeps from
+    pub gauge_anim_to:            f32,       // score needle sweeps to
+    pub score_count_progress:     f32,       // 0.0→1.0 number count-up
+    #[allow(dead_code)]
+    pub score_count_target:       f32,       // target Lagrange score for count-up (future)
+    pub tab_indicator_progress:   f32,       // 0.0→1.0 tab underline slide
+    pub tab_indicator_from:       usize,     // tab index sliding from
+    pub tab_indicator_to:         usize,     // tab index sliding to
+    // Viewport (v7.2)
+    pub viewport_width:           f32,       // current window width in pixels
 }
 
 impl Default for Dashboard {
@@ -338,6 +351,17 @@ impl Default for Dashboard {
             paper_trades:             vec![],
             paper_daily_values:       vec![],
             paper_spy_values:         vec![],
+            // Animation
+            animating:                false,
+            gauge_anim_progress:      1.0,  // start fully settled
+            gauge_anim_from:          0.0,
+            gauge_anim_to:            0.0,
+            score_count_progress:     1.0,
+            score_count_target:       0.0,
+            tab_indicator_progress:   1.0,
+            tab_indicator_from:       0,
+            tab_indicator_to:         0,
+            viewport_width:           1280.0,
         }
     }
 }
@@ -476,6 +500,7 @@ pub enum Message {
     EscapePressed,
     RefreshNow,
     Tick,
+    WindowResized(iced::window::Id, iced::Size),
     // Fetch single ticker via scraper subprocess
     FetchThisTicker,
     FetchTickerComplete(Result<(), String>),

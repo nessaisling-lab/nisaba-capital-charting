@@ -55,7 +55,7 @@ impl Tab {
         }
     }
 
-    /// Bootstrap icon codepoint for this tab.
+    /// Phosphor icon codepoint for this tab.
     pub fn icon(self) -> char {
         match self {
             Tab::Astrology    => icons::STARS,

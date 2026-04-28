@@ -3,12 +3,43 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v7.1.0
-**Next milestone:** v7.2.0 (TBD)
+**Current version:** v7.2.0
+**Next milestone:** v7.3.0 (TBD)
 
 ---
 
 ## Changelog
+
+### v7.2.0 — "The Motion" (2026-04-27)
+
+**Theme:** v7.1 got the spatial layout right — the dashboard looked like a book. But it felt static. Everything changed instantly: gauges popped to values, tabs snapped, toasts appeared and vanished. UI/UX teacher feedback: "right direction, long way to go." This version adds motion design, upgrades from Bootstrap to Phosphor Icons, implements viewport-aware responsive font scaling, and fixes version control drift. Also fixes the vertical text wrapping bug in TECHNICAL INDICATORS identified in the v7.1 video review.
+
+**Before/After:**
+
+| Feature | Before (v7.1) | After (v7.2) |
+|---------|---------------|--------------|
+| Icons | Bootstrap Icons (1 weight, generic) | Phosphor Icons (regular + bold, 1530 icons, duotone capable) |
+| Animation | None — all state changes instant | Gauge sweep (600ms), toast fade (500ms), tab indicator crossfade (200ms) |
+| Font scaling | Manual 4-step toggle only | Viewport-aware auto-scale + manual toggle |
+| Tick rate | 30s fixed | 16ms adaptive (60fps when animating, 30s at rest) |
+| Version control | Cargo.toml: 0.1.0, no git tags | Cargo.toml synced, 7 git tags, CHANGELOG.md in root |
+| Indicator layout | 6 items horizontal (wraps vertically) | 2×3 grid (always fits) |
+| Recently viewed | Unbounded overflow | Capped at 6 most recent |
+
+**Changes:**
+1. **Version control cleanup:** Cargo.toml 0.1.0→7.1.0 (then 7.2.0), created CHANGELOG.md in root, git tags for v4.0.0-v7.2.0
+2. **Bug fix — indicator text wrapping:** Changed TECHNICAL INDICATORS from 6-item horizontal `row![]` to 2×3 grid (`column![row![3], row![3]]`). Root cause: `FillPortion(3)` (60% width) too narrow for "Sentiment: Somewhat-Bullish". File: `overview.rs`
+3. **Bug fix — recently-viewed overflow:** Cap at 6 most recent tickers via `rev().take(6).rev()`, reduce font to `text_sm()`. File: `mod.rs`
+4. **Phosphor Icons:** Replaced Bootstrap Icons with Phosphor (phosphoricons.com). 28 codepoints remapped. Removed `iced_fonts` crate dependency. Added `Phosphor.ttf` + `Phosphor-Bold.ttf` (~980KB). `icon_bold()` helper for emphasis states. Files: `icons.rs`, `main.rs`, `Cargo.toml`
+5. **Animation infrastructure:** New `animation.rs` module with easing functions (`ease_out_cubic`, `ease_in_out_quad`, `ease_in_quad`, `lerp`). Animation state fields in Dashboard struct. Adaptive tick rate: 16ms during animation, 30s at rest. Files: `animation.rs`, `state.rs`, `update/mod.rs`
+6. **Gauge sweep animation:** Fear/Greed gauge needle sweeps from old score to new over 600ms with `ease_out_cubic`. Triggered on `FearGreedLoaded`. File: `overview.rs`, `update/data.rs`
+7. **Toast fade-out:** Toasts fade opacity from 1.0→0.0 over last 500ms of 4s lifetime (background + text + border). File: `mod.rs`
+8. **Tab indicator crossfade:** Gold underline fades out from old tab, fades in on new tab over 200ms with `ease_in_out_quad`. File: `mod.rs`
+9. **Responsive font scaling:** Viewport width tracking via `window::resize_events()` subscription. Auto-scale multiplier: <1024px→0.85, 1024-1440→1.0, 1440-1920→1.05, >1920→1.1. Multiplied into existing `s()` function alongside manual FONT_SCALE. Files: `theme.rs`, `state.rs`, `update/mod.rs`
+
+**Files modified:** 13 (`Cargo.toml`, `CHANGELOG.md`, `icons.rs`, `main.rs`, `animation.rs`, `state.rs`, `update/mod.rs`, `update/data.rs`, `gauges.rs`, `theme.rs`, `view/overview.rs`, `view/mod.rs`, `tabs.rs`)
+**New files:** 3 (`animation.rs`, `Phosphor.ttf`, `Phosphor-Bold.ttf`)
+**Removed deps:** `iced_fonts`
 
 ### v7.1.0 — "The Ledger — Spatial Polish" (2026-04-27)
 

@@ -1,4 +1,5 @@
 mod agents;
+mod animation;
 mod astrology;
 mod backtest;
 mod calendar;
@@ -34,6 +35,7 @@ pub fn main() -> iced::Result {
         .font(font::INTER_REGULAR_BYTES)
         .font(font::INTER_SEMIBOLD_BYTES)
         .font(font::MONO_REGULAR_BYTES)
-        .font(icons::BOOTSTRAP_BYTES)
+        .font(icons::PHOSPHOR_BYTES)
+        .font(icons::PHOSPHOR_BOLD_BYTES)
         .run_with(Dashboard::new)
 }

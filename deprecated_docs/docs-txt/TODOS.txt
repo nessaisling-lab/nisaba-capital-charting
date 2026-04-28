@@ -15,7 +15,8 @@
 **What:** Single-ticker on-demand scraper fetch from the dashboard UI.
 **Blocked by:** Needs scraper-side work (currently batch-only pipeline).
 
-## Completed (v6.0-v7.1)
+## Completed (v6.0-v7.2)
+- v7.2: "The Motion" — Phosphor Icons, animation infrastructure, gauge sweep, toast fade, tab crossfade, responsive font scaling, bug fixes
 - v7.1: Spatial polish — compact header, 1240px max-width, eyebrow labels, section rules, Inter font on numerics, vertical overview layout
 - v7.0: Renaissance book UI/UX overhaul (Parchment/Leather themes, 24-stage circadian, Fraunces/Source Serif typography)
 - v6.2: Paper engine priority pipeline (all data sources cover paper tickers)

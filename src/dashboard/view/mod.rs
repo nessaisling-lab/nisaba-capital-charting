@@ -61,11 +61,12 @@ impl Dashboard {
             row![text("Recently viewed: —").size(theme::text_base())].spacing(4)
         } else {
             let label = text("Recently:").size(theme::text_base());
-            self.recently_viewed.iter().fold(
+            let recent: Vec<_> = self.recently_viewed.iter().rev().take(6).collect();
+            recent.iter().rev().fold(
                 row![label].spacing(6),
                 |r, t| r.push(
-                    button(text(t).size(theme::text_base()))
-                        .on_press(Message::TickerSelected(t.clone()))
+                    button(text(t.as_str()).size(theme::text_sm()))
+                        .on_press(Message::TickerSelected((*t).clone()))
                 ),
             )
         };
@@ -73,7 +74,7 @@ impl Dashboard {
         // ── Header row: ticker + actions (right-aligned) ────
         let theme_label = format!("Theme: {}", self.theme_mode.label());
         let refresh_icon = text(icons::ARROW_REPEAT.to_string())
-            .font(icons::BOOTSTRAP)
+            .font(icons::PHOSPHOR)
             .size(theme::text_sm());
         let refresh_btn = button(
             if self.refreshing {
@@ -85,14 +86,14 @@ impl Dashboard {
         let fetch_btn: Element<Message> = if self.fetching_ticker {
             button(
                 row![
-                    text(icons::DOWNLOAD.to_string()).font(icons::BOOTSTRAP).size(theme::text_sm()),
+                    text(icons::DOWNLOAD.to_string()).font(icons::PHOSPHOR).size(theme::text_sm()),
                     text("Fetching...").size(theme::text_sm()),
                 ].spacing(4).align_y(Alignment::Center)
             ).into()
         } else {
             button(
                 row![
-                    text(icons::DOWNLOAD.to_string()).font(icons::BOOTSTRAP).size(theme::text_sm()),
+                    text(icons::DOWNLOAD.to_string()).font(icons::PHOSPHOR).size(theme::text_sm()),
                     text(format!("Fetch {}", self.selected_ticker)).size(theme::text_sm()),
                 ].spacing(4).align_y(Alignment::Center)
             ).on_press(Message::FetchThisTicker).into()
@@ -107,25 +108,47 @@ impl Dashboard {
         .spacing(theme::SPACE_SM)
         .align_y(Alignment::Center);
 
-        // ── Tab bar (icon + label, active underline) ────────
-        let tab_bar: Row<Message> = Tab::all().iter().fold(row![].spacing(2), |r, &tab| {
+        // ── Tab bar (icon + label, animated underline) ──────
+        let tab_anim_progress = self.tab_indicator_progress;
+        let tab_anim_from = self.tab_indicator_from;
+        let tab_anim_to = self.tab_indicator_to;
+        let tab_bar: Row<Message> = Tab::all().iter().enumerate().fold(row![].spacing(2), |r, (idx, &tab)| {
             let is_active = tab == self.active_tab;
             let icon_text = text(tab.icon().to_string())
-                .font(icons::BOOTSTRAP)
+                .font(icons::PHOSPHOR)
                 .size(theme::text_base());
             let label_text = text(tab.label()).size(theme::text_sm());
             let tab_content = row![icon_text, label_text]
                 .spacing(5)
                 .align_y(Alignment::Center);
-            let tab_el: Element<Message> = if is_active {
-                // Active tab: underline via a bottom border
+
+            // Compute underline opacity with animation
+            let underline_alpha = if tab_anim_progress < 1.0 {
+                let eased = crate::animation::ease_in_out_quad(tab_anim_progress);
+                if idx == tab_anim_to {
+                    eased // fade in
+                } else if idx == tab_anim_from {
+                    1.0 - eased // fade out
+                } else {
+                    0.0
+                }
+            } else if is_active {
+                1.0
+            } else {
+                0.0
+            };
+
+            let tab_el: Element<Message> = if underline_alpha > 0.01 {
+                let alpha = underline_alpha;
                 let inner = column![
                     tab_content,
                     container(row![])
                         .width(Length::Fill)
                         .height(Length::Fixed(2.0))
-                        .style(|_theme: &iced::Theme| container::Style {
-                            background: Some(iced::Background::Color(theme::palette().gold)),
+                        .style(move |_theme: &iced::Theme| container::Style {
+                            background: Some(iced::Background::Color(
+                                Color { a: alpha, ..theme::palette().gold }
+                            )),
                             ..Default::default()
                         }),
                 ].spacing(2);
@@ -185,22 +208,33 @@ impl Dashboard {
         if self.toasts.is_empty() {
             main_view
         } else {
+            let now = std::time::Instant::now();
             let toast_col: Column<Message> = self.toasts.iter().fold(
                 column![].spacing(4).width(Length::Shrink),
-                |col, (msg, _)| {
+                |col, (msg, expiry)| {
+                    // Fade out over last 500ms of toast lifetime
+                    let remaining = expiry.saturating_duration_since(now).as_secs_f32();
+                    let fade_alpha = if remaining < 0.5 {
+                        (remaining / 0.5).max(0.0)
+                    } else {
+                        1.0
+                    };
+                    let base_alpha = 0.94 * fade_alpha;
                     col.push(
                         container(
-                            text(msg.clone()).size(theme::text_sm()).color(theme::palette().ink),
+                            text(msg.clone()).size(theme::text_sm()).color(
+                                Color { a: fade_alpha, ..theme::palette().ink }
+                            ),
                         )
                         .padding([6, 14])
-                        .style(|_theme: &iced::Theme| {
+                        .style(move |_theme: &iced::Theme| {
                             let p = theme::palette();
                             container::Style {
                                 background: Some(iced::Background::Color(
-                                    Color { a: 0.94, ..p.surface },
+                                    Color { a: base_alpha, ..p.surface },
                                 )),
                                 border: iced::Border {
-                                    color: p.rule,
+                                    color: Color { a: base_alpha, ..p.rule },
                                     width: 1.0,
                                     radius: 6.0.into(),
                                 },

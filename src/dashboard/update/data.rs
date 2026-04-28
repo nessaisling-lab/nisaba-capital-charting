@@ -162,7 +162,15 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
         Message::AnalystRatingLoaded(Err(_)) => Some(Task::none()),
         Message::SentimentLoaded(Ok(s)) => { state.sentiment = s; Some(Task::none()) }
         Message::SentimentLoaded(Err(_)) => Some(Task::none()),
-        Message::FearGreedLoaded(Ok(fg)) => { state.fear_greed = Some(fg); Some(Task::none()) }
+        Message::FearGreedLoaded(Ok(fg)) => {
+            // Trigger gauge sweep animation
+            state.gauge_anim_from = state.fear_greed.as_ref().map(|f| f.0).unwrap_or(0.0);
+            state.gauge_anim_to = fg.0;
+            state.gauge_anim_progress = 0.0;
+            state.animating = true;
+            state.fear_greed = Some(fg);
+            Some(Task::none())
+        }
         Message::FearGreedLoaded(Err(e)) => { state.fear_greed_err = Some(e); Some(Task::none()) }
         Message::MarketFGLoaded(Ok(fg)) => { state.market_fg = Some(fg); Some(Task::none()) }
         Message::MarketFGLoaded(Err(e)) => { state.market_fg_err = Some(e); Some(Task::none()) }
