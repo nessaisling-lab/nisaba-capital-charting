@@ -5,6 +5,20 @@ Stack:  Rust, Iced 0.13, SQLx, PostgreSQL
 From:   2026-04-07 to 2026-04-27
 
 ================================================================================
+v7.3.0 — "The Grimoire" (2026-04-27)
+================================================================================
+feat(v7.3.0): game-book UI — right-side tabs, Canvas ornaments, dark frame
+  - Right-side book tab dividers: 8 tabs as physical dividers with stagger cascade
+  - Hover-to-expand: mouse_area detection, icon-only→icon+label (ease_out_back)
+  - Dark atmospheric outer frame: grimoire_outer_bg (circadian-aware)
+  - Book spine: Canvas cross-stitch binding with diamond endcaps
+  - Page header: Canvas Renaissance flourish (lozenge + sine scrollwork)
+  - Page corners: Canvas decorative brackets with gold diamond vertices
+  - Page transition: 250ms fade-in on tab switch
+  - Compact navigation: single-row header (reduced chrome)
+  Files modified: 9 + 1 new (ornaments.rs)
+
+================================================================================
 v7.2.0 — "The Motion" (2026-04-27)
 ================================================================================
 feat(v7.2.0): animation, Phosphor Icons, responsive fonts, bug fixes

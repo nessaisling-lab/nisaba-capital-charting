@@ -6,6 +6,31 @@
 
 ---
 
+## v7.3.0 — "The Grimoire" (2026-04-27)
+
+- **Right-side book tab dividers:** 8 tabs moved from horizontal top bar to right-side vertical column, styled as physical book dividers with staggered cascade
+- **Hover-to-expand tabs:** `mouse_area` hover detection — icon-only (48px) expands to icon+label (168px) on hover with `ease_out_back` elastic overshoot animation
+- **Dark atmospheric outer frame:** Deep circadian-aware background behind the book (grimoire_outer_bg)
+- **Book spine:** Canvas-rendered vertical binding strip with cross-stitch marks and diamond endcaps
+- **Page header ornament:** Canvas Renaissance-style flourish with central lozenge, sine-wave scrollwork, extending rules
+- **Page border corners:** Canvas decorative corner brackets with perpendicular arms and gold diamond vertices
+- **Page transition:** 250ms "materializing from darkness" fade-in when switching tabs
+- **Compact navigation:** Merged header + nav into single slim row, reduced chrome
+- **New easing:** `ease_out_back` (elastic overshoot) for playful game-feel interactions
+
+**Files modified:** 9 + 1 new (`ornaments.rs`)
+
+| Feature | Before (v7.2) | After (v7.3) |
+|---------|---------------|--------------|
+| Tab position | Horizontal top bar | Right-side vertical dividers |
+| Tab hover | None | Icon→icon+label expand animation |
+| Layout | column![header, tabs, content] | row![spine, book_page, grimoire_tabs] |
+| Outer frame | None | Dark atmospheric background |
+| Decorations | None | Canvas spine, header ornament, corner brackets |
+| Tab switch | Instant | 250ms page transition fade |
+
+---
+
 ## v7.2.0 — "The Motion" (2026-04-27)
 
 - **Phosphor Icons:** Replaced Bootstrap Icons with Phosphor (1530 icons, regular + bold weights)
@@ -168,16 +193,16 @@
 
 ---
 
-## Project Stats (v7.2.0)
+## Project Stats (v7.3.0)
 
 | Metric | Value |
 |--------|-------|
-| Commits | 40+ |
-| Rust source | ~18,500 lines across 2 binaries |
+| Commits | 42+ |
+| Rust source | ~19,200 lines across 2 binaries |
 | SQL migrations | 32 |
 | Tests | 70 (48 lib + 17 dashboard + 5 scraper) |
 | Compiler warnings | 0 |
-| Crate deps | 26 (removed iced_fonts) |
+| Crate deps | 26 |
 | Font assets | ~2.7MB (Fraunces, Source Serif 4, Inter, JetBrains Mono, Phosphor, Phosphor Bold) |
-| Git tags | 7 (v4.0.0 - v7.2.0) |
+| Git tags | 9 (v4.0.0 - v7.3.0) |
 | Development | 20 days (Apr 7 - Apr 27, 2026) |

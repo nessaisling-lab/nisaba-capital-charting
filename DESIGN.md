@@ -3,12 +3,47 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v7.2.0
-**Next milestone:** v7.3.0 (TBD)
+**Current version:** v7.3.0
+**Next milestone:** v7.4.0 (shader/3D atmospheric effects)
 
 ---
 
 ## Changelog
+
+### v7.3.0 — "The Grimoire" (2026-04-27)
+
+**Theme:** v7.2 added motion, but the layout was still conventional — top tab bar, standard column flow. The user wanted something dramatically different: a video game grimoire. Inspired by RPG spellbook UIs (physical tab dividers, aged parchment pages, dark atmospheric backgrounds), this version transforms the dashboard into an open book with right-side tab dividers that expand on hover, canvas-rendered ornamental decorations, and a dark frame creating the effect of a book sitting on a desk.
+
+**Key technical discoveries:**
+- `iced::widget::mouse_area` — first usage in codebase, provides `on_enter`/`on_exit` for hover detection
+- `ease_out_back` easing — elastic overshoot (c1=1.70158) for playful game-feel tab expansion
+- Canvas ornaments follow exact same `canvas::Program` pattern as existing gauges/charts
+
+**Before/After:**
+
+| Feature | Before (v7.2) | After (v7.3) |
+|---------|---------------|--------------|
+| Tab position | Horizontal top bar with gold underline | Right-side vertical book dividers with stagger cascade |
+| Tab interaction | Click only | Click + hover expand (icon→icon+label, 200ms ease_out_back) |
+| Layout root | `column![header, tabs, content]` | `row![spine, book_page, grimoire_tabs]` inside dark outer frame |
+| Outer frame | None (content fills window) | Dark atmospheric background (grimoire_outer_bg: bg * 0.15) |
+| Decorations | None | Canvas: BookSpine (cross-stitch), PageHeaderOrnament (Renaissance flourish), PageBorderCorner (bracket + diamond) |
+| Tab switch | Instant content swap | 250ms page transition fade ("materializing from darkness") |
+| Navigation | Header row + separate nav strip + tab bar (~130px) | Compact single-row nav (~50px) |
+
+**Changes:**
+1. **State foundation:** 4 new Dashboard fields (`hovered_tab`, `tab_hover_progress[8]`, `page_transition_progress`, `page_transition_from`), 2 new Messages (`TabHoverEnter`, `TabHoverExit`), `Tab::index()` method
+2. **Animation additions:** `ease_out_back` easing, `TAB_HOVER_EXPAND_DURATION` (200ms), `TAB_HOVER_COLLAPSE_DURATION` (150ms), `PAGE_TRANSITION_DURATION` (250ms)
+3. **Right-side grimoire tabs:** `build_grimoire_tabs()` in `view/mod.rs` — 8 physical tab dividers with `mouse_area` hover detection, animated width (48px→168px), staggered cascade (`idx * 3px` offset), gold accent on active/hovered
+4. **Book page styling:** Content wrapped in parchment container with transition alpha, inside dark outer frame. Page spine on left edge
+5. **Canvas ornaments:** `ornaments.rs` (new) — `BookSpine` (cross-stitch binding with diamond endcaps), `PageHeaderOrnament` (central lozenge + sine-wave scrollwork + extending rules), `PageBorderCorner` (perpendicular arms + gold diamond vertex)
+6. **Page transition:** Background alpha fade from 40%→100% over 250ms with `ease_out_cubic` on tab switch
+7. **Compact navigation:** Header + search + tickers + actions merged into single row, removed horizontal rules, reduced vertical chrome
+8. **Theme additions:** `GRIMOIRE_SPINE`, `GRIMOIRE_STITCH`, `GRIMOIRE_TAB_SHADOW` colors, `grimoire_outer_bg()` function
+
+**Files modified:** 9 + 1 new (`ornaments.rs`)
+
+---
 
 ### v7.2.0 — "The Motion" (2026-04-27)
 

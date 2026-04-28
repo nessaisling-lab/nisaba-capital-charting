@@ -61,6 +61,7 @@ pub fn titled_card<'a>(
 // ---------------------------------------------------------------------------
 
 /// Wrap content in a max-width centered container (BH: 1240px).
+#[allow(dead_code)]
 pub fn max_container<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
     container(content)
         .max_width(theme::MAX_WIDTH)
@@ -88,6 +89,47 @@ pub fn section_rule<'a>() -> Element<'a, Message> {
         Space::with_height(Length::Fixed(theme::SPACE_SM)),
     ]
     .into()
+}
+
+// ---------------------------------------------------------------------------
+// v7.3 Grimoire layout primitives
+// ---------------------------------------------------------------------------
+
+/// Wrap content in a parchment-styled "book page" container.
+#[allow(dead_code)]
+pub fn book_page_container<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
+    container(content)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .padding(theme::SPACE_LG as u16)
+        .style(|_theme: &iced::Theme| {
+            let p = theme::palette();
+            container::Style {
+                background: Some(iced::Background::Color(p.bg)),
+                border: iced::Border {
+                    color: p.rule,
+                    width: 1.0,
+                    radius: 2.0.into(),
+                },
+                ..Default::default()
+            }
+        })
+        .into()
+}
+
+/// Dark atmospheric outer frame — the "desk" the book sits on.
+pub fn outer_frame<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
+    container(content)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .padding(theme::SPACE_SM as u16)
+        .style(|_theme: &iced::Theme| {
+            container::Style {
+                background: Some(iced::Background::Color(theme::grimoire_outer_bg())),
+                ..Default::default()
+            }
+        })
+        .into()
 }
 
 // ---------------------------------------------------------------------------

@@ -55,6 +55,11 @@ impl Tab {
         }
     }
 
+    /// Index of this tab in the display order.
+    pub fn index(self) -> usize {
+        Tab::all().iter().position(|&t| t == self).unwrap_or(0)
+    }
+
     /// Phosphor icon codepoint for this tab.
     pub fn icon(self) -> char {
         match self {

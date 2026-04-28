@@ -15,7 +15,8 @@
 **What:** Single-ticker on-demand scraper fetch from the dashboard UI.
 **Blocked by:** Needs scraper-side work (currently batch-only pipeline).
 
-## Completed (v6.0-v7.2)
+## Completed (v6.0-v7.3)
+- v7.3: "The Grimoire" — right-side book tab dividers, hover-to-expand, dark outer frame, Canvas ornaments (spine, header, corners), page transition fade
 - v7.2: "The Motion" — Phosphor Icons, animation infrastructure, gauge sweep, toast fade, tab crossfade, responsive font scaling, bug fixes
 - v7.1: Spatial polish — compact header, 1240px max-width, eyebrow labels, section rules, Inter font on numerics, vertical overview layout
 - v7.0: Renaissance book UI/UX overhaul (Parchment/Leather themes, 24-stage circadian, Fraunces/Source Serif typography)

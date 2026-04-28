@@ -36,6 +36,17 @@ pub const GAUGE_SWEEP_DURATION: f32 = 0.6;
 pub const TOAST_FADE_DURATION: f32 = 0.5;
 pub const TAB_SLIDE_DURATION: f32 = 0.2;
 pub const COUNT_UP_DURATION: f32 = 0.4;
+pub const TAB_HOVER_EXPAND_DURATION: f32 = 0.20;
+pub const TAB_HOVER_COLLAPSE_DURATION: f32 = 0.15;
+pub const PAGE_TRANSITION_DURATION: f32 = 0.25;
 
 /// Tick delta for 60fps animation frames.
 pub const TICK_DELTA: f32 = 1.0 / 60.0;
+
+/// Elastic overshoot easing — playful bounce for tab hover expand.
+pub fn ease_out_back(t: f32) -> f32 {
+    let t = t.clamp(0.0, 1.0);
+    let c1: f32 = 1.70158;
+    let c3 = c1 + 1.0;
+    1.0 + c3 * (t - 1.0).powi(3) + c1 * (t - 1.0).powi(2)
+}

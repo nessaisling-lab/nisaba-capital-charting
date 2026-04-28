@@ -489,6 +489,17 @@ pub const SPARK_ZONE_NEU: Color = Color { r: 0.8, g: 0.8, b: 0.0, a: 0.18 };
 pub const SPARK_ZONE_FAV: Color = Color { r: 0.2, g: 0.7, b: 0.2, a: 0.18 };
 pub const SPARK_ZONE_OPT: Color = Color { r: 0.0, g: 0.9, b: 0.4, a: 0.18 };
 
+// Grimoire frame (v7.3)
+pub const GRIMOIRE_SPINE: Color = Color { r: 0.12, g: 0.09, b: 0.06, a: 1.0 };
+pub const GRIMOIRE_STITCH: Color = Color { r: 0.30, g: 0.24, b: 0.16, a: 0.6 };
+pub const GRIMOIRE_TAB_SHADOW: Color = Color { r: 0.0, g: 0.0, b: 0.0, a: 0.3 };
+
+/// Very dark version of current palette bg — the "desk" behind the book.
+pub fn grimoire_outer_bg() -> Color {
+    let p = palette();
+    Color { r: p.bg.r * 0.15, g: p.bg.g * 0.13, b: p.bg.b * 0.10, a: 1.0 }
+}
+
 // Aspect colors (natal wheel)
 pub const ASPECT_CONJUNCTION: Color = Color { r: 1.0, g: 0.9, b: 0.3, a: 0.18 };
 pub const ASPECT_SEXTILE: Color = Color { r: 0.3, g: 1.0, b: 0.5, a: 0.15 };

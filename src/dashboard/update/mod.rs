@@ -184,16 +184,30 @@ impl Dashboard {
 
             // ── UI / lifecycle ──────────────────────────────────────────
             Message::TabSelected(tab) => {
-                // Trigger tab indicator slide animation
-                let old_idx = Tab::all().iter().position(|&t| t == self.active_tab).unwrap_or(0);
-                let new_idx = Tab::all().iter().position(|&t| t == tab).unwrap_or(0);
+                let old_idx = self.active_tab.index();
+                let new_idx = tab.index();
                 if old_idx != new_idx {
                     self.tab_indicator_from = old_idx;
                     self.tab_indicator_to = new_idx;
                     self.tab_indicator_progress = 0.0;
+                    // Page transition: fade from old tab content
+                    self.page_transition_from = Some(self.active_tab);
+                    self.page_transition_progress = 0.0;
                     self.animating = true;
                 }
                 self.active_tab = tab;
+                Task::none()
+            }
+            Message::TabHoverEnter(tab) => {
+                self.hovered_tab = Some(tab);
+                self.animating = true;
+                Task::none()
+            }
+            Message::TabHoverExit(tab) => {
+                if self.hovered_tab == Some(tab) {
+                    self.hovered_tab = None;
+                    self.animating = true;
+                }
                 Task::none()
             }
             Message::ToggleTheme => {
@@ -279,6 +293,35 @@ impl Dashboard {
                             + dt / crate::animation::TAB_SLIDE_DURATION)
                             .min(1.0);
                         still_animating |= self.tab_indicator_progress < 1.0;
+                    }
+                    // Per-tab hover expand/collapse (v7.3 Grimoire)
+                    for idx in 0..8 {
+                        let tab = Tab::all()[idx];
+                        let target = if self.hovered_tab == Some(tab) { 1.0_f32 } else { 0.0 };
+                        if (self.tab_hover_progress[idx] - target).abs() > 0.001 {
+                            let speed = if target > self.tab_hover_progress[idx] {
+                                crate::animation::TAB_HOVER_EXPAND_DURATION
+                            } else {
+                                crate::animation::TAB_HOVER_COLLAPSE_DURATION
+                            };
+                            let delta = dt / speed;
+                            if target > self.tab_hover_progress[idx] {
+                                self.tab_hover_progress[idx] = (self.tab_hover_progress[idx] + delta).min(1.0);
+                            } else {
+                                self.tab_hover_progress[idx] = (self.tab_hover_progress[idx] - delta).max(0.0);
+                            }
+                            still_animating = true;
+                        }
+                    }
+                    // Page transition crossfade (v7.3)
+                    if self.page_transition_progress < 1.0 {
+                        self.page_transition_progress = (self.page_transition_progress
+                            + dt / crate::animation::PAGE_TRANSITION_DURATION)
+                            .min(1.0);
+                        still_animating |= self.page_transition_progress < 1.0;
+                        if self.page_transition_progress >= 1.0 {
+                            self.page_transition_from = None;
+                        }
                     }
 
                     self.animating = still_animating;

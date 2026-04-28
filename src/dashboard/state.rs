@@ -234,6 +234,11 @@ pub struct Dashboard {
     pub tab_indicator_to:         usize,     // tab index sliding to
     // Viewport (v7.2)
     pub viewport_width:           f32,       // current window width in pixels
+    // Grimoire UI (v7.3)
+    pub hovered_tab:              Option<Tab>,  // which tab mouse is over
+    pub tab_hover_progress:       [f32; 8],     // per-tab expand animation 0.0→1.0
+    pub page_transition_progress: f32,          // crossfade on tab switch 0.0→1.0
+    pub page_transition_from:     Option<Tab>,  // tab fading away from
 }
 
 impl Default for Dashboard {
@@ -362,6 +367,11 @@ impl Default for Dashboard {
             tab_indicator_from:       0,
             tab_indicator_to:         0,
             viewport_width:           1280.0,
+            // Grimoire
+            hovered_tab:              None,
+            tab_hover_progress:       [0.0; 8],
+            page_transition_progress: 1.0,
+            page_transition_from:     None,
         }
     }
 }
@@ -424,6 +434,8 @@ pub enum Message {
     AutocompleteSelected(String),
     RecentlyViewedLoaded(Result<Vec<String>, String>),
     TabSelected(Tab),
+    TabHoverEnter(Tab),
+    TabHoverExit(Tab),
     ToggleTheme,
     AgentSelected(AgentPersona),
     CompareInput(String),
