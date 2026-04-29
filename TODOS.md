@@ -50,6 +50,18 @@
 **What:** Natal chart area background should be dark purple/Milky Way with twinkling stars. Chart-local only, rest stays grimoire dark. "Should look like a Galaxy with little stars that flow in and out."
 **Fix:** Extend star field in natal_wheel_3d.wgsl — currently stars only render outside R_OUTER. Add denser star field filling entire chart background with purple/blue tint + nebula gradient. Increase star density and add color variation.
 
+### Galaxy bg needs more punch (v9.2 video review)
+**What:** Current galaxy bg too subtle. User wants more visible purple, more stars, more "Galaxy in the background." 
+**Fix:** Increase galaxy_edge purple (0.08→0.14 R, 0.03→0.05 G, 0.14→0.22 B). Boost nebula mix 0.15→0.30. Star intensity 0.18→0.30. Star density threshold 0.92→0.88. Should feel like looking through a telescope.
+
+### Tab glow rework — bookmark style with gold border (v9.2 video review)
+**What:** Current tab glow (gold bg tint) not dramatic enough. User wants "shining" effect, gold border, bookmark-tab shape. "This is not what I mean by glow." Suggested gold border and fire/energy aesthetic.
+**Fix:** Replace 15% alpha gold bg with strong gold border (2-3px) around active tab. Make tab shape look like a physical bookmark tab. Consider Canvas-rendered glow halo behind icon for more dramatic shader-like effect.
+
+### Clickable entity links — insider names, holders (v9.2 video review)
+**What:** Insider trade names and institutional holder names should be clickable. "Click on this and it does a Google search or LinkedIn."
+**Fix:** Wrap entity names in clickable text that calls `open::that(url)` to launch browser with Google/LinkedIn search for that person/institution.
+
 ### Chart layer visibility toggles (v9.1 video review)
 **What:** Buttons to show/hide natal planets, transit planets, aspect lines, retrograde markers independently. Helps readability when chart is dense. "Select things to see which is which."
 **Fix:** Add toggle state bools to Dashboard (show_natal, show_transit, show_aspects, show_retro). Pass as uniforms or control which sections render in view. Add toggle buttons near chart legend.
