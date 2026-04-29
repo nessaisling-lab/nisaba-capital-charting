@@ -399,19 +399,30 @@ impl canvas::Program<Message> for PriceChart {
                         row.open, row.high, row.low, row.close,
                         format_shares(row.volume),
                     );
-                    let tip_x = if bar_x < pad_left + w / 2.0 { bar_x + 8.0 } else { bar_x - 96.0 };
+                    let tip_x = if bar_x < pad_left + w / 2.0 { bar_x + 8.0 } else { bar_x - 110.0 };
                     let tip_y = pad_top + 4.0;
-                    let tip_bg = Color { a: 0.90, ..theme::palette().surface };
+                    let p = theme::palette();
+                    // Dark bg card for contrast in both Parchment and Leather (v9.1)
+                    let tip_bg = Color { r: 0.12, g: 0.10, b: 0.08, a: 0.95 };
                     frame.fill_rectangle(
-                        Point::new(tip_x, tip_y),
-                        iced::Size::new(90.0, 58.0),
+                        Point::new(tip_x - 2.0, tip_y - 2.0),
+                        iced::Size::new(106.0, 64.0),
                         tip_bg,
                     );
+                    // Gold border accent
+                    let border = canvas::Path::new(|b| {
+                        b.rectangle(Point::new(tip_x - 2.0, tip_y - 2.0), iced::Size::new(106.0, 64.0));
+                    });
+                    frame.stroke(&border, canvas::Stroke {
+                        style: canvas::Style::Solid(Color { a: 0.4, ..p.gold }),
+                        width: 1.0,
+                        ..canvas::Stroke::default()
+                    });
                     frame.fill_text(canvas::Text {
                         content: label,
                         position: Point::new(tip_x + 4.0, tip_y + 4.0),
-                        color: Color::WHITE,
-                        size: iced::Pixels(9.0),
+                        color: Color { r: 0.95, g: 0.90, b: 0.80, a: 1.0 },  // warm cream, readable on dark
+                        size: iced::Pixels(10.0),
                         ..canvas::Text::default()
                     });
                 }

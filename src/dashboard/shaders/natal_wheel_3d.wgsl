@@ -131,12 +131,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let inv_scale = 1.0 / (1.0 - u.camera_tilt);
     let expanded = vec2<f32>(raw.x, raw.y * inv_scale);
 
-    // Undo slow rotation (chart spins inside the ellipse)
-    let rot = -u.time * 0.015;
-    let cr = cos(rot);
-    let sr = sin(rot);
-    let pc = vec2<f32>(expanded.x * cr - expanded.y * sr,
-                       expanded.x * sr + expanded.y * cr);
+    // Chart is static (v9.1: rotation disabled — hard to read when spinning)
+    let pc = expanded;
 
     // Chart-space polar coords
     let r = length(pc);

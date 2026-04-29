@@ -6,6 +6,24 @@
 
 ---
 
+## v9.1.0 — "The Polish" (2026-04-29)
+
+- **[P0] Disable chart rotation:** Natal chart no longer spins, making planetary positions readable. Removed `u.time * 0.015` rotation transform from natal_wheel_3d.wgsl
+- **[P0] Backtest crash fix:** Removed early `return` from backtest view that swallowed entire astrology tab. Added "Clear Results" button so users can dismiss backtest output
+- **[P0] Broken watchlist icons:** Replaced Unicode "✕" with Phosphor `X_LG` icon for watchlist remove buttons. Previous character rendered as broken box
+- **[P0] Tooltip contrast fix:** OHLCV hover tooltip now uses dark background card (0.12/0.10/0.08 RGB) with warm cream text + gold border accent. Readable in both Parchment and Leather themes. Font size 9→10px, tooltip wider (90→106px)
+
+**Files modified:** 6
+
+| Bug | Before | After |
+|-----|--------|-------|
+| Natal chart | Slowly rotating, hard to read | Static, readable positions |
+| Backtest results | Swallows entire tab, no dismiss | Shows inline with Clear button |
+| Watchlist icons | "✕" renders as broken box | Phosphor X_LG icon |
+| Chart tooltip | White text on light bg, tiny | Dark card + cream text, gold border |
+
+---
+
 ## v9.0.1 — Hotfix (2026-04-29)
 
 - **WGSL array fix:** Changed orbital trail `trail_alphas` from `let` to `var` — WGSL `let` arrays cannot be indexed by loop variable, only `var` arrays support dynamic indexing. Caused shader validation crash on launch.

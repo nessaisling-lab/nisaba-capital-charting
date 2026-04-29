@@ -170,10 +170,14 @@ impl Dashboard {
             .align_y(Alignment::Center);
 
             if let Some(ref bt) = self.backtest_result {
+                let clear_btn = button(text("Clear Results").size(theme::text_sm()))
+                    .on_press(Message::ClearBacktest);
+
                 if let Some(ref msg) = bt.insufficient_data {
-                    return column![
+                    column![
                         text("Astro Backtest").font(font::DISPLAY).size(theme::text_md()),
                         config_row,
+                        clear_btn,
                         horizontal_rule(1),
                         text(msg.as_str())
                             .size(theme::text_base())
@@ -182,83 +186,84 @@ impl Dashboard {
                             .size(theme::text_sm()),
                     ]
                     .spacing(6)
-                    .into();
-                }
-                let strat_color = if bt.total_return_pct > bt.buy_hold_return_pct {
-                    theme::ZONE_OPTIMAL
+                    .into()
                 } else {
-                    theme::ZONE_MISALIGNED
-                };
-                let acc_color = if bt.signal_accuracy_pct >= 55.0 {
-                    theme::ZONE_OPTIMAL
-                } else if bt.signal_accuracy_pct >= 45.0 {
-                    theme::ZONE_NEUTRAL
-                } else {
-                    theme::ZONE_MISALIGNED
-                };
+                    let strat_color = if bt.total_return_pct > bt.buy_hold_return_pct {
+                        theme::ZONE_OPTIMAL
+                    } else {
+                        theme::ZONE_MISALIGNED
+                    };
+                    let acc_color = if bt.signal_accuracy_pct >= 55.0 {
+                        theme::ZONE_OPTIMAL
+                    } else if bt.signal_accuracy_pct >= 45.0 {
+                        theme::ZONE_NEUTRAL
+                    } else {
+                        theme::ZONE_MISALIGNED
+                    };
 
-                let metrics = column![
-                    row![
-                        text(format!("Strategy: {:.1}%", bt.total_return_pct))
-                            .size(theme::text_base())
-                            .color(strat_color),
-                        text("  vs  ").size(theme::text_sm()),
-                        text(format!("Buy & Hold: {:.1}%", bt.buy_hold_return_pct))
-                            .size(theme::text_base()),
-                    ]
-                    .spacing(4),
-                    row![
-                        text(format!("Trades: {}", bt.num_trades)).size(theme::text_sm()),
-                        text(format!("Win Rate: {:.0}%", bt.win_rate_pct)).size(theme::text_sm()),
-                        text(format!("Max DD: {:.1}%", bt.max_drawdown_pct)).size(theme::text_sm()),
-                        text(format!("Final: ${:.0}", bt.final_capital)).size(theme::text_sm()),
-                    ]
-                    .spacing(12),
-                    text(format!(
-                        "Astro Signal Accuracy (30d): {:.1}%",
-                        bt.signal_accuracy_pct
-                    ))
-                    .size(theme::text_base())
-                    .color(acc_color),
-                ]
-                .spacing(4);
-
-                let trade_rows: Vec<Element<Message>> = bt
-                    .trades
-                    .iter()
-                    .rev()
-                    .take(10)
-                    .map(|t| {
-                        let color = if t.return_pct > 0.0 {
-                            theme::ZONE_OPTIMAL
-                        } else {
-                            theme::ZONE_MISALIGNED
-                        };
+                    let metrics = column![
+                        row![
+                            text(format!("Strategy: {:.1}%", bt.total_return_pct))
+                                .size(theme::text_base())
+                                .color(strat_color),
+                            text("  vs  ").size(theme::text_sm()),
+                            text(format!("Buy & Hold: {:.1}%", bt.buy_hold_return_pct))
+                                .size(theme::text_base()),
+                        ]
+                        .spacing(4),
+                        row![
+                            text(format!("Trades: {}", bt.num_trades)).size(theme::text_sm()),
+                            text(format!("Win Rate: {:.0}%", bt.win_rate_pct)).size(theme::text_sm()),
+                            text(format!("Max DD: {:.1}%", bt.max_drawdown_pct)).size(theme::text_sm()),
+                            text(format!("Final: ${:.0}", bt.final_capital)).size(theme::text_sm()),
+                        ]
+                        .spacing(12),
                         text(format!(
-                            "  {} @ ${:.2}  ->  {} @ ${:.2}  ({:+.1}%)",
-                            t.buy_date, t.buy_price, t.sell_date, t.sell_price, t.return_pct
+                            "Astro Signal Accuracy (30d): {:.1}%",
+                            bt.signal_accuracy_pct
                         ))
-                        .size(theme::text_sm())
-                        .color(color)
-                        .into()
-                    })
-                    .collect();
+                        .size(theme::text_base())
+                        .color(acc_color),
+                    ]
+                    .spacing(4);
 
-                column![
-                    text(format!(
-                        "Backtest: {} ({} days)",
-                        bt.ticker, bt.days_tested
-                    ))
-                    .size(theme::text_md()),
-                    config_row,
-                    horizontal_rule(1),
-                    metrics,
-                    horizontal_rule(1),
-                    text("Recent Trades (last 10)").size(theme::text_sm()),
-                    Column::with_children(trade_rows).spacing(1),
-                ]
-                .spacing(6)
-                .into()
+                    let trade_rows: Vec<Element<Message>> = bt
+                        .trades
+                        .iter()
+                        .rev()
+                        .take(10)
+                        .map(|t| {
+                            let color = if t.return_pct > 0.0 {
+                                theme::ZONE_OPTIMAL
+                            } else {
+                                theme::ZONE_MISALIGNED
+                            };
+                            text(format!(
+                                "  {} @ ${:.2}  ->  {} @ ${:.2}  ({:+.1}%)",
+                                t.buy_date, t.buy_price, t.sell_date, t.sell_price, t.return_pct
+                            ))
+                            .size(theme::text_sm())
+                            .color(color)
+                            .into()
+                        })
+                        .collect();
+
+                    column![
+                        text(format!(
+                            "Backtest: {} ({} days)",
+                            bt.ticker, bt.days_tested
+                        ))
+                        .size(theme::text_md()),
+                        row![config_row, clear_btn].spacing(8).align_y(Alignment::Center),
+                        horizontal_rule(1),
+                        metrics,
+                        horizontal_rule(1),
+                        text("Recent Trades (last 10)").size(theme::text_sm()),
+                        Column::with_children(trade_rows).spacing(1),
+                    ]
+                    .spacing(6)
+                    .into()
+                }
             } else {
                 column![
                     text("Astro Backtest").font(font::DISPLAY).size(theme::text_md()),

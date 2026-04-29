@@ -41,7 +41,11 @@ impl Dashboard {
             let ticker_chips: Vec<Element<Message>> = self.watchlist_tickers_list.iter().map(|t| {
                 row![
                     text(t).size(theme::text_base()),
-                    button(text("✕").size(theme::text_sm())).on_press(Message::WatchlistRemoveTicker(t.clone())),
+                    button(
+                        text(crate::icons::X_LG.to_string())
+                            .font(crate::icons::PHOSPHOR)
+                            .size(theme::text_sm())
+                    ).on_press(Message::WatchlistRemoveTicker(t.clone())),
                 ].spacing(4).into()
             }).collect();
             Column::with_children(ticker_chips).spacing(2)

@@ -484,6 +484,7 @@ pub enum Message {
     BacktestBuyInput(String),
     BacktestSellInput(String),
     RunBacktest,
+    ClearBacktest,
     BacktestDataLoaded(Result<Vec<crate::db::BacktestDayRow>, String>),
     // Portfolio P&L
     PortfolioPnlLoaded(Result<Vec<PortfolioPnlRow>, String>),

@@ -38,6 +38,10 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
         // ── Backtest ────────────────────────────────────────────────────
         Message::BacktestBuyInput(s) => { state.backtest_buy_input = s; Some(Task::none()) }
         Message::BacktestSellInput(s) => { state.backtest_sell_input = s; Some(Task::none()) }
+        Message::ClearBacktest => {
+            state.backtest_result = None;
+            Some(Task::none())
+        }
         Message::RunBacktest => {
             let buy = state.backtest_buy_input.parse::<f64>().unwrap_or(65.0);
             let sell = state.backtest_sell_input.parse::<f64>().unwrap_or(35.0);
