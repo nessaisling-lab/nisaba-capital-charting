@@ -241,6 +241,8 @@ pub struct Dashboard {
     pub page_transition_from:     Option<Tab>,  // tab fading away from
     // Shader effects (v7.4)
     pub shader_time:              f32,            // cumulative time for GPU vignette
+    // Chart animation (v9.0)
+    pub chart_draw_progress:      f32,            // 0.0→1.0 candlestick draw-in animation
 }
 
 impl Default for Dashboard {
@@ -376,6 +378,8 @@ impl Default for Dashboard {
             page_transition_from:     None,
             // Shader
             shader_time:              42.0,  // non-zero seed for initial dust mote positions
+            // Chart animation (v9.0)
+            chart_draw_progress:      1.0,   // starts complete (animates on ticker switch)
         }
     }
 }

@@ -174,9 +174,13 @@ impl Dashboard {
             Tab::Settings     => self.view_settings(),
         };
 
-        // ── Page transition alpha ──────────────────────────────
-        let page_alpha = if self.page_transition_progress < 1.0 {
-            animation::ease_out_cubic(self.page_transition_progress)
+        // ── Page transition: layered stagger (v9.0) ────────────
+        // Background + gold glow settle in first ~100ms (3× speed),
+        // then remaining animations complete over full 300ms duration.
+        // Visual effect: background snaps in fast, content follows.
+        let progress = self.page_transition_progress;
+        let page_alpha = if progress < 1.0 {
+            animation::ease_out_cubic((progress * 3.0).min(1.0))
         } else {
             1.0
         };

@@ -287,6 +287,13 @@ impl Dashboard {
                             .min(1.0);
                         still_animating |= self.score_count_progress < 1.0;
                     }
+                    // Candlestick chart draw-in (v9.0) — 500ms staggered entrance
+                    if self.chart_draw_progress < 1.0 {
+                        self.chart_draw_progress = (self.chart_draw_progress
+                            + dt / 0.5)  // 500ms total duration
+                            .min(1.0);
+                        still_animating |= self.chart_draw_progress < 1.0;
+                    }
                     // Tab indicator slide
                     if self.tab_indicator_progress < 1.0 {
                         self.tab_indicator_progress = (self.tab_indicator_progress
@@ -326,6 +333,10 @@ impl Dashboard {
 
                     // Advance shader time for dust mote animation (v7.4)
                     self.shader_time += dt;
+
+                    // Astrology tab needs continuous 60fps for shader animations
+                    // (planet pulse, transit drift, aspect shimmer, orbital trails)
+                    still_animating |= self.active_tab == crate::tabs::Tab::Astrology;
 
                     self.animating = still_animating;
                     // During animation, skip expensive data fetches

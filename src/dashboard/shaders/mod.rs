@@ -13,6 +13,7 @@ use crate::state::Message;
 // ── Uniform buffer (64 bytes, 16-byte aligned) ──────────────────
 
 /// GPU uniform data passed to the vignette fragment shader each frame.
+/// v9.0: added mouse_pos for cursor-reactive dust motes (replaces 2 pad floats).
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct VignetteUniforms {
@@ -22,7 +23,8 @@ pub struct VignetteUniforms {
     pub bg_color: [f32; 4],
     pub gold_color: [f32; 4],
     pub page_alpha: f32,
-    pub _pad: [f32; 3],
+    pub _pad0: f32,
+    pub mouse_pos: [f32; 2],  // v9.0: cursor UV position [0,1]
 }
 
 // ── Pipeline (stored in shader::Storage) ────────────────────────
@@ -206,9 +208,15 @@ impl shader::Program<Message> for VignetteProgram {
     fn draw(
         &self,
         _state: &Self::State,
-        _cursor: mouse::Cursor,
+        cursor: mouse::Cursor,
         bounds: Rectangle,
     ) -> Self::Primitive {
+        // Convert cursor to UV [0,1] space for dust mote repulsion (v9.0)
+        let mouse_uv = cursor
+            .position_in(bounds)
+            .map(|p| [p.x / bounds.width, p.y / bounds.height])
+            .unwrap_or([0.5, 0.5]);  // center when cursor outside
+
         VignettePrimitive {
             uniforms: VignetteUniforms {
                 resolution: [bounds.width, bounds.height],
@@ -217,7 +225,8 @@ impl shader::Program<Message> for VignetteProgram {
                 bg_color: self.bg_color,
                 gold_color: self.gold_color,
                 page_alpha: self.page_alpha,
-                _pad: [0.0; 3],
+                _pad0: 0.0,
+                mouse_pos: mouse_uv,
             },
         }
     }
@@ -238,7 +247,7 @@ impl shader::Program<Message> for VignetteProgram {
 
 // ── Uniform buffer (496 bytes, 16-byte aligned) ────────────────────
 
-/// GPU uniform data for the 3D natal chart fragment shader.
+/// GPU uniform data for the 3D natal chart fragment shader (512 bytes).
 /// Planet slots: each `[f32; 4]` = `[longitude_deg, is_retrograde, planet_idx, 0]`.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -255,6 +264,11 @@ pub struct NatalWheel3DUniforms {
     pub transit_count: f32,
     pub retro_r: f32,
     pub retro_g: f32,
+    // v9.0: active zodiac sign (0-11) + padding to 512 bytes
+    pub active_sign: f32,
+    pub _pad1: f32,
+    pub _pad2: f32,
+    pub _pad3: f32,
 }
 
 // ── Pipeline ───────────────────────────────────────────────────────
@@ -426,6 +440,7 @@ pub struct NatalWheel3DProgram {
     pub gold_color: [f32; 4],
     pub transit_color: [f32; 4],
     pub retro_color: [f32; 4],
+    pub active_sign: f32,  // v9.0: 0-11, zodiac sign with current Sun transit
 }
 
 impl shader::Program<Message> for NatalWheel3DProgram {
@@ -474,6 +489,10 @@ impl shader::Program<Message> for NatalWheel3DProgram {
                 transit_count: self.transit_positions.len().min(13) as f32,
                 retro_r: self.retro_color[0],
                 retro_g: self.retro_color[1],
+                active_sign: self.active_sign,
+                _pad1: 0.0,
+                _pad2: 0.0,
+                _pad3: 0.0,
             },
         }
     }

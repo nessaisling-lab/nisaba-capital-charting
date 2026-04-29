@@ -1,11 +1,12 @@
-// 3D Natal Chart shader (v8.0) — "The Observatory"
+// 3D Natal Chart shader (v9.0) — "The Performance"
 // Procedural SDF rendering of a perspective-tilted zodiac wheel with
-// glowing planets, animated transit drift, and luminous aspect lines.
+// breathing natal planets, orbital transit trails, animated aspect lines,
+// and luminous glow effects.
 //
 // Same full-screen-triangle approach as vignette.wgsl — no vertex buffer,
 // all rendering via signed distance functions in the fragment shader.
 
-// ── Uniform buffer (matches NatalWheel3DUniforms in mod.rs, 496 bytes) ─
+// ── Uniform buffer (matches NatalWheel3DUniforms in mod.rs, 512 bytes) ─
 
 struct Uniforms {
     resolution: vec2<f32>,
@@ -20,6 +21,11 @@ struct Uniforms {
     transit_count: f32,
     retro_r: f32,
     retro_g: f32,
+    // v9.0 additions (16 bytes padding to reach 512-byte alignment)
+    active_sign: f32,   // 0-11, zodiac sign containing current Sun transit
+    _pad1: f32,
+    _pad2: f32,
+    _pad3: f32,
 };
 
 @group(0) @binding(0)
@@ -152,7 +158,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let outer_mask = smoothstep(R_OUTER + pixel_w, R_OUTER - pixel_w, r);
         let mask = inner_mask * outer_mask;
 
-        color = mix(color, sc.rgb, sc.a * mask);
+        // Active sign glow: brighten the segment containing current Sun transit (v9.0)
+        var sign_boost = 1.0;
+        if idx == u32(u.active_sign) {
+            sign_boost = 1.3 + 0.1 * sin(u.time * 1.5);  // subtle pulse
+        }
+        color = mix(color, sc.rgb * sign_boost, sc.a * mask);
     }
 
     // ── 2. Ring strokes ───────────────────────────────────────────
@@ -228,39 +239,74 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             if asp_alpha > 0.0 {
                 let d = sdf_segment(pc, n_pos, t_pos);
                 let la = 1.0 - smoothstep(0.0, pixel_w * 3.0, d - asp_w);
-                color = mix(color, asp_color, la * asp_alpha);
+
+                // Shimmer wave: traveling alpha pulse along the line (v9.0)
+                // Project fragment onto line segment to get 0→1 progress
+                let seg = t_pos - n_pos;
+                let seg_len = length(seg);
+                var line_t = 0.5;
+                if seg_len > 0.001 {
+                    line_t = clamp(dot(pc - n_pos, seg) / (seg_len * seg_len), 0.0, 1.0);
+                }
+                // Aspect-specific shimmer speeds: conjunction slow, sextile moderate, trine medium, square fast
+                var shimmer_speed = 2.0;
+                if diff < 8.0 || diff > 352.0 { shimmer_speed = 1.0; }       // conjunction
+                else if abs(diff - 60.0) < 6.0 { shimmer_speed = 1.5; }      // sextile
+                else if abs(diff - 90.0) < 8.0 { shimmer_speed = 4.0; }      // square
+                else if abs(diff - 120.0) < 8.0 { shimmer_speed = 2.0; }     // trine
+                let shimmer = 0.55 + 0.45 * sin(line_t * TAU - u.time * shimmer_speed);
+
+                color = mix(color, asp_color, la * asp_alpha * shimmer);
             }
         }
     }
 
-    // ── 5. Natal planets (gold dots with glow halos) ──────────────
+    // ── 5. Natal planets (gold dots with glow halos + breathing pulse) ─
     for (var i = 0u; i < nc; i = i + 1u) {
         let lon = u.natal_planets[i].x;
         let pos = ring_pos(lon_to_angle(lon), R_NATAL);
         let dh = length(pc - pos);
 
-        // Outer glow
-        let halo = 1.0 - smoothstep(0.0, HALO_R, dh);
-        color = mix(color, u.gold_color.rgb, halo * 0.20);
+        // Per-planet breathing: each planet pulses at a slightly different phase
+        let breath = 1.0 + 0.15 * sin(u.time * 2.0 + f32(i) * 1.7);
+        let p_radius = PLANET_R * breath;
+        let p_halo   = HALO_R * (0.9 + 0.1 * breath);
 
-        // Solid dot
-        let dd = sdf_dot(pc, pos, PLANET_R);
+        // Outer glow (intensity modulated by breath)
+        let halo = 1.0 - smoothstep(0.0, p_halo, dh);
+        color = mix(color, u.gold_color.rgb, halo * (0.16 + 0.08 * breath));
+
+        // Solid dot (pulsing radius)
+        let dd = sdf_dot(pc, pos, p_radius);
         let dot_a = 1.0 - smoothstep(-pixel_w, pixel_w, dd);
         color = mix(color, u.gold_color.rgb, dot_a * 0.95);
 
         // Hot center
-        let core = 1.0 - smoothstep(0.0, PLANET_R * 0.35, dh);
+        let core = 1.0 - smoothstep(0.0, p_radius * 0.35, dh);
         color = mix(color, vec3<f32>(1.0, 0.95, 0.75), core * 0.45);
     }
 
-    // ── 6. Transit planets (blue/red, animated drift) ─────────────
+    // ── 6. Transit planets (blue/red, animated drift + orbital trails) ─
     let retro_rgb = vec3<f32>(u.retro_r, u.retro_g, 0.5);
 
     for (var i = 0u; i < tc; i = i + 1u) {
         let lon = u.transit_planets[i].x;
         let is_retro = u.transit_planets[i].y;
-        let pos = ring_pos(lon_to_angle(lon) + drift, R_TRANSIT);
+        let base_angle = lon_to_angle(lon) + drift;
         let tc_rgb = select(u.transit_color.rgb, retro_rgb, is_retro > 0.5);
+
+        // Orbital trail: 5 ghost dots at earlier angular positions (fading)
+        let trail_alphas = array<f32, 5>(0.08, 0.15, 0.25, 0.40, 0.60);
+        for (var g = 0u; g < 5u; g = g + 1u) {
+            let ghost_angle = base_angle - f32(5u - g) * 0.02;
+            let ghost_pos = ring_pos(ghost_angle, R_TRANSIT);
+            let gd = sdf_dot(pc, ghost_pos, PLANET_R * 0.55);
+            let ghost_a = 1.0 - smoothstep(-pixel_w, pixel_w, gd);
+            color = mix(color, tc_rgb, ghost_a * trail_alphas[g]);
+        }
+
+        // Main planet dot
+        let pos = ring_pos(base_angle, R_TRANSIT);
         let dh = length(pc - pos);
 
         // Glow

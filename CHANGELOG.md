@@ -2,7 +2,38 @@
 
 **Author:** Aisling Leiva
 **Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
-**Development:** 2026-04-07 to 2026-04-28
+**Development:** 2026-04-07 to 2026-04-29
+
+---
+
+## v9.0.0 — "The Performance" (2026-04-29)
+
+- **Planet pulse/breathe:** Natal planets sinusoidally modulate radius + halo intensity with per-planet phase offset (1.7 rad stagger) for organic non-synchronized breathing
+- **Orbital transit trails:** 5 ghost dots per transit planet at progressively earlier angular positions with fading alpha (0.08→0.60), creating comet-tail effect behind drifting transits
+- **Aspect line shimmer wave:** Traveling alpha pulse along each aspect line, speed varies by type (conjunction 1.0, sextile 1.5, trine 2.0, square 4.0) — red squares shimmer fastest
+- **Zodiac segment glow:** Active sign (containing current Sun transit) gets 30% brightness boost + subtle 1.5Hz pulse. Computed from Sun's ecliptic longitude / 30
+- **Dust mote cursor interaction:** Vignette dust motes gently push away from mouse cursor within 0.15 UV radius. Cursor position passed via VignetteUniforms mouse_pos field
+- **Candlestick chart draw-in:** On ticker switch, candles grow from price midpoint with left-to-right stagger (60% stagger / 40% growth over 500ms). Uses ease_out_cubic per candle
+- **Layered page transitions:** Background settles in first ~100ms (3× alpha speed), content follows over full 300ms. Gold glow fires during fast background phase
+- **Tab sparkle tuning:** 8 particles (up from 5), varied sizes 1.5-4.0px, faster burst (0.08 stagger), downward gravity drift during fade
+- **60fps astrology tab:** Tick model fix — `still_animating |= active_tab == Astrology` keeps shader_time advancing at 60fps when astrology tab is visible
+- **Uniform buffer growth:** NatalWheel3DUniforms 496→512 bytes (active_sign + padding). VignetteUniforms field reuse (mouse_pos replaces 2 pad floats, stays 64 bytes)
+
+**Files modified:** 12
+
+| Feature | Before (v8.0.0) | After (v9.0.0) |
+|---------|-----------------|----------------|
+| Natal planets | Static gold dots | Breathing pulse (sinusoidal radius modulation) |
+| Transit planets | Single dot per planet | Dot + 5-ghost orbital trail fade |
+| Aspect lines | Solid colored segments | Shimmer wave (traveling alpha pulse) |
+| Zodiac ring | Uniform brightness | Active sign highlighted + pulsing |
+| Dust motes | Lissajous drift only | Cursor-reactive repulsion |
+| Candlestick chart | Instant render | Grow-from-midpoint staggered draw-in |
+| Page transitions | Flat 250ms fade | Layered 300ms (fast bg + delayed content) |
+| Tab sparkle | 5 particles, fixed | 8 particles, gravity drift, varied sizes |
+| Astrology tick | 30s when idle | 60fps when tab visible |
+
+**Project stats:** ~20,800 Rust+WGSL source | 2 GPU shaders | 4 canvas ornaments | 70 tests | 0 warnings
 
 ---
 

@@ -29,6 +29,7 @@ pub struct PriceChart {
     pub rows_chrono:   Vec<PriceRow>,
     pub volumes:       Vec<i64>,
     pub astro_markers: Vec<AstroMarker>,
+    pub draw_progress: f32,  // v9.0: 0→1 candle draw-in animation
 }
 
 impl PriceChart {
@@ -200,25 +201,40 @@ impl canvas::Program<Message> for PriceChart {
             let bullish = close_f >= open_f;
             let color = if bullish { theme::bullish(_theme) } else { theme::bearish(_theme) };
 
-            // Wick: thin vertical line from high to low
+            // Per-candle stagger: leftmost candles appear first (v9.0 draw-in)
+            let total = self.rows_chrono.len().max(1) as f32;
+            let candle_delay = (i as f32 / total) * 0.6;  // stagger over 60% of progress
+            let candle_t = crate::animation::ease_out_cubic(
+                ((self.draw_progress - candle_delay) / 0.4).clamp(0.0, 1.0)
+            );
+            if candle_t < 0.001 { continue; }  // skip unborn candles
+
+            // Midpoint for grow-from-center effect
+            let mid_y = y_of((high_f + low_f) * 0.5);
+
+            // Wick: thin vertical line from high to low (scaled by candle_t)
+            let wick_top = mid_y + (y_of(high_f) - mid_y) * candle_t;
+            let wick_bot = mid_y + (y_of(low_f) - mid_y) * candle_t;
             let wick = canvas::Path::new(|b| {
-                b.move_to(Point::new(cx, y_of(high_f)));
-                b.line_to(Point::new(cx, y_of(low_f)));
+                b.move_to(Point::new(cx, wick_top));
+                b.line_to(Point::new(cx, wick_bot));
             });
             frame.stroke(&wick, canvas::Stroke {
-                style: canvas::Style::Solid(color),
+                style: canvas::Style::Solid(Color { a: candle_t, ..color }),
                 width: 1.0,
                 ..canvas::Stroke::default()
             });
 
-            // Body: filled rectangle from open to close
-            let body_top = y_of(open_f.max(close_f));
-            let body_bot = y_of(open_f.min(close_f));
+            // Body: filled rectangle from open to close (scaled by candle_t)
+            let raw_top = y_of(open_f.max(close_f));
+            let raw_bot = y_of(open_f.min(close_f));
+            let body_top = mid_y + (raw_top - mid_y) * candle_t;
+            let body_bot = mid_y + (raw_bot - mid_y) * candle_t;
             let body_h = (body_bot - body_top).max(1.0); // min 1px for doji
             frame.fill_rectangle(
                 Point::new(cx - body_w / 2.0, body_top),
                 Size::new(body_w, body_h),
-                color,
+                Color { a: candle_t, ..color },
             );
         }
 

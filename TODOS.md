@@ -11,6 +11,12 @@
 **Fix paths:** (a) Add alternative sentiment source (Finnhub, RSS tone), (b) find free short-interest feed, (c) buy threshold already lowered 75→65 as interim.
 **Impact:** Paper engine now trades with 65 threshold; raising back to 75 once data coverage improves.
 
+### v9.0 post-implementation frame time profiling
+**What:** After shipping v9.0 "The Performance" (11 animation items), measure actual frame times on the astrology tab with all shader effects active. Target: <16ms per frame at 400x400.
+**Why:** Reviewer estimated 15-25% shader workload increase. Measurement confirms the estimate before school demo.
+**How:** Add temporary `Instant::now()` before/after shader draw call, log to console. Remove after verification.
+**Depends on:** v9.0 implementation complete.
+
 ### "Fetch this ticker" button
 **What:** Single-ticker on-demand scraper fetch from the dashboard UI.
 **Blocked by:** Needs scraper-side work (currently batch-only pipeline).

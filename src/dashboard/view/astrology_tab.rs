@@ -38,6 +38,11 @@ impl Dashboard {
             .into()
         } else {
             let p = theme::palette();
+            // Active zodiac sign from Sun's transit longitude (first transit = Sun)
+            let active_sign = self.daily_transits.first()
+                .map(|sun| (sun.longitude as f32 / 30.0).floor().clamp(0.0, 11.0))
+                .unwrap_or(0.0);
+
             let natal_wheel = Shader::new(NatalWheel3DProgram {
                 time: self.shader_time,
                 natal_positions: self.natal_positions.clone(),
@@ -55,6 +60,7 @@ impl Dashboard {
                     theme::RETROGRADE_RED.r, theme::RETROGRADE_RED.g,
                     theme::RETROGRADE_RED.b, theme::RETROGRADE_RED.a,
                 ],
+                active_sign,
             })
             .width(Length::Fixed(400.0))
             .height(Length::Fixed(400.0));

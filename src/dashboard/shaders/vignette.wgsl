@@ -1,5 +1,5 @@
-// Grimoire atmospheric vignette shader (v7.4)
-// GPU-rendered background: radial vignette, noise grain, dust motes, gold glow
+// Grimoire atmospheric vignette shader (v9.0)
+// GPU-rendered background: radial vignette, noise grain, cursor-reactive dust motes, gold glow
 
 struct Uniforms {
     resolution: vec2<f32>,       // widget dimensions in pixels
@@ -9,8 +9,7 @@ struct Uniforms {
     gold_color: vec4<f32>,       // palette().gold rgba
     page_alpha: f32,             // page transition progress (0→1)
     _pad0: f32,
-    _pad1: f32,
-    _pad2: f32,
+    mouse_pos: vec2<f32>,        // v9.0: cursor position in UV [0,1] space
 };
 
 @group(0) @binding(0)
@@ -81,8 +80,19 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let speed_y = 0.02 + hash11(seed * 2.7) * 0.025;
 
         // Lissajous-like drift pattern
-        let px = fract(hash11(seed) + sin(u.time * speed_x + seed) * 0.3 + u.time * 0.005);
-        let py = fract(hash11(seed * 3.1) - u.time * speed_y);
+        var px = fract(hash11(seed) + sin(u.time * speed_x + seed) * 0.3 + u.time * 0.005);
+        var py = fract(hash11(seed * 3.1) - u.time * speed_y);
+
+        // Cursor repulsion: motes gently push away from mouse (v9.0)
+        let mote_raw = vec2<f32>(px, py);
+        let to_mote = mote_raw - u.mouse_pos;
+        let cursor_dist = length(to_mote);
+        if cursor_dist < 0.15 && cursor_dist > 0.001 {
+            let push = (0.15 - cursor_dist) * 0.3;  // gentle push strength
+            let dir = to_mote / cursor_dist;
+            px = clamp(px + dir.x * push, 0.0, 1.0);
+            py = clamp(py + dir.y * push, 0.0, 1.0);
+        }
 
         let mote_pos = vec2<f32>(px, py);
         let d = distance(uv, mote_pos);

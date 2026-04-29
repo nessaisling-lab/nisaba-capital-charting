@@ -39,6 +39,9 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
             state.agent_analysis = None;
             state.lagrange_history = vec![];
             state.sector_peers = vec![];
+            // v9.0: reset chart draw-in animation on ticker switch
+            state.chart_draw_progress = 0.0;
+            state.animating = true;
             state.status = format!("Loading {ticker}...");
             if let Some(pool) = &state.pool {
                 let rv_pool = Arc::clone(pool);

@@ -270,6 +270,7 @@ impl canvas::Program<Message> for PageBorderCorner {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TabSparkle — gold particle burst on tab hover (20×16px)
+// v9.0: 8 particles, varied sizes, gravity drift, faster burst + longer fade
 // ═══════════════════════════════════════════════════════════════════════════
 
 pub struct TabSparkle {
@@ -296,28 +297,33 @@ impl canvas::Program<Message> for TabSparkle {
         let w = bounds.width;
         let h = bounds.height;
 
-        // 5 particles at deterministic positions seeded per tab
-        let particles: [(f32, f32, f32); 5] = [
-            (0.15, 0.30, 1.2),
-            (0.45, 0.70, 0.8),
-            (0.70, 0.25, 1.0),
-            (0.85, 0.55, 0.7),
-            (0.30, 0.80, 0.9),
+        // 8 particles at deterministic positions seeded per tab (v9.0: up from 5)
+        let particles: [(f32, f32, f32); 8] = [
+            (0.10, 0.25, 2.5),
+            (0.30, 0.65, 1.8),
+            (0.50, 0.20, 3.0),
+            (0.65, 0.75, 2.0),
+            (0.80, 0.35, 3.5),
+            (0.20, 0.80, 2.2),
+            (0.90, 0.50, 1.5),
+            (0.45, 0.45, 4.0),
         ];
 
         for (i, &(fx, fy, size)) in particles.iter().enumerate() {
-            // Stagger: each particle fades in at a different progress threshold
-            let delay = i as f32 * 0.12;
-            let particle_alpha = ((self.alpha - delay) * 3.0).clamp(0.0, 1.0);
+            // Faster initial burst: 0.08 stagger (was 0.12), 4× fade-in speed
+            let delay = i as f32 * 0.08;
+            let particle_alpha = ((self.alpha - delay) * 4.0).clamp(0.0, 1.0);
             if particle_alpha < 0.01 { continue; }
 
             // Offset positions slightly by seed for variety across tabs
-            let seed_f = (self.seed.wrapping_mul(2654435761 + i as u32)) as f32 / u32::MAX as f32;
+            let seed_f = (self.seed.wrapping_mul(2654435761_u32.wrapping_add(i as u32))) as f32 / u32::MAX as f32;
             let px = (fx + seed_f * 0.2 - 0.1).clamp(0.05, 0.95) * w;
-            let py = (fy + seed_f * 0.15 - 0.075).clamp(0.05, 0.95) * h;
+            // Gravity drift: particles drift downward as alpha progresses
+            let gravity = self.alpha * 2.5;  // pixels of downward drift
+            let py = ((fy + seed_f * 0.15 - 0.075).clamp(0.05, 0.95) * h) + gravity;
 
-            let dot = canvas::Path::circle(Point::new(px, py), size);
-            frame.fill(&dot, Color { a: particle_alpha * 0.6, ..p.gold });
+            let dot = canvas::Path::circle(Point::new(px, py.min(h - 1.0)), size);
+            frame.fill(&dot, Color { a: particle_alpha * 0.55, ..p.gold });
         }
 
         vec![frame.into_geometry()]

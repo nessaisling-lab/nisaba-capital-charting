@@ -120,6 +120,7 @@ impl Dashboard {
                 rows_chrono: visible_rows.clone(),
                 volumes,
                 astro_markers,
+                draw_progress: self.chart_draw_progress,
             })
             .width(Length::Fill)
             .height(Length::Fixed(300.0))

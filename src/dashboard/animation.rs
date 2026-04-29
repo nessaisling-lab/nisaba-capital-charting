@@ -38,7 +38,7 @@ pub const TAB_SLIDE_DURATION: f32 = 0.2;
 pub const COUNT_UP_DURATION: f32 = 0.4;
 pub const TAB_HOVER_EXPAND_DURATION: f32 = 0.20;
 pub const TAB_HOVER_COLLAPSE_DURATION: f32 = 0.15;
-pub const PAGE_TRANSITION_DURATION: f32 = 0.25;
+pub const PAGE_TRANSITION_DURATION: f32 = 0.30;  // 300ms layered stagger (v9.0)
 
 /// Tick delta for 60fps animation frames.
 pub const TICK_DELTA: f32 = 1.0 / 60.0;

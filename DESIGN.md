@@ -3,12 +3,38 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v7.6.0
-**Next milestone:** v8.0.0 (3D natal chart, advanced polish)
+**Current version:** v9.0.0
+**Next milestone:** v9.1+ (watchlist slide-in, score count-up interpolation, per-card stagger)
 
 ---
 
 ## Changelog
+
+### v9.0.0 — "The Performance" (2026-04-29)
+
+**Theme:** Systematic animation overhaul across all 3 rendering layers: GPU shaders, Iced widgets, and existing polish. Every visual element now has purposeful motion, from breathing natal planets to cursor-reactive dust motes. Designed for the "astrology-meets-finance" audience that values atmosphere as much as data.
+
+**Key technical discoveries:**
+- **Per-planet phase offset prevents synchronized pulsing:** Using `f32(i) * 1.7` as phase offset (1.7 is irrational relative to 2π) ensures 13 natal planets never visibly sync, creating organic breathing rhythm. Same technique could apply to any particle system needing varied timing
+- **Line-progress projection for shimmer waves:** Computing `dot(pc - n_pos, seg) / dot(seg, seg)` gives a 0→1 progress along each aspect line segment, enabling per-fragment traveling alpha waves. Different shimmer speeds per aspect type (conjunction slow, square fast) adds semantic meaning to motion
+- **Cursor-to-UV coordinate pipeline in Iced shaders:** `cursor.position_in(bounds)` returns widget-local coordinates. Dividing by bounds size gives [0,1] UV space matching the shader. Default (0.5, 0.5) when cursor is outside prevents edge artifacts
+- **Uniform buffer field reuse:** VignetteUniforms stayed at 64 bytes by replacing 2 padding floats with `mouse_pos: [f32; 2]`. No buffer resize, no pipeline recreation. NatalWheel3DUniforms grew 496→512 (active_sign + 3 pad u32s, maintaining 16-byte alignment)
+- **Candle grow-from-midpoint:** Using the price midpoint `(high + low) / 2` as the vertical origin and scaling outward via `mid_y + (target_y - mid_y) * candle_t` creates a natural "sprouting" effect rather than growing from top or bottom edge
+- **bg_alpha acceleration for perceived staging:** `ease_out_cubic((progress * 3.0).min(1.0))` makes the background reach full alpha at 33% of the transition duration. No state machine needed — just faster math on the same progress float. Perceived as two-stage (background then content) despite being a single animation
+
+**Changes (9 items, 12 files):**
+
+| # | Change | Technical detail |
+|---|--------|-----------------|
+| 1 | 60fps astrology tab | `still_animating \|= self.active_tab == Tab::Astrology` in tick loop |
+| 2 | Planet pulse/breathe | `PLANET_R * (1.0 + 0.15 * sin(time * 2.0 + i * 1.7))` per natal planet |
+| 3 | Orbital transit trails | 5 ghost SDF dots per transit at `angle - g * 0.02` with alpha [0.08..0.60] |
+| 4 | Aspect shimmer wave | `sin(line_t * TAU - time * speed)` with speed per aspect type |
+| 5 | Zodiac active sign glow | `active_sign: f32` uniform, `1.3 + 0.1 * sin(time * 1.5)` brightness boost |
+| 6 | Dust mote cursor repulsion | `mouse_pos` uniform, push force `(0.15 - dist) * 0.3` within 0.15 UV radius |
+| 7 | Candlestick draw-in | Per-candle stagger `(i / total) * 0.6` delay, 500ms total, grow from midpoint |
+| 8 | Layered page transitions | 300ms total, bg_alpha 3× speed, PAGE_TRANSITION_DURATION 0.25→0.30 |
+| 9 | Tab sparkle tuning | 8 particles (was 5), sizes 1.5-4.0px, gravity drift, faster stagger |
 
 ### v8.0.0 — "The Observatory" (2026-04-28)
 
