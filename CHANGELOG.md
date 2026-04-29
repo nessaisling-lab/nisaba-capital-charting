@@ -6,6 +6,33 @@
 
 ---
 
+## v8.0.0 — "The Observatory" (2026-04-28)
+
+- **3D natal chart shader:** Replaced Canvas-based `NatalWheel` with GPU-rendered `NatalWheel3DProgram` using procedural SDF fragment shader
+- **Perspective-tilted zodiac:** Y-axis foreshortening + slow rotation creates convincing 3D tilted disc without vertex buffers
+- **12 colored zodiac segments:** Element-based sign colors (fire/earth/air/water) rendered via SDF arc regions with anti-aliased edges
+- **Glowing planet dots:** Natal planets = gold halos + hot center core, transit planets = blue/red with 0.5°/sec animated drift
+- **Aspect line computation in WGSL:** Natal×transit O(n²) loop computes conjunction/sextile/square/trine with correct orbs (8°/6°/8°/8°)
+- **Directional lighting:** Top-bright/bottom-dark gradient simulates overhead illumination on the tilted disc
+- **Rim glow:** Pulsing gold shimmer on outer ring edge (0.22 intensity, 0.10 radius), sinusoidal time modulation
+- **Star field:** Twinkling procedural stars outside the zodiac ring using hash-based noise + sinusoidal twinkle
+- **Perspective tuning:** 32% Y-foreshortening (camera_tilt=0.32) for pronounced 3D depth
+- **496-byte uniform buffer:** 13 natal + 13 transit planets packed as `[[f32; 4]; 13]` arrays with longitude, retrograde flag, and planet index
+
+**Files modified:** 4 + 1 new
+
+| Feature | Before (v7.6.0) | After (v8.0.0) |
+|---------|-----------------|----------------|
+| Natal chart renderer | Canvas 2D (`canvas::Program`) | GPU shader (`shader::Program`) |
+| Ring perspective | Flat circle | Tilted ellipse (32% foreshortening) |
+| Zodiac segments | Canvas arc paths | SDF-rendered anti-aliased arcs |
+| Planet rendering | Canvas circles + text glyphs | SDF dots + glow halos (no text) |
+| Aspect computation | Rust loop in `draw()` | WGSL loop in fragment shader |
+| Background | Solid fill | Star field + vignette |
+| Animation | Transit drift only | Drift + rotation + rim pulse + star twinkle |
+
+---
+
 ## v7.6.0 — "The Consistency" (2026-04-28)
 
 - **Gold sub-scrollbar styling:** Extracted `gold_scrollbar_style` helper, applied to all 15 data-table scrollables across 4 view files
@@ -272,18 +299,18 @@
 
 ---
 
-## Project Stats (v7.6.0)
+## Project Stats (v8.0.0)
 
 | Metric | Value |
 |--------|-------|
 | Commits | 50+ |
-| Rust source | ~20,000 lines across 2 binaries |
+| Rust source | ~20,500 lines across 2 binaries |
 | SQL migrations | 32 |
 | Tests | 70 (48 lib + 17 dashboard + 5 scraper) |
 | Compiler warnings | 0 |
 | Crate deps | 26 |
 | Font assets | ~2.7MB (Fraunces, Source Serif 4, Inter, JetBrains Mono, Phosphor, Phosphor Bold) |
-| GPU shaders | 1 (vignette.wgsl — radial vignette, noise grain, dust motes) |
+| GPU shaders | 2 (vignette.wgsl, natal_wheel_3d.wgsl) |
 | Canvas widgets | 4 (BookSpine, PageHeaderOrnament, PageBorderCorner, TabSparkle) |
 | Git tags | 9 (v4.0.0 - v7.3.0) |
 | Development | 22 days (Apr 7 - Apr 28, 2026) |

@@ -59,9 +59,10 @@ fn planet_glyph(name: &str) -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// NatalWheel canvas widget
+// NatalWheel canvas widget (2D reference — superseded by NatalWheel3DProgram)
 // ---------------------------------------------------------------------------
 
+#[allow(dead_code)]
 pub struct NatalWheel {
     pub natal:    Vec<NatalPosition>,
     pub transits: Vec<DailyTransit>,
@@ -69,6 +70,7 @@ pub struct NatalWheel {
 }
 
 /// Per-sign zodiac colors — element-based (fire/earth/air/water).
+#[allow(dead_code)]
 const SIGN_COLORS: [Color; 12] = [
     Color { r: 0.95, g: 0.30, b: 0.20, a: 0.30 }, // Aries       — fire (red)
     Color { r: 0.45, g: 0.75, b: 0.30, a: 0.30 }, // Taurus      — earth (green)
@@ -299,6 +301,7 @@ impl canvas::Program<Message> for NatalWheel {
 
 /// Convert ecliptic longitude to canvas angle.
 /// 0° (Aries) = right (3 o'clock), increasing counter-clockwise.
+#[allow(dead_code)]
 fn lon_to_angle<T: Into<f64>>(lon: T) -> f32 {
     let lon = lon.into() as f32;
     // Ecliptic 0° = Aries = right on wheel, ascending counter-clockwise

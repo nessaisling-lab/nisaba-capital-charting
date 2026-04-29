@@ -10,6 +10,28 @@
 
 ## Changelog
 
+### v8.0.0 — "The Observatory" (2026-04-28)
+
+**Theme:** The natal chart goes 3D. Replaced the Canvas-based `NatalWheel` (2D `canvas::Program`) with a GPU-rendered `NatalWheel3DProgram` (`shader::Program`) that uses procedural signed distance functions to render a perspective-tilted zodiac wheel with glowing planets, animated aspect lines, twinkling stars, and rim glow — all computed per-pixel in a WGSL fragment shader.
+
+**Key technical discoveries:**
+- Procedural "fake 3D" via Y-axis foreshortening beats true vertex geometry for this use case: the inverse perspective transform (`y / (1 - tilt)`) maps each screen pixel back to "chart space" where the zodiac is a perfect circle, making all SDF calculations trivial. With `camera_tilt=0.32` (32% Y compression), the visual result — a pronounced elliptical tilted disc with directional lighting — is indistinguishable from true 3D at 400×400px
+- Uniform buffer layout between Rust `#[repr(C)]` and WGSL must match byte-for-byte. `[[f32; 4]; 13]` in Rust maps to `array<vec4<f32>, 13>` in WGSL with identical 16-byte stride — no padding surprises because `[f32; 4]` happens to start at 16-byte-aligned offsets in the struct layout
+- WGSL `switch` with explicit `case N:` is more portable than `const` arrays for the 12 sign colors — avoids implementation-dependent behavior with module-scope array constructors
+- Aspect computation in the fragment shader runs a nested loop (max 13×13 = 169 iterations) per pixel — acceptable on modern GPUs because each iteration is just angle arithmetic + one `sdf_segment()` call with an early `if asp_alpha > 0.0` guard
+- `shader::Storage` uses `TypeId` for keying — `NatalWheel3DPipeline` and `VignettePipeline` coexist with zero collision risk
+
+**Changes:**
+
+1. **NatalWheel3DProgram** (`shaders/mod.rs`): New `shader::Program<Message>` implementation following the VignetteProgram pattern exactly. 496-byte uniform buffer packs resolution, time, tilt, 3 color channels, 13 natal planet slots, 13 transit planet slots, counts, and retrograde color. Planet data packed in `draw()` from `Vec<NatalPosition>` / `Vec<DailyTransit>`.
+2. **natal_wheel_3d.wgsl** (new file): ~230-line WGSL fragment shader. Full-screen triangle vertex shader (identical to vignette.wgsl). Fragment shader renders: 12 zodiac arc segments, 4 concentric ring strokes, 12 sign dividers, aspect lines (4 types), natal planet dots with glow halos, transit planet dots with animated drift, directional lighting, rim glow, star field, outer vignette.
+3. **View integration** (`astrology_tab.rs`): `Canvas::new(NatalWheel{...})` → `Shader::new(NatalWheel3DProgram{...})` with theme colors passed from `palette()`.
+4. **Dead code suppression** (`astrology.rs`): `#[allow(dead_code)]` on NatalWheel, SIGN_COLORS, lon_to_angle — kept as 2D reference documentation.
+
+**Files modified:** `shaders/mod.rs`, `view/astrology_tab.rs`, `astrology.rs`, `Cargo.toml`, `CHANGELOG.md` + 1 new (`shaders/natal_wheel_3d.wgsl`)
+
+---
+
 ### v7.6.0 — "The Consistency" (2026-04-28)
 
 **Theme:** Visual consistency pass. Every sub-scrollable now matches the main gold scrollbar. Canvas-rendered sparkle particles replace the Unicode fallback. Transit planets animate. Concordance column no longer truncates. All ornaments visible in Parchment.

@@ -1,9 +1,10 @@
 use iced::widget::canvas::Canvas;
-use iced::widget::{button, column, container, horizontal_rule, row, text, text_input, Column};
+use iced::widget::{button, column, container, horizontal_rule, row, text, text_input, Column, Shader};
 use iced::{Alignment, Element, Length};
 
-use crate::astrology::{build_transits_section, build_wheel_legend, NatalWheel};
+use crate::astrology::{build_transits_section, build_wheel_legend};
 use crate::calendar::AstroCalendar;
+use crate::shaders::NatalWheel3DProgram;
 use crate::font;
 use crate::state::{Dashboard, Message};
 use super::shared::{eyebrow, section_rule};
@@ -36,10 +37,24 @@ impl Dashboard {
             .spacing(6)
             .into()
         } else {
-            let natal_wheel = Canvas::new(NatalWheel {
-                natal: self.natal_positions.clone(),
-                transits: self.daily_transits.clone(),
+            let p = theme::palette();
+            let natal_wheel = Shader::new(NatalWheel3DProgram {
                 time: self.shader_time,
+                natal_positions: self.natal_positions.clone(),
+                transit_positions: self.daily_transits.clone(),
+                bg_color: [p.bg.r, p.bg.g, p.bg.b, p.bg.a],
+                gold_color: [
+                    theme::NATAL_GOLD.r, theme::NATAL_GOLD.g,
+                    theme::NATAL_GOLD.b, theme::NATAL_GOLD.a,
+                ],
+                transit_color: [
+                    theme::TRANSIT_BLUE.r, theme::TRANSIT_BLUE.g,
+                    theme::TRANSIT_BLUE.b, theme::TRANSIT_BLUE.a,
+                ],
+                retro_color: [
+                    theme::RETROGRADE_RED.r, theme::RETROGRADE_RED.g,
+                    theme::RETROGRADE_RED.b, theme::RETROGRADE_RED.a,
+                ],
             })
             .width(Length::Fixed(400.0))
             .height(Length::Fixed(400.0));
