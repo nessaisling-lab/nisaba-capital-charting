@@ -4,7 +4,10 @@
 **Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
 **Author:** Aisling Leiva
 **Current version:** v9.0.0
-**Next milestone:** v9.1+ (watchlist slide-in, score count-up interpolation, per-card stagger)
+**Next milestones:**
+- v9.1 "The Polish" — P0 bug fixes (backtest crash, broken icons, tooltip contrast, disable rotation) + demo prep polish
+- v10.0 "The Signal" — Data quality (Lagrange score sparsity fix, RSS tone sentiment, fetch-this-ticker, richer template agent)
+- v11.0 "The Intelligence" — Astro symbols/houses on chart, Sun/Moon/Rising summary, backtest→history correlation, calculator defaults, loading progress bar, nav redesign
 
 ---
 

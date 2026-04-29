@@ -296,7 +296,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let tc_rgb = select(u.transit_color.rgb, retro_rgb, is_retro > 0.5);
 
         // Orbital trail: 5 ghost dots at earlier angular positions (fading)
-        let trail_alphas = array<f32, 5>(0.08, 0.15, 0.25, 0.40, 0.60);
+        var trail_alphas = array<f32, 5>(0.08, 0.15, 0.25, 0.40, 0.60);
         for (var g = 0u; g < 5u; g = g + 1u) {
             let ghost_angle = base_angle - f32(5u - g) * 0.02;
             let ghost_pos = ring_pos(ghost_angle, R_TRANSIT);

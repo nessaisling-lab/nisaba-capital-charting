@@ -6,17 +6,25 @@
 
 ---
 
+## v9.0.1 — Hotfix (2026-04-29)
+
+- **WGSL array fix:** Changed orbital trail `trail_alphas` from `let` to `var` — WGSL `let` arrays cannot be indexed by loop variable, only `var` arrays support dynamic indexing. Caused shader validation crash on launch.
+- **Roadmap update:** Added v9.1/v10.0/v11.0 milestones from video review (15min, 284 subtitle entries, 903 frames analyzed)
+- **TODOS overhaul:** 4 P0 bugs + 16 items organized by milestone version
+
+---
+
 ## v9.0.0 — "The Performance" (2026-04-29)
 
 - **Planet pulse/breathe:** Natal planets sinusoidally modulate radius + halo intensity with per-planet phase offset (1.7 rad stagger) for organic non-synchronized breathing
-- **Orbital transit trails:** 5 ghost dots per transit planet at progressively earlier angular positions with fading alpha (0.08→0.60), creating comet-tail effect behind drifting transits
+- **Orbital transit trails:** 5 ghost dots per transit planet at progressively earlier angular positions with fading alpha (0.08→0.60), comet-tail effect behind drifting transits
 - **Aspect line shimmer wave:** Traveling alpha pulse along each aspect line, speed varies by type (conjunction 1.0, sextile 1.5, trine 2.0, square 4.0) — red squares shimmer fastest
 - **Zodiac segment glow:** Active sign (containing current Sun transit) gets 30% brightness boost + subtle 1.5Hz pulse. Computed from Sun's ecliptic longitude / 30
-- **Dust mote cursor interaction:** Vignette dust motes gently push away from mouse cursor within 0.15 UV radius. Cursor position passed via VignetteUniforms mouse_pos field
+- **Dust mote cursor interaction:** Vignette dust motes push away from mouse cursor within 0.15 UV radius. Cursor position passed via VignetteUniforms mouse_pos field
 - **Candlestick chart draw-in:** On ticker switch, candles grow from price midpoint with left-to-right stagger (60% stagger / 40% growth over 500ms). Uses ease_out_cubic per candle
-- **Layered page transitions:** Background settles in first ~100ms (3× alpha speed), content follows over full 300ms. Gold glow fires during fast background phase
+- **Layered page transitions:** Background settles first ~100ms (3× alpha speed), content follows over full 300ms. Gold glow fires during fast background phase
 - **Tab sparkle tuning:** 8 particles (up from 5), varied sizes 1.5-4.0px, faster burst (0.08 stagger), downward gravity drift during fade
-- **60fps astrology tab:** Tick model fix — `still_animating |= active_tab == Astrology` keeps shader_time advancing at 60fps when astrology tab is visible
+- **60fps astrology tab:** Tick model fix — `still_animating |= active_tab == Astrology` keeps shader_time advancing at 60fps when astrology tab visible
 - **Uniform buffer growth:** NatalWheel3DUniforms 496→512 bytes (active_sign + padding). VignetteUniforms field reuse (mouse_pos replaces 2 pad floats, stays 64 bytes)
 
 **Files modified:** 12
@@ -44,11 +52,11 @@
 - **12 colored zodiac segments:** Element-based sign colors (fire/earth/air/water) rendered via SDF arc regions with anti-aliased edges
 - **Glowing planet dots:** Natal planets = gold halos + hot center core, transit planets = blue/red with 0.5°/sec animated drift
 - **Aspect line computation in WGSL:** Natal×transit O(n²) loop computes conjunction/sextile/square/trine with correct orbs (8°/6°/8°/8°)
-- **Directional lighting:** Top-bright/bottom-dark gradient simulates overhead illumination on the tilted disc
+- **Directional lighting:** Top-bright/bottom-dark gradient simulates overhead illumination on tilted disc
 - **Rim glow:** Pulsing gold shimmer on outer ring edge (0.22 intensity, 0.10 radius), sinusoidal time modulation
-- **Star field:** Twinkling procedural stars outside the zodiac ring using hash-based noise + sinusoidal twinkle
+- **Star field:** Twinkling procedural stars outside zodiac ring using hash-based noise + sinusoidal twinkle
 - **Perspective tuning:** 32% Y-foreshortening (camera_tilt=0.32) for pronounced 3D depth
-- **496-byte uniform buffer:** 13 natal + 13 transit planets packed as `[[f32; 4]; 13]` arrays with longitude, retrograde flag, and planet index
+- **496-byte uniform buffer:** 13 natal + 13 transit planets packed as `[[f32; 4]; 13]` arrays with longitude, retrograde flag, planet index
 
 **Files modified:** 4 + 1 new
 
@@ -147,7 +155,7 @@
 
 - **Right-side book tab dividers:** 8 tabs moved from horizontal top bar to right-side vertical column, styled as physical book dividers with staggered cascade
 - **Hover-to-expand tabs:** `mouse_area` hover detection — icon-only (48px) expands to icon+label (168px) on hover with `ease_out_back` elastic overshoot animation
-- **Dark atmospheric outer frame:** Deep circadian-aware background behind the book (grimoire_outer_bg)
+- **Dark atmospheric outer frame:** Deep circadian-aware background behind book (grimoire_outer_bg)
 - **Book spine:** Canvas-rendered vertical binding strip with cross-stitch marks and diamond endcaps
 - **Page header ornament:** Canvas Renaissance-style flourish with central lozenge, sine-wave scrollwork, extending rules
 - **Page border corners:** Canvas decorative corner brackets with perpendicular arms and gold diamond vertices
@@ -172,7 +180,7 @@
 
 - **Phosphor Icons:** Replaced Bootstrap Icons with Phosphor (1530 icons, regular + bold weights)
 - **Animation infrastructure:** Easing functions, adaptive tick (16ms/60fps during animation, 30s at rest)
-- **Gauge sweep:** Fear/Greed needle sweeps from old→new score over 600ms (ease_out_cubic)
+- **Gauge sweep:** Fear/Greed needle sweeps old→new score over 600ms (ease_out_cubic)
 - **Toast fade-out:** Opacity fades 1.0→0.0 over last 500ms of lifetime
 - **Tab indicator crossfade:** Gold underline fades between tabs over 200ms
 - **Responsive font scaling:** Viewport-aware auto-scale (<1024px: 0.85, 1440+: 1.05, 1920+: 1.1)
