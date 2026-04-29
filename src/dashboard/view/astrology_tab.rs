@@ -28,7 +28,7 @@ impl Dashboard {
             column![
                 text(format!("{} Astrology", self.selected_ticker)).font(font::DISPLAY).size(theme::text_lg()),
                 horizontal_rule(1),
-                text("No birth chart yet for this ticker.").size(theme::text_base()),
+                text(format!("No birth chart yet for {}.", self.selected_ticker)).size(theme::text_base()),
                 text("The scraper enriches ~50 tickers per day via SEC EDGAR.").size(theme::text_sm()),
                 text("Once an IPO date is found, the natal chart is computed automatically.")
                     .size(theme::text_sm()),
@@ -39,9 +39,10 @@ impl Dashboard {
             let natal_wheel = Canvas::new(NatalWheel {
                 natal: self.natal_positions.clone(),
                 transits: self.daily_transits.clone(),
+                time: self.shader_time,
             })
-            .width(Length::Fixed(300.0))
-            .height(Length::Fixed(300.0));
+            .width(Length::Fixed(400.0))
+            .height(Length::Fixed(400.0));
 
             let wheel_col = column![
                 text(format!("{} Birth Chart", self.selected_ticker)).font(font::DISPLAY).size(theme::text_lg()),

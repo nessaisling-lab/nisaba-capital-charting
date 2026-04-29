@@ -309,21 +309,30 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
 
         // ── Fetch single ticker via scraper subprocess ─────────
         Message::FetchThisTicker => {
-            state.fetching_ticker = true;
             state.fetch_ticker_error = None;
-            state.push_toast(format!("Fetching data for {}...", state.selected_ticker));
             let ticker = state.selected_ticker.clone();
+
+            // Pre-check: locate scraper binary before spawning
+            let scraper_path = std::env::current_exe()
+                .ok()
+                .and_then(|p| p.parent().map(|d| {
+                    let name = if cfg!(windows) { "scraper.exe" } else { "scraper" };
+                    d.join(name)
+                }))
+                .unwrap_or_else(|| std::path::PathBuf::from("scraper"));
+
+            if !scraper_path.exists() {
+                state.fetch_ticker_error = Some(format!(
+                    "Scraper not found — run `cargo build --bin scraper` first (expected at {})",
+                    scraper_path.display()
+                ));
+                return Some(Task::none());
+            }
+
+            state.fetching_ticker = true;
+            state.push_toast(format!("Fetching data for {}...", ticker));
             Some(Task::perform(
                 async move {
-                    // Find the scraper binary adjacent to our own executable
-                    let scraper_path = std::env::current_exe()
-                        .ok()
-                        .and_then(|p| p.parent().map(|d| {
-                            let name = if cfg!(windows) { "scraper.exe" } else { "scraper" };
-                            d.join(name)
-                        }))
-                        .unwrap_or_else(|| std::path::PathBuf::from("scraper"));
-
                     let output = tokio::process::Command::new(&scraper_path)
                         .args(["--ticker", &ticker])
                         .output()

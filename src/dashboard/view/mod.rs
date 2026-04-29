@@ -8,10 +8,10 @@ mod portfolio_tab;
 mod paper_trail;
 mod settings;
 
-use iced::widget::{button, column, container, horizontal_rule, mouse_area, row, scrollable, text, text_input, Canvas, Column, Row, Space};
+use iced::widget::{button, column, container, horizontal_rule, mouse_area, row, scrollable, stack, text, text_input, Canvas, Column, Row, Shader, Space};
 use iced::{Alignment, Color, Element, Length};
 
-use crate::ornaments::{BookSpine, Corner, PageBorderCorner, PageHeaderOrnament};
+use crate::ornaments::{BookSpine, Corner, PageBorderCorner, PageHeaderOrnament, TabSparkle};
 
 use crate::animation;
 use crate::font;
@@ -120,6 +120,48 @@ impl Dashboard {
         ]
         .spacing(theme::SPACE_XS);
 
+        // ── Fetch error banner (v7.5) ──────────────────────────
+        let fetch_error_banner: Element<Message> = if let Some(err) = &self.fetch_ticker_error {
+            let _p_err = theme::palette();
+            container(
+                text(format!("\u{26A0} {err}")).size(theme::text_sm())
+                    .color(Color { r: 0.95, g: 0.6, b: 0.2, a: 1.0 }),
+            )
+            .padding([4, 8])
+            .width(Length::Fill)
+            .style(move |_theme: &iced::Theme| {
+                container::Style {
+                    background: Some(iced::Background::Color(
+                        Color { r: 0.3, g: 0.15, b: 0.0, a: 0.25 },
+                    )),
+                    border: iced::Border {
+                        color: Color { r: 0.6, g: 0.3, b: 0.0, a: 0.4 },
+                        width: 1.0,
+                        radius: 4.0.into(),
+                    },
+                    ..Default::default()
+                }
+            })
+            .into()
+        } else if self.fetching_ticker {
+            // Thin gold loading bar during fetch
+            let p_load = theme::palette();
+            container(Space::with_height(Length::Fixed(0.0)))
+                .width(Length::Fill)
+                .height(Length::Fixed(3.0))
+                .style(move |_theme: &iced::Theme| {
+                    container::Style {
+                        background: Some(iced::Background::Color(
+                            Color { a: 0.6, ..p_load.gold },
+                        )),
+                        ..Default::default()
+                    }
+                })
+                .into()
+        } else {
+            Space::with_height(Length::Fixed(0.0)).into()
+        };
+
         // ── Tab content dispatch ───────────────────────────────
         let tab_content: Element<Message> = match self.active_tab {
             Tab::Astrology    => self.view_astrology(),
@@ -155,19 +197,29 @@ impl Dashboard {
                 .width(Length::Fixed(20.0)).height(Length::Fixed(20.0)),
         ];
 
+        // ── Horizontal tab bar (v7.4.1) ──────────────────────
+        let tab_bar = self.build_tab_bar();
+
         let page_content = column![
             corner_top,
             Canvas::new(PageHeaderOrnament)
                 .width(Length::Fill).height(Length::Fixed(28.0)),
+            tab_bar,
             compact_nav,
+            fetch_error_banner,
             autocomplete,
             horizontal_rule(1),
             tab_content,
             corner_bottom,
         ]
-        .spacing(theme::SPACE_XS);
+        .spacing(theme::SPACE_XS)
+        .padding(iced::Padding { top: 0.0, right: 10.0, bottom: 0.0, left: 0.0 });
 
-        let book_page: Element<Message> = container(scrollable(page_content))
+        // Themed scrollbar — gold scroller on translucent rail (v7.5)
+        let styled_scroll = scrollable(page_content)
+            .style(shared::gold_scrollbar_style);
+
+        let book_page: Element<Message> = container(styled_scroll)
             .width(Length::Fill)
             .height(Length::Fill)
             .padding(theme::SPACE_MD as u16)
@@ -192,13 +244,34 @@ impl Dashboard {
             .width(Length::Fixed(20.0))
             .height(Length::Fill);
 
-        // ── Right-side grimoire tabs ───────────────────────────
-        let grimoire_tabs = self.build_grimoire_tabs();
+        // ── Final assembly: spine + page on GPU vignette ──
+        let book_layout = row![spine, book_page];
 
-        // ── Final assembly: spine + page + tabs on dark frame ──
-        let book_layout = row![spine, book_page, grimoire_tabs];
+        // GPU atmospheric background (v7.4)
+        let p_view = theme::palette();
+        let bg = theme::grimoire_outer_bg();
+        let vignette = Shader::new(crate::shaders::VignetteProgram {
+            time: self.shader_time,
+            page_alpha: if self.page_transition_progress < 1.0 {
+                animation::ease_out_cubic(self.page_transition_progress)
+            } else {
+                1.0
+            },
+            bg_color: [bg.r, bg.g, bg.b, bg.a],
+            gold_color: [p_view.gold.r, p_view.gold.g, p_view.gold.b, p_view.gold.a],
+        })
+        .width(Length::Fill)
+        .height(Length::Fill);
 
-        let main_view: Element<'_, Message> = shared::outer_frame(book_layout);
+        let padded_book = container(book_layout)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .padding(theme::SPACE_SM as u16);
+
+        let main_view: Element<'_, Message> = stack![vignette, padded_book]
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into();
 
         // ── Toast overlay ──────────────────────────────────────
         if self.toasts.is_empty() {
@@ -248,73 +321,71 @@ impl Dashboard {
         }
     }
 
-    /// Build the right-side grimoire tab dividers — the book's physical tabs.
-    fn build_grimoire_tabs(&self) -> Element<'_, Message> {
-        let tabs_col: Column<Message> = Tab::all().iter().enumerate().fold(
-            column![].spacing(2),
-            |col, (idx, &tab)| {
+    /// Build the horizontal tab bar — grimoire chapter headers (v7.4.1).
+    fn build_tab_bar(&self) -> Element<'_, Message> {
+        let tab_row: Row<Message> = Tab::all().iter().enumerate().fold(
+            row![].spacing(2).align_y(Alignment::Center),
+            |r, (idx, &tab)| {
                 let is_active = tab == self.active_tab;
                 let progress = self.tab_hover_progress[idx];
-                let eased = animation::ease_out_back(progress);
+                let eased = animation::ease_out_cubic(progress);
 
-                // Dynamic width: 48px collapsed → 168px expanded
-                let tab_width = animation::lerp(48.0, 168.0, eased);
-
-                // Icon
+                // Icon — bold when active
                 let icon_font = if is_active { icons::PHOSPHOR_BOLD } else { icons::PHOSPHOR };
-                let icon_size = if is_active { theme::text_lg() } else { theme::text_md() };
+                let p = theme::palette();
                 let icon_el = text(tab.icon().to_string())
                     .font(icon_font)
-                    .size(icon_size);
+                    .size(theme::text_md())
+                    .color(p.ink);
 
-                // Build content: icon only or icon + label
-                let tab_content: Element<Message> = if progress > 0.05 {
-                    let label_alpha = progress.min(1.0);
-                    let p = theme::palette();
+                // Active tab: label always visible. Hover: label + sparkle fade in.
+                let tab_content: Element<Message> = if is_active {
+                    let label = text(tab.label())
+                        .font(font::DISPLAY)
+                        .size(theme::text_sm())
+                        .color(p.gold);
+                    row![icon_el, label]
+                        .spacing(6)
+                        .align_y(Alignment::Center)
+                        .into()
+                } else if progress > 0.05 {
+                    let label_alpha = eased.min(1.0);
+                    let sparkle_alpha = (eased * 1.5 - 0.3).clamp(0.0, 1.0);
                     let label = text(tab.label())
                         .font(font::DISPLAY)
                         .size(theme::text_sm())
                         .color(Color { a: label_alpha, ..p.ink });
-                    row![icon_el, label]
-                        .spacing(8)
+                    let sparkle_canvas = Canvas::new(TabSparkle {
+                        alpha: sparkle_alpha,
+                        seed: idx as u32,
+                    })
+                    .width(Length::Fixed(20.0))
+                    .height(Length::Fixed(16.0));
+                    row![icon_el, label, sparkle_canvas]
+                        .spacing(4)
                         .align_y(Alignment::Center)
                         .into()
                 } else {
-                    container(icon_el)
-                        .center_x(Length::Fill)
-                        .into()
+                    icon_el.into()
                 };
 
-                // Tab styling
-                let p = theme::palette();
-                let tab_bg = if is_active {
-                    p.bg  // matches page — visual continuity
-                } else {
-                    Color {
-                        r: p.surface.r * 0.92,
-                        g: p.surface.g * 0.92,
-                        b: p.surface.b * 0.92,
-                        a: p.surface.a,
-                    }
-                };
-                let gold_accent = is_active || progress > 0.1;
-                let gold_width = if gold_accent { 3.0 } else { 0.0 };
-
-                // Stagger offset — lower tabs protrude more (book divider cascade)
-                let stagger = (idx as f32) * 3.0;
+                // Gold underline for active tab (3px), subtle highlight on hover
+                let tab_bg = if is_active { p.surface } else { Color::TRANSPARENT };
+                let border_bottom = if is_active { 3.0 } else { 0.0 };
+                let border_color = if is_active { p.gold }
+                    else if progress > 0.1 { Color { a: eased * 0.4, ..p.gold } }
+                    else { Color::TRANSPARENT };
 
                 let styled_tab: Element<Message> = container(tab_content)
-                    .width(Length::Fixed(tab_width))
-                    .height(Length::Fixed(44.0))
-                    .padding([8, 10])
-                    .center_y(Length::Fill)
+                    .padding([6, 12])
+                    .center_y(Length::Shrink)
                     .style(move |_theme: &iced::Theme| {
                         container::Style {
                             background: Some(iced::Background::Color(tab_bg)),
                             border: iced::Border {
-                                color: if gold_accent { p.gold } else { p.rule },
-                                width: gold_width,
-                                radius: 4.0.into(), // rounded corners
+                                color: border_color,
+                                width: border_bottom,
+                                radius: 2.0.into(),
                             },
                             ..Default::default()
                         }
@@ -322,41 +393,32 @@ impl Dashboard {
                     .into();
 
                 // Wrap in button for click + mouse_area for hover
+                // Transparent button style so inner container styling shows through
                 let clickable = button(styled_tab)
                     .on_press(Message::TabSelected(tab))
-                    .padding(0);
+                    .padding(0)
+                    .style(|_theme: &iced::Theme, _status| {
+                        iced::widget::button::Style {
+                            background: None,
+                            border: iced::Border::default(),
+                            text_color: Color::TRANSPARENT,
+                            ..Default::default()
+                        }
+                    });
 
-                let hoverable: Element<Message> = mouse_area(
-                    container(clickable)
-                        .padding(iced::Padding { top: 0.0, right: 0.0, bottom: 0.0, left: stagger })
-                )
-                .on_enter(Message::TabHoverEnter(tab))
-                .on_exit(Message::TabHoverExit(tab))
-                .into();
+                let hoverable: Element<Message> = mouse_area(clickable)
+                    .on_enter(Message::TabHoverEnter(tab))
+                    .on_exit(Message::TabHoverExit(tab))
+                    .into();
 
-                col.push(hoverable)
+                r.push(hoverable)
             },
         );
 
-        // Wrap tab column in dark background strip
-        container(
-            column![
-                iced::widget::Space::with_height(Length::Fixed(theme::SPACE_XL)),
-                tabs_col,
-                iced::widget::Space::with_height(Length::Fill),
-            ]
-        )
-        .width(Length::Shrink)
-        .height(Length::Fill)
-        .padding([0, theme::SPACE_XS as u16])
-        .style(|_theme: &iced::Theme| {
-            container::Style {
-                background: Some(iced::Background::Color(
-                    Color { a: 0.5, ..theme::grimoire_outer_bg() }
-                )),
-                ..Default::default()
-            }
-        })
-        .into()
+        // Wrap in container — full width under header ornament
+        container(tab_row)
+            .width(Length::Fill)
+            .padding([0, theme::SPACE_XS as u16])
+            .into()
     }
 }

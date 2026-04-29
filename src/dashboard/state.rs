@@ -239,6 +239,8 @@ pub struct Dashboard {
     pub tab_hover_progress:       [f32; 8],     // per-tab expand animation 0.0→1.0
     pub page_transition_progress: f32,          // crossfade on tab switch 0.0→1.0
     pub page_transition_from:     Option<Tab>,  // tab fading away from
+    // Shader effects (v7.4)
+    pub shader_time:              f32,            // cumulative time for GPU vignette
 }
 
 impl Default for Dashboard {
@@ -372,6 +374,8 @@ impl Default for Dashboard {
             tab_hover_progress:       [0.0; 8],
             page_transition_progress: 1.0,
             page_transition_from:     None,
+            // Shader
+            shader_time:              42.0,  // non-zero seed for initial dust mote positions
         }
     }
 }

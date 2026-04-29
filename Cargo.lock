@@ -3949,9 +3949,10 @@ dependencies = [
 
 [[package]]
 name = "pursuit_week4_automation"
-version = "7.3.0"
+version = "7.6.0"
 dependencies = [
  "anyhow",
+ "bytemuck",
  "chrono",
  "config",
  "csv",

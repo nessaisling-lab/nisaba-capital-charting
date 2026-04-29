@@ -494,10 +494,11 @@ pub const GRIMOIRE_SPINE: Color = Color { r: 0.12, g: 0.09, b: 0.06, a: 1.0 };
 pub const GRIMOIRE_STITCH: Color = Color { r: 0.30, g: 0.24, b: 0.16, a: 0.6 };
 pub const GRIMOIRE_TAB_SHADOW: Color = Color { r: 0.0, g: 0.0, b: 0.0, a: 0.3 };
 
-/// Very dark version of current palette bg — the "desk" behind the book.
+/// Dark version of current palette bg — the "desk" behind the book.
+/// Tuned v7.5: warmer/brighter for Leather, avoids LCD purple on dark panels.
 pub fn grimoire_outer_bg() -> Color {
     let p = palette();
-    Color { r: p.bg.r * 0.15, g: p.bg.g * 0.13, b: p.bg.b * 0.10, a: 1.0 }
+    Color { r: p.bg.r * 0.25, g: p.bg.g * 0.22, b: p.bg.b * 0.18, a: 1.0 }
 }
 
 // Aspect colors (natal wheel)

@@ -3,12 +3,133 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v7.3.0
-**Next milestone:** v7.4.0 (shader/3D atmospheric effects)
+**Current version:** v7.6.0
+**Next milestone:** v8.0.0 (3D natal chart, advanced polish)
 
 ---
 
 ## Changelog
+
+### v7.6.0 — "The Consistency" (2026-04-28)
+
+**Theme:** Visual consistency pass. Every sub-scrollable now matches the main gold scrollbar. Canvas-rendered sparkle particles replace the Unicode fallback. Transit planets animate. Concordance column no longer truncates. All ornaments visible in Parchment.
+
+**Key technical discoveries:**
+- Iced scrollbar style functions have signature `Fn(&Theme, Status) -> Style` — extracting to a named function in `shared.rs` enables reuse across 15+ scrollables without closure repetition
+- Canvas sparkle particles use deterministic positions seeded per tab index, so each tab's particle burst looks unique without randomness (no PRNG needed)
+- Transit ring drift uses `lon_to_angle() + drift` where `drift = (time * 0.5).to_radians()` — 0.5°/sec rotation is slow enough to feel atmospheric but fast enough to notice within 10 seconds
+
+**Changes:**
+
+1. **Gold sub-scrollbar styling:** Extracted `gold_scrollbar_style()` function to `shared.rs`. Applied to all 15 data-table scrollables across `overview.rs` (2), `universe.rs` (3), `research.rs` (6), `fundamentals.rs` (2). Main page scrollbar in `mod.rs` refactored to use same helper. Sub-scrollable alphas slightly lower (0.35/0.25 vs 0.45/0.30) so they don't compete with the main scrollbar.
+2. **Concordance column fix:** Universe table "Conc" column width increased 50→90px in both header and data rows. "Strong Confirm", "Mild Confirm", "Divergence" now fully readable.
+3. **Animated transit ring:** Added `time: f32` field to `NatalWheel` struct. Transit planet angles offset by `(time * 0.5).to_radians()` creating 0.5°/sec celestial drift. View passes `self.shader_time` from dashboard state. Animation runs during active tick mode (16ms/60fps).
+4. **Canvas sparkle particles:** New `TabSparkle` canvas program in `ornaments.rs`. Draws 5 gold dots at deterministic positions (no PRNG). Each particle staggers fade-in by `i * 0.12` delay. Replaces Unicode `\u{2726}` in tab hover state. 20×16px canvas in tab row.
+5. **Fetch error guidance:** Improved scraper-not-found message to include `cargo build --bin scraper` instruction instead of raw path.
+6. **Ornament contrast (Tier 1):** All 3 canvas ornaments alpha-boosted for Parchment visibility: PageHeaderOrnament (gold 0.5→0.7, fill 0.2→0.35, rule 0.25→0.4), BookSpine (rule 0.3→0.45, diamond 0.4→0.55), PageBorderCorner (line 0.4→0.55, dot 0.5→0.65).
+7. **Ticker-specific empty states (Tier 1):** 8 generic "for this ticker" messages now interpolate `self.selected_ticker` via `format!()` across `overview.rs`, `fundamentals.rs`, `astrology_tab.rs`, `research.rs`.
+
+**Files modified:** `ornaments.rs`, `shared.rs`, `mod.rs`, `overview.rs`, `universe.rs`, `research.rs`, `fundamentals.rs`, `astrology_tab.rs`, `astrology.rs`, `data.rs`, `Cargo.toml`, `CHANGELOG.md`
+
+---
+
+### v7.5.0 — "The Polish" (2026-04-28)
+
+**Theme:** Video review feedback sprint. User recorded a narrated screen recording identifying bugs, UX issues, and visual polish needs across all tabs. This version addresses 12 items in 3 sprints: functional bugs, UX polish, and visual enhancements.
+
+**Key technical discoveries:**
+- Iced 0.13 `scrollable::Style` uses `Rail` struct (not `Scrollbar`) with `background`, `border`, `scroller` sub-fields
+- `button::Style { background: None }` makes buttons visually transparent while keeping click behavior — needed for custom tab containers
+- Canvas `fill()` with arc paths creates filled zodiac ring segments — no gradient API needed, element colors per-sign achieve the effect
+- Active tab label in `p.gold` color pops against both cream and dark backgrounds without needing different per-theme logic
+
+**Changes:**
+
+1. **Scrollbar styling (Sprint 1A):** Custom `scrollable::Style` with gold scroller on translucent rail. 10px right padding on page_content prevents content overlap with scrollbar.
+2. **Fetch error display (Sprint 1B):** Persistent orange warning banner renders `fetch_ticker_error` below nav bar. Pre-flight check: if `scraper.exe` missing, shows path in error immediately. Gold loading bar during active fetch.
+3. **Gauge grid layout (Sprint 2A):** 5 gauges rearranged from horizontal scrollable row to 3+2 grid (two rows). Eliminates horizontal scrollbar.
+4. **Leather vignette warmth (Sprint 2B):** `grimoire_outer_bg()` multipliers bumped 0.15→0.25/0.22/0.18. Shader `desk_center` multiplier 1.2→1.5. Leather mode shows warm brown desk instead of near-black.
+5. **Natal chart beautification (Sprint 3A):** Element-colored zodiac ring segments (fire=red, earth=green, air=yellow, water=blue at 30% alpha). Gold glow halos on natal planets. Blue glow on transits. Aspect lines drawn in center circle with type-specific widths (conjunction=1.5, square/trine=1.2, sextile=0.8). Planet glyphs (☉♀♂♃♄) replace abbreviations. Canvas 300→400px.
+6. **Tab sparkle animation (Sprint 3B):** Gold "✦" character fades in after label during hover with delayed alpha ramp `(eased * 1.5 - 0.3)`.
+7. **Active tab visibility:** Active tab always shows bold icon + gold-colored label + 3px gold underline + surface background. Three-tier states: active (gold label, always visible), hovered (ink label + sparkle fade in), default (icon only).
+
+**Before/After:**
+
+| Feature | Before (v7.4.1) | After (v7.5.0) |
+|---------|-----------------|----------------|
+| Scrollbar | Default iced, overlaps content | Gold scroller, translucent rail, right padding |
+| Fetch errors | Toast only (5s expiry) | Persistent orange banner + pre-flight scraper check |
+| Gauges | Horizontal scrollable row | 3+2 grid, no horizontal scroll |
+| Leather bg | Near-black (0.15 multiplier) | Warm brown (0.25 multiplier) |
+| Natal chart | 300px, flat circles, abbreviations | 400px, colored zodiac ring, glow halos, glyphs |
+| Active tab | Icon only, 2px underline | Gold label always visible, 3px underline |
+| Tab hover | Label fades in | Label + sparkle ✦ fade in |
+
+**Files modified:** 8 (`view/mod.rs`, `update/data.rs`, `view/overview.rs`, `view/astrology_tab.rs`, `theme.rs`, `shaders/vignette.wgsl`, `astrology.rs`, `DESIGN.md`, `CHANGELOG.md`, `Cargo.toml`)
+
+---
+
+### v7.4.1 — "The Grimoire — Header Redesign" (2026-04-28)
+
+**Theme:** User video review flagged right-side vertical tabs as a regret — "I'm starting to regret the decision to put it on the right side" and "I don't like the square tabs." Moved all 8 navigation tabs from the right-side vertical strip to a horizontal bar at the top of the book page, positioned between the header ornament and the compact nav row. Tabs function as grimoire chapter headers.
+
+**Key technical insight:**
+- The animation system (`hovered_tab`, `tab_hover_progress[8]`, `TabHoverEnter/Exit` messages, per-tab tick logic) was designed layout-agnostic — it tracks hover state without knowing rendering direction. Converting vertical→horizontal was a **single-file view change** with zero state/update modifications.
+- Iced's `button()` widget applies default blue chrome over nested content. Fix: transparent `button::Style` with `background: None` so inner container styling shows through.
+- Iced 0.13 `Radius` only implements `From<f32>` (uniform), not `From<[f32; 4]>` (per-corner).
+
+**Before/After:**
+
+| Feature | Before (v7.3–7.4) | After (v7.4.1) |
+|---------|-------------------|----------------|
+| Tab position | Right-side vertical column | Horizontal bar under header ornament |
+| Tab shape | Square containers with stagger cascade | Inline icons with gold bottom border |
+| Layout root | `row![spine, book_page, grimoire_tabs]` | `row![spine, book_page]` (tabs inside page_content) |
+| Right side | Dark strip with tab column | Clean vignette showing through |
+| Easing | `ease_out_back` (bounce overshoot) | `ease_out_cubic` (smooth decel) |
+| Active indicator | 3px gold full border | 2px gold bottom underline |
+
+**Changes:**
+1. **`build_grimoire_tabs()` → `build_tab_bar()`:** Horizontal `Row` replaces vertical `Column`. Icon-only at rest, icon+label fades in on hover. Active tab: gold bottom border + surface background. No stagger offset.
+2. **Layout restructure:** Tab bar inserted into `page_content` column between `PageHeaderOrnament` and `compact_nav`. Removed `grimoire_tabs` from `book_layout` row.
+3. **Transparent button style:** `button::Style { background: None, border: Border::default() }` so container's gold-underline styling shows through.
+4. **Dead code removal:** Entire `build_grimoire_tabs()` method deleted (~110 lines). Dark background strip, stagger cascade, vertical column all gone.
+
+**Files modified:** 1 (`src/dashboard/view/mod.rs` — ~120 lines changed)
+
+---
+
+### v7.4.0 — "The Atmosphere" (2026-04-28)
+
+**Theme:** v7.3's dark outer frame was a flat container. This version replaces it with a GPU-rendered atmospheric vignette using Iced 0.13's `Shader` widget and wgpu. The background now has a radial vignette (lighter center, dark edges), static noise grain for texture, 12 procedural golden dust motes that drift during animations, and a gold edge glow during page transitions.
+
+**Key technical discoveries:**
+- `wgpu` feature already enabled in iced defaults — no Cargo.toml iced line change needed
+- wgpu 0.19 (bundled in iced 0.13): `entry_point` is `&str` not `Option<&str>`, no `compilation_options` or `cache` fields
+- Full-screen triangle technique: 3 vertices from `vertex_index`, no vertex buffer needed
+- LCD shadow color distortion: RGB values below ~0.05 appear purple on LCD panels. Keep visible darks above 0.10.
+- Power-efficient animation: `shader_time` only advances during 16ms ticks. Dust motes freeze at idle (30s ticks).
+
+**Before/After:**
+
+| Feature | Before (v7.3) | After (v7.4) |
+|---------|---------------|--------------|
+| Outer background | Flat dark container (`grimoire_outer_bg()`) | GPU vignette shader with radial falloff |
+| Texture | None | Static hash noise grain (luminance-adaptive) |
+| Particles | None | 12 golden dust motes (Lissajous drift, frozen at idle) |
+| Tab transition effect | Page alpha fade only | + gold edge glow on book border |
+| Compositing | `container(book_layout)` | `stack![vignette_shader, padded_book]` |
+
+**Changes:**
+1. **WGSL shader** (`shaders/vignette.wgsl`, new): Full-screen triangle vertex shader, fragment with radial vignette, hash noise grain, 12 procedural dust motes, gold edge glow
+2. **Shader pipeline** (`shaders/mod.rs`, new): `VignetteUniforms` (bytemuck Pod, 64B), `VignettePipeline` (lazy-init in Storage), `VignettePrimitive` (prepare/render), `VignetteProgram` (Program trait impl)
+3. **State:** `shader_time: f32` field, advances during animation ticks
+4. **View:** Replaced `outer_frame()` with `stack![Shader::new(VignetteProgram{..}), padded_book]`
+5. **Bug fixes:** Parchment vignette too dark (LCD purple), tab icon colors inverted
+
+**Files modified:** 7 + 2 new (`shaders/mod.rs`, `shaders/vignette.wgsl`)
+
+---
 
 ### v7.3.0 — "The Grimoire" (2026-04-27)
 

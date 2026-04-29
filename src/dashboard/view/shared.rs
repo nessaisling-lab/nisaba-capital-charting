@@ -1,5 +1,5 @@
-use iced::widget::{canvas::Canvas, column, container, horizontal_rule, row, text, Column, Space};
-use iced::{Alignment, Element, Length};
+use iced::widget::{canvas::Canvas, column, container, horizontal_rule, row, scrollable, text, Column, Space};
+use iced::{Alignment, Color, Element, Length};
 
 use crate::font;
 use crate::gauges::FearGreedGauge;
@@ -92,6 +92,36 @@ pub fn section_rule<'a>() -> Element<'a, Message> {
 }
 
 // ---------------------------------------------------------------------------
+// v7.6 Gold scrollbar style — reusable for sub-scrollables
+// ---------------------------------------------------------------------------
+
+/// Gold-themed scrollbar style matching the main page scrollbar.
+/// Apply via `.style(gold_scrollbar_style)` on any `scrollable()`.
+pub fn gold_scrollbar_style(_theme: &iced::Theme, _status: scrollable::Status) -> scrollable::Style {
+    let p = theme::palette();
+    scrollable::Style {
+        container: container::Style::default(),
+        vertical_rail: scrollable::Rail {
+            background: Some(iced::Background::Color(Color { a: 0.08, ..p.surface })),
+            border: iced::Border::default(),
+            scroller: scrollable::Scroller {
+                color: Color { a: 0.35, ..p.gold },
+                border: iced::Border { radius: 3.0.into(), ..Default::default() },
+            },
+        },
+        horizontal_rail: scrollable::Rail {
+            background: None,
+            border: iced::Border::default(),
+            scroller: scrollable::Scroller {
+                color: Color { a: 0.25, ..p.gold },
+                border: iced::Border { radius: 3.0.into(), ..Default::default() },
+            },
+        },
+        gap: None,
+    }
+}
+
+// ---------------------------------------------------------------------------
 // v7.3 Grimoire layout primitives
 // ---------------------------------------------------------------------------
 
@@ -117,20 +147,6 @@ pub fn book_page_container<'a>(content: impl Into<Element<'a, Message>>) -> Elem
         .into()
 }
 
-/// Dark atmospheric outer frame — the "desk" the book sits on.
-pub fn outer_frame<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
-    container(content)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .padding(theme::SPACE_SM as u16)
-        .style(|_theme: &iced::Theme| {
-            container::Style {
-                background: Some(iced::Background::Color(theme::grimoire_outer_bg())),
-                ..Default::default()
-            }
-        })
-        .into()
-}
 
 // ---------------------------------------------------------------------------
 // Gauge + macro helpers

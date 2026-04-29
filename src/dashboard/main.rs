@@ -16,6 +16,7 @@ mod icons;
 mod indicators;
 mod ornaments;
 mod patterns;
+mod shaders;
 mod signals;
 mod state;
 mod strategy;

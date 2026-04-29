@@ -324,6 +324,9 @@ impl Dashboard {
                         }
                     }
 
+                    // Advance shader time for dust mote animation (v7.4)
+                    self.shader_time += dt;
+
                     self.animating = still_animating;
                     // During animation, skip expensive data fetches
                     return Task::none();

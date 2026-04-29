@@ -5,7 +5,7 @@ use iced::{Alignment, Element, Length};
 use crate::font;
 use crate::heatmap::SectorHeatMap;
 use crate::state::{Dashboard, Message, UniverseSortCol};
-use super::shared::{eyebrow, section_rule};
+use super::shared::{eyebrow, gold_scrollbar_style, section_rule};
 use crate::theme;
 
 impl Dashboard {
@@ -128,7 +128,7 @@ impl Dashboard {
                 sort_hdr("Short", UniverseSortCol::Short, Length::Fixed(44.0)),
                 text("Conc")
                     .size(theme::text_sm())
-                    .width(Length::Fixed(50.0)),
+                    .width(Length::Fixed(90.0)),
             ]
             .spacing(6);
 
@@ -205,7 +205,7 @@ impl Dashboard {
                             .width(Length::Fixed(44.0)),
                         text(conc.to_string())
                             .size(theme::text_xs())
-                            .width(Length::Fixed(50.0)),
+                            .width(Length::Fixed(90.0)),
                     ]
                     .spacing(6)
                     .align_y(Alignment::Center)
@@ -216,7 +216,9 @@ impl Dashboard {
             column![
                 hdr,
                 horizontal_rule(1),
-                scrollable(Column::with_children(rows).spacing(3)).height(Length::Fixed(400.0)),
+                scrollable(Column::with_children(rows).spacing(3))
+                    .height(Length::Fixed(400.0))
+                    .style(gold_scrollbar_style),
             ]
             .spacing(4)
             .into()
@@ -254,9 +256,11 @@ impl Dashboard {
             sector_heatmap,
             section_rule(),
             search_bar,
-            scrollable(sector_bar).direction(scrollable::Direction::Horizontal(
-                scrollable::Scrollbar::default()
-            )),
+            scrollable(sector_bar)
+                .direction(scrollable::Direction::Horizontal(
+                    scrollable::Scrollbar::default()
+                ))
+                .style(gold_scrollbar_style),
             zone_bar,
             pagination,
             universe_table,
@@ -377,7 +381,8 @@ impl Dashboard {
                 hdr,
                 horizontal_rule(1),
                 scrollable(Column::with_children(alert_rows).spacing(4))
-                    .height(Length::Fixed(160.0)),
+                    .height(Length::Fixed(160.0))
+                    .style(gold_scrollbar_style),
             ]
             .spacing(4)
         }

@@ -1,10 +1,11 @@
-//! Canvas-rendered decorative ornaments for the Grimoire UI (v7.3).
+//! Canvas-rendered decorative ornaments for the Grimoire UI (v7.3+).
 //!
-//! Three widgets that transform the book layout from restyled containers
+//! Widgets that transform the book layout from restyled containers
 //! into a video game grimoire:
 //! - BookSpine: vertical binding strip with cross-stitch marks
 //! - PageHeaderOrnament: Renaissance-style flourish above page content
 //! - PageBorderCorner: decorative corner brackets for the page frame
+//! - TabSparkle: gold particle burst on tab hover (v7.6)
 
 use iced::widget::canvas::{self};
 use iced::{Color, Point, Rectangle};
@@ -45,7 +46,7 @@ impl canvas::Program<Message> for BookSpine {
         });
         let p = theme::palette();
         frame.stroke(&center_line, canvas::Stroke {
-            style: canvas::Style::Solid(Color { a: 0.3, ..p.rule }),
+            style: canvas::Style::Solid(Color { a: 0.45, ..p.rule }),
             width: 1.0,
             ..canvas::Stroke::default()
         });
@@ -81,7 +82,7 @@ impl canvas::Program<Message> for BookSpine {
         }
 
         // Diamond endcaps at top and bottom
-        let gold = Color { a: 0.4, ..p.gold };
+        let gold = Color { a: 0.55, ..p.gold };
         for &cap_y in &[12.0, h - 12.0] {
             let diamond = canvas::Path::new(|b| {
                 b.move_to(Point::new(cx, cap_y - 5.0));
@@ -118,9 +119,9 @@ impl canvas::Program<Message> for PageHeaderOrnament {
         let w = bounds.width;
         let cy = bounds.height / 2.0;
         let p = theme::palette();
-        let gold = Color { a: 0.5, ..p.gold };
-        let gold_fill = Color { a: 0.2, ..p.gold };
-        let rule_faint = Color { a: 0.25, ..p.rule };
+        let gold = Color { a: 0.7, ..p.gold };
+        let gold_fill = Color { a: 0.35, ..p.gold };
+        let rule_faint = Color { a: 0.4, ..p.rule };
 
         // Central lozenge (diamond)
         let loz_w = 14.0;
@@ -215,8 +216,8 @@ impl canvas::Program<Message> for PageBorderCorner {
         let mut frame = canvas::Frame::new(renderer, bounds.size());
         let s = bounds.width.min(bounds.height);
         let p = theme::palette();
-        let line_color = Color { a: 0.4, ..p.rule_strong };
-        let dot_color = Color { a: 0.5, ..p.gold };
+        let line_color = Color { a: 0.55, ..p.rule_strong };
+        let dot_color = Color { a: 0.65, ..p.gold };
         let line_len = s * 0.7;
 
         // Corner vertex and direction vectors based on corner type
@@ -262,6 +263,62 @@ impl canvas::Program<Message> for PageBorderCorner {
             b.line_to(Point::new(vx, vy - d));
         });
         frame.fill(&vertex_diamond, dot_color);
+
+        vec![frame.into_geometry()]
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TabSparkle — gold particle burst on tab hover (20×16px)
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub struct TabSparkle {
+    pub alpha: f32,    // 0.0–1.0 driven by tab_hover_progress
+    pub seed:  u32,    // per-tab seed for particle positions
+}
+
+impl canvas::Program<Message> for TabSparkle {
+    type State = ();
+
+    fn draw(
+        &self,
+        _state: &(),
+        renderer: &iced::Renderer,
+        _theme: &iced::Theme,
+        bounds: Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> Vec<canvas::Geometry> {
+        if self.alpha < 0.01 {
+            return vec![];
+        }
+        let mut frame = canvas::Frame::new(renderer, bounds.size());
+        let p = theme::palette();
+        let w = bounds.width;
+        let h = bounds.height;
+
+        // 5 particles at deterministic positions seeded per tab
+        let particles: [(f32, f32, f32); 5] = [
+            (0.15, 0.30, 1.2),
+            (0.45, 0.70, 0.8),
+            (0.70, 0.25, 1.0),
+            (0.85, 0.55, 0.7),
+            (0.30, 0.80, 0.9),
+        ];
+
+        for (i, &(fx, fy, size)) in particles.iter().enumerate() {
+            // Stagger: each particle fades in at a different progress threshold
+            let delay = i as f32 * 0.12;
+            let particle_alpha = ((self.alpha - delay) * 3.0).clamp(0.0, 1.0);
+            if particle_alpha < 0.01 { continue; }
+
+            // Offset positions slightly by seed for variety across tabs
+            let seed_f = (self.seed.wrapping_mul(2654435761 + i as u32)) as f32 / u32::MAX as f32;
+            let px = (fx + seed_f * 0.2 - 0.1).clamp(0.05, 0.95) * w;
+            let py = (fy + seed_f * 0.15 - 0.075).clamp(0.05, 0.95) * h;
+
+            let dot = canvas::Path::circle(Point::new(px, py), size);
+            frame.fill(&dot, Color { a: particle_alpha * 0.6, ..p.gold });
+        }
 
         vec![frame.into_geometry()]
     }

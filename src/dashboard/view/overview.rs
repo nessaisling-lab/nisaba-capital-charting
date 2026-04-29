@@ -2,6 +2,7 @@ use iced::widget::canvas::Canvas;
 use iced::widget::{column, container, horizontal_rule, row, scrollable, text, Column, Row};
 use iced::{Alignment, Element, Length};
 
+use super::shared::gold_scrollbar_style;
 use crate::charts::{AstroMarker, LagrangeSparkline, PriceChart};
 use crate::font;
 use crate::helpers;
@@ -99,7 +100,7 @@ impl Dashboard {
                     text(format!("{} — Awaiting Data", self.selected_ticker))
                         .font(font::DISPLAY)
                         .size(theme::text_lg()),
-                    text("No price history loaded for this ticker yet.").size(theme::text_base()),
+                    text(format!("No price history loaded for {} yet.", self.selected_ticker)).size(theme::text_base()),
                     text("Run the scraper to fetch OHLCV data, then refresh.").size(theme::text_sm()),
                 ]
                 .spacing(6)
@@ -363,25 +364,18 @@ impl Dashboard {
             ),
         };
 
-        let gauges_row = scrollable(
-            row![
-                crypto_gauge,
-                equities_gauge,
-                ticker_gauge,
-                astro_gauge,
-                lagrange_gauge
-            ]
-            .spacing(16),
-        )
-        .direction(scrollable::Direction::Horizontal(
-            scrollable::Scrollbar::default(),
-        ));
+        // Gauges in 3+2 grid layout (v7.5 — no horizontal scroll)
+        let gauges_row = column![
+            row![crypto_gauge, equities_gauge, ticker_gauge].spacing(16),
+            row![astro_gauge, lagrange_gauge].spacing(16),
+        ]
+        .spacing(8);
 
         // ── Signal Intelligence ─────────────────────────────
         let signal_section = if self.rows.is_empty() {
             column![
                 text("Signal Intelligence").font(font::DISPLAY).size(theme::text_lg()),
-                text("No price data yet — run the scraper to fetch OHLCV history for this ticker.")
+                text(format!("No price data for {} yet — run the scraper to fetch OHLCV history.", self.selected_ticker))
                     .size(theme::text_base()),
             ]
             .spacing(4)
@@ -551,7 +545,8 @@ impl Dashboard {
                 hdr,
                 horizontal_rule(1),
                 scrollable(Column::with_children(rank_rows).spacing(4))
-                    .height(Length::Fixed(240.0)),
+                    .height(Length::Fixed(240.0))
+                    .style(gold_scrollbar_style),
             ]
             .spacing(5)
         };
@@ -621,7 +616,8 @@ impl Dashboard {
             column![
                 text("Prediction Markets (Polymarket)").font(font::DISPLAY).size(theme::text_md()),
                 scrollable(Column::with_children(pm_items).spacing(3))
-                    .height(Length::Fixed(140.0)),
+                    .height(Length::Fixed(140.0))
+                    .style(gold_scrollbar_style),
             ]
             .spacing(4)
             .into()

@@ -3,7 +3,7 @@ use iced::{Alignment, Element, Length};
 
 use crate::font;
 use crate::helpers::{describe_8k_items, format_market_value, format_shares};
-use super::shared::{eyebrow, section_rule};
+use super::shared::{eyebrow, gold_scrollbar_style, section_rule};
 use crate::state::{Dashboard, Message};
 use crate::theme;
 
@@ -13,7 +13,7 @@ impl Dashboard {
         let filings_section = if self.filings_8k.is_empty() {
             column![
                 text("Recent 8-K Filings").font(font::DISPLAY).size(theme::text_md()),
-                text("No recent filings loaded yet.").size(theme::text_base()),
+                text(format!("No recent filings loaded for {} yet.", self.selected_ticker)).size(theme::text_base()),
                 text("Material events (earnings, M&A, leadership changes) appear here.")
                     .size(theme::text_sm()),
             ]
@@ -47,7 +47,8 @@ impl Dashboard {
             column![
                 text("Recent 8-K Filings").font(font::DISPLAY).size(theme::text_md()),
                 scrollable(Column::with_children(filing_rows).spacing(4))
-                    .height(Length::Fixed(100.0)),
+                    .height(Length::Fixed(100.0))
+                    .style(gold_scrollbar_style),
             ]
             .spacing(4)
         };
@@ -56,7 +57,7 @@ impl Dashboard {
         let news_section = if self.news.is_empty() {
             column![
                 text("Recent News").font(font::DISPLAY).size(theme::text_md()),
-                text("No headlines loaded yet.").size(theme::text_base()),
+                text(format!("No headlines loaded for {} yet.", self.selected_ticker)).size(theme::text_base()),
                 text("News articles are fetched from Finnhub during scraper runs.")
                     .size(theme::text_sm()),
             ]
@@ -120,7 +121,8 @@ impl Dashboard {
             column![
                 news_header,
                 scrollable(Column::with_children(news_items).spacing(4))
-                    .height(Length::Fixed(120.0)),
+                    .height(Length::Fixed(120.0))
+                    .style(gold_scrollbar_style),
             ]
             .spacing(4)
         };
@@ -129,7 +131,7 @@ impl Dashboard {
         let insider_section = if self.insider_trades.is_empty() {
             column![
                 text("Recent Insider Trades").font(font::DISPLAY).size(theme::text_md()),
-                text("No Form 4 insider transactions loaded yet.").size(theme::text_base()),
+                text(format!("No Form 4 insider transactions loaded for {} yet.", self.selected_ticker)).size(theme::text_base()),
                 text("Insider buys and sells are fetched from SEC EDGAR.").size(theme::text_sm()),
             ]
             .spacing(4)
@@ -164,7 +166,8 @@ impl Dashboard {
                 text("Recent Insider Trades").font(font::DISPLAY).size(theme::text_md()),
                 hdr,
                 scrollable(Column::with_children(trade_rows).spacing(4))
-                    .height(Length::Fixed(130.0)),
+                    .height(Length::Fixed(130.0))
+                    .style(gold_scrollbar_style),
             ]
             .spacing(4)
         };
@@ -173,7 +176,7 @@ impl Dashboard {
         let holdings_section = if self.holdings.is_empty() {
             column![
                 text("Top Institutional Holders").font(font::DISPLAY).size(theme::text_md()),
-                text("No institutional holdings loaded yet.").size(theme::text_base()),
+                text(format!("No institutional holdings loaded for {} yet.", self.selected_ticker)).size(theme::text_base()),
                 text("The scraper fetches 13F filings from SEC EDGAR.").size(theme::text_sm()),
             ]
             .spacing(4)
@@ -203,7 +206,8 @@ impl Dashboard {
                 text("Top Institutional Holders").font(font::DISPLAY).size(theme::text_md()),
                 hdr,
                 scrollable(Column::with_children(holding_rows).spacing(4))
-                    .height(Length::Fixed(120.0)),
+                    .height(Length::Fixed(120.0))
+                    .style(gold_scrollbar_style),
             ]
             .spacing(4)
         };
@@ -264,7 +268,8 @@ impl Dashboard {
             column![
                 text("Market News (RSS — 25 sources)").font(font::DISPLAY).size(theme::text_md()),
                 scrollable(Column::with_children(rss_items).spacing(4))
-                    .height(Length::Fixed(180.0)),
+                    .height(Length::Fixed(180.0))
+                    .style(gold_scrollbar_style),
             ]
             .spacing(4)
         };
@@ -325,7 +330,8 @@ impl Dashboard {
             column![
                 text("Geopolitical Events (GDELT)").font(font::DISPLAY).size(theme::text_md()),
                 scrollable(Column::with_children(gdelt_items).spacing(4))
-                    .height(Length::Fixed(160.0)),
+                    .height(Length::Fixed(160.0))
+                    .style(gold_scrollbar_style),
             ]
             .spacing(4)
         };

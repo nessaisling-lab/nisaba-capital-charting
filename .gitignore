@@ -26,3 +26,6 @@ skills-lock.json
 
 # Claude Code local settings (personal, not shared)
 .claude/settings.local.json
+
+# Generated design extraction output
+design-extract-output/

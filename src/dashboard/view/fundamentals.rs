@@ -7,7 +7,7 @@ use crate::helpers::{format_market_value_i64, format_shares};
 
 use crate::state::{Dashboard, Message};
 use crate::theme;
-use super::shared::{eyebrow, section_rule};
+use super::shared::{eyebrow, gold_scrollbar_style, section_rule};
 
 impl Dashboard {
     pub(crate) fn view_fundamentals(&self) -> Element<'_, Message> {
@@ -427,7 +427,9 @@ impl Dashboard {
                 column![
                     price_toggle,
                     price_header,
-                    scrollable(data_rows).height(Length::Fixed(300.0)),
+                    scrollable(data_rows)
+                        .height(Length::Fixed(300.0))
+                        .style(gold_scrollbar_style),
                 ]
                 .spacing(4),
             )
@@ -469,7 +471,7 @@ impl Dashboard {
         if self.earnings.is_empty() {
             column![
                 text(format!("{} Earnings", self.selected_ticker)).font(font::DISPLAY).size(theme::text_md()),
-                text("No earnings dates found for this ticker.").size(theme::text_base()),
+                text(format!("No earnings dates found for {}.", self.selected_ticker)).size(theme::text_base()),
                 text("The scraper fetches earnings dates from Finnhub.").size(theme::text_sm()),
             ].spacing(4)
         } else {
@@ -498,7 +500,9 @@ impl Dashboard {
             column![
                 text("Earnings Calendar").font(font::DISPLAY).size(theme::text_md()),
                 hdr,
-                scrollable(Column::with_children(items).spacing(4)).height(Length::Fixed(130.0)),
+                scrollable(Column::with_children(items).spacing(4))
+                    .height(Length::Fixed(130.0))
+                    .style(gold_scrollbar_style),
             ].spacing(4)
         }
     }

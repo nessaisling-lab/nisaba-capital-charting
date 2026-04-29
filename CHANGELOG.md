@@ -2,7 +2,86 @@
 
 **Author:** Aisling Leiva
 **Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
-**Development:** 2026-04-07 to 2026-04-27
+**Development:** 2026-04-07 to 2026-04-28
+
+---
+
+## v7.6.0 — "The Consistency" (2026-04-28)
+
+- **Gold sub-scrollbar styling:** Extracted `gold_scrollbar_style` helper, applied to all 15 data-table scrollables across 4 view files
+- **Concordance column fix:** Universe table "Conc" column width 50→90px, "Strong Confirm" no longer truncated
+- **Animated transit ring:** Transit planets drift 0.5°/sec on natal chart, driven by `shader_time` — "heavens in motion" effect
+- **Canvas sparkle particles:** Replaced Unicode ✦ with canvas-rendered gold particle burst (5 dots, staggered fade-in per tab)
+- **Fetch error guidance:** "Scraper not found" message now includes `cargo build --bin scraper` instruction
+- **Ornament contrast (v7.5.1):** Boosted alpha on all 3 canvas ornaments for Parchment theme visibility
+- **Ticker-specific empty states (v7.5.1):** 8 "for this ticker" messages now interpolate actual ticker name
+
+**Files modified:** 12
+
+| Feature | Before (v7.5.0) | After (v7.6.0) |
+|---------|-----------------|----------------|
+| Sub-scrollbars | Default gray | Gold scroller, translucent rail |
+| Concordance | Truncated at 50px | Full text at 90px |
+| Transit ring | Static positions | 0.5°/sec animated drift |
+| Tab sparkle | Unicode ✦ character | Canvas particle burst |
+| Ornaments | Low alpha (barely visible) | Boosted alpha (visible on cream) |
+| Empty states | "for this ticker" | "for AAPL" / "for MSFT" |
+
+---
+
+## v7.5.0 — "The Polish" (2026-04-28)
+
+- **Scrollbar styling:** Gold scroller on translucent rail, right padding prevents content overlap
+- **Fetch error display:** Persistent orange warning banner for errors, pre-flight scraper check, gold loading bar
+- **Gauge grid:** 5 gauges in 3+2 grid layout (two rows), no horizontal scrollbar
+- **Leather vignette warmth:** `grimoire_outer_bg()` multipliers increased (0.15→0.25), shader center brightened (1.2→1.5)
+- **Natal chart beautified:** Element-colored zodiac ring segments, gold glow halos on natal planets, planet glyphs, 300→400px canvas
+- **Tab sparkle:** Gold ✦ character fades in during hover with delayed alpha ramp
+- **Active tab visibility:** Gold-colored label always visible, 3px gold underline, surface background. Three-tier: active/hovered/default
+
+**Files modified:** 8
+
+| Feature | Before (v7.4.1) | After (v7.5.0) |
+|---------|-----------------|----------------|
+| Scrollbar | Default, overlaps | Gold scroller, right padding |
+| Fetch errors | Toast only | Persistent banner + pre-check |
+| Gauges | Horizontal scroll | 3+2 grid |
+| Natal chart | 300px, flat | 400px, colored zodiac, glyphs |
+| Active tab | Icon only, 2px | Gold label visible, 3px |
+
+---
+
+## v7.4.1 — "The Grimoire — Header Redesign" (2026-04-28)
+
+- **Horizontal tab bar:** Moved 8 tabs from right-side vertical strip to horizontal bar under header ornament
+- **Icon-only at rest:** Tabs show icon only, label fades in on hover via `tab_hover_progress` animation
+- **Gold bottom underline:** Active tab gets 2px gold bottom border + surface background
+- **Transparent button chrome:** Custom `button::Style` with `background: None` so container styling shows through
+- **Layout simplification:** `row![spine, book_page]` — right-side dark strip removed entirely
+- **Dead code cleanup:** `build_grimoire_tabs()` deleted (~110 lines), replaced by `build_tab_bar()`
+
+**Files modified:** 1 (`src/dashboard/view/mod.rs`)
+
+| Feature | Before (v7.3–7.4) | After (v7.4.1) |
+|---------|-------------------|----------------|
+| Tab position | Right-side vertical column | Horizontal bar, top of page |
+| Tab shape | Square containers + stagger | Inline icons + gold underline |
+| Layout | `row![spine, page, tabs]` | `row![spine, page]` (tabs inside page) |
+
+---
+
+## v7.4.0 — "The Atmosphere" (2026-04-28)
+
+- **GPU vignette shader:** Radial darkening (lighter center, dark edges) via wgpu `Shader` widget
+- **Noise grain:** Static hash-based texture, luminance-adaptive strength
+- **Dust motes:** 12 procedural golden particles with Lissajous drift, frozen at idle
+- **Gold edge glow:** Book border glows gold during page transitions
+- **Stack compositing:** `stack![vignette_shader, padded_book]` replaces flat container
+- **Power-efficient:** `shader_time` only advances during 16ms animation ticks
+- **Bug fix:** Parchment vignette too dark (LCD purple distortion below RGB 0.05)
+- **Bug fix:** Tab icon colors inverted in both themes
+
+**Files modified:** 7 + 2 new (`shaders/mod.rs`, `shaders/vignette.wgsl`)
 
 ---
 
@@ -193,16 +272,18 @@
 
 ---
 
-## Project Stats (v7.3.0)
+## Project Stats (v7.6.0)
 
 | Metric | Value |
 |--------|-------|
-| Commits | 42+ |
-| Rust source | ~19,200 lines across 2 binaries |
+| Commits | 50+ |
+| Rust source | ~20,000 lines across 2 binaries |
 | SQL migrations | 32 |
 | Tests | 70 (48 lib + 17 dashboard + 5 scraper) |
 | Compiler warnings | 0 |
 | Crate deps | 26 |
 | Font assets | ~2.7MB (Fraunces, Source Serif 4, Inter, JetBrains Mono, Phosphor, Phosphor Bold) |
+| GPU shaders | 1 (vignette.wgsl — radial vignette, noise grain, dust motes) |
+| Canvas widgets | 4 (BookSpine, PageHeaderOrnament, PageBorderCorner, TabSparkle) |
 | Git tags | 9 (v4.0.0 - v7.3.0) |
-| Development | 20 days (Apr 7 - Apr 27, 2026) |
+| Development | 22 days (Apr 7 - Apr 28, 2026) |

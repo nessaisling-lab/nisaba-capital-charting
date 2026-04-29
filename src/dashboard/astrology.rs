@@ -19,6 +19,7 @@ use crate::theme;
 // Planet glyph abbreviations
 // ---------------------------------------------------------------------------
 
+#[allow(dead_code)]
 fn planet_abbrev(name: &str) -> &'static str {
     match name {
         "Sun"       => "Su",
@@ -64,7 +65,24 @@ fn planet_glyph(name: &str) -> &'static str {
 pub struct NatalWheel {
     pub natal:    Vec<NatalPosition>,
     pub transits: Vec<DailyTransit>,
+    pub time:     f32,  // shader_time for animated transit ring drift
 }
+
+/// Per-sign zodiac colors — element-based (fire/earth/air/water).
+const SIGN_COLORS: [Color; 12] = [
+    Color { r: 0.95, g: 0.30, b: 0.20, a: 0.30 }, // Aries       — fire (red)
+    Color { r: 0.45, g: 0.75, b: 0.30, a: 0.30 }, // Taurus      — earth (green)
+    Color { r: 0.90, g: 0.85, b: 0.30, a: 0.30 }, // Gemini      — air (yellow)
+    Color { r: 0.30, g: 0.60, b: 0.95, a: 0.30 }, // Cancer      — water (blue)
+    Color { r: 0.95, g: 0.55, b: 0.15, a: 0.30 }, // Leo         — fire (orange)
+    Color { r: 0.55, g: 0.80, b: 0.40, a: 0.30 }, // Virgo       — earth (sage)
+    Color { r: 0.85, g: 0.75, b: 0.40, a: 0.30 }, // Libra       — air (gold)
+    Color { r: 0.70, g: 0.25, b: 0.30, a: 0.30 }, // Scorpio     — water (deep red)
+    Color { r: 0.80, g: 0.40, b: 0.90, a: 0.30 }, // Sagittarius — fire (purple)
+    Color { r: 0.40, g: 0.55, b: 0.45, a: 0.30 }, // Capricorn   — earth (dark green)
+    Color { r: 0.35, g: 0.70, b: 0.90, a: 0.30 }, // Aquarius    — air (cyan)
+    Color { r: 0.50, g: 0.40, b: 0.80, a: 0.30 }, // Pisces      — water (indigo)
+];
 
 impl canvas::Program<Message> for NatalWheel {
     type State = ();
@@ -87,44 +105,39 @@ impl canvas::Program<Message> for NatalWheel {
 
         let cx = bounds.width / 2.0;
         let cy = bounds.height / 2.0;
-        let r_outer  = (cx.min(cy) - 8.0).max(10.0);
-        let r_sign   = r_outer - 2.0;
-        let r_natal  = r_outer * 0.72;
-        let r_transit = r_outer * 0.90;
-        let r_center = r_outer * 0.55;
+        let r_outer   = (cx.min(cy) - 8.0).max(10.0);
+        let r_sign    = r_outer - 2.0;
+        let r_natal   = r_outer * 0.70;
+        let r_transit = r_outer * 0.88;
+        let r_center  = r_outer * 0.52;
 
-        // --------------- Zodiac ring ---------------
-        // Outer circle
-        let outer_circle = canvas::Path::circle(Point::new(cx, cy), r_outer);
-        frame.stroke(&outer_circle, canvas::Stroke {
-            style: canvas::Style::Solid(dim),
-            width: 1.5,
-            ..canvas::Stroke::default()
-        });
-
-        // Inner circle (boundary between natal + transit rings)
-        let inner_circle = canvas::Path::circle(Point::new(cx, cy), r_center);
-        frame.stroke(&inner_circle, canvas::Stroke {
-            style: canvas::Style::Solid(dim),
-            width: 1.0,
-            ..canvas::Stroke::default()
-        });
-
-        // Natal ring boundary
-        let natal_circle = canvas::Path::circle(Point::new(cx, cy), r_natal);
-        frame.stroke(&natal_circle, canvas::Stroke {
-            style: canvas::Style::Solid(dim),
-            width: 0.5,
-            ..canvas::Stroke::default()
-        });
-
-        // 12 sign sector dividers + sign abbreviations
+        // --------------- Colored zodiac ring segments (v7.5) ---------------
         const SIGN_ABBREVS: &[&str] = &[
             "Ari","Tau","Gem","Can","Leo","Vir",
             "Lib","Sco","Sag","Cap","Aqu","Pis",
         ];
+        let steps = 30; // arc resolution per sign
         for i in 0..12 {
-            let angle = lon_to_angle(i as f64 * 30.0);
+            // Draw filled arc segment for each sign
+            let sign_start = i as f64 * 30.0;
+            let arc = canvas::Path::new(|b| {
+                let a0 = lon_to_angle(sign_start);
+                b.move_to(Point::new(cx + r_natal * a0.cos(), cy + r_natal * a0.sin()));
+                for s in 0..=steps {
+                    let lon = sign_start + (s as f64 * 30.0 / steps as f64);
+                    let a = lon_to_angle(lon);
+                    b.line_to(Point::new(cx + r_outer * a.cos(), cy + r_outer * a.sin()));
+                }
+                for s in (0..=steps).rev() {
+                    let lon = sign_start + (s as f64 * 30.0 / steps as f64);
+                    let a = lon_to_angle(lon);
+                    b.line_to(Point::new(cx + r_natal * a.cos(), cy + r_natal * a.sin()));
+                }
+            });
+            frame.fill(&arc, SIGN_COLORS[i]);
+
+            // Sign divider line
+            let angle = lon_to_angle(sign_start);
             let line = canvas::Path::new(|b| {
                 b.move_to(Point::new(cx + r_center * angle.cos(), cy + r_center * angle.sin()));
                 b.line_to(Point::new(cx + r_outer  * angle.cos(), cy + r_outer  * angle.sin()));
@@ -135,21 +148,41 @@ impl canvas::Program<Message> for NatalWheel {
                 ..canvas::Stroke::default()
             });
 
-            // Sign label at midpoint of sector
+            // Sign label at midpoint
             let mid_angle = lon_to_angle(i as f64 * 30.0 + 15.0);
-            let label_r = (r_sign + r_outer) / 2.0 - 4.0;
+            let label_r = (r_sign + r_natal) / 2.0 + 6.0;
             frame.fill_text(canvas::Text {
                 content: SIGN_ABBREVS[i].to_string(),
                 position: Point::new(cx + label_r * mid_angle.cos(), cy + label_r * mid_angle.sin()),
                 color: sign_col,
-                size: iced::Pixels(7.5),
+                size: iced::Pixels(9.0),
                 horizontal_alignment: iced::alignment::Horizontal::Center,
                 vertical_alignment: iced::alignment::Vertical::Center,
                 ..canvas::Text::default()
             });
         }
 
-        // --------------- Aspect lines (natal to transit) ---------------
+        // --------------- Ring strokes ---------------
+        let outer_circle = canvas::Path::circle(Point::new(cx, cy), r_outer);
+        frame.stroke(&outer_circle, canvas::Stroke {
+            style: canvas::Style::Solid(dim),
+            width: 1.5,
+            ..canvas::Stroke::default()
+        });
+        let natal_circle = canvas::Path::circle(Point::new(cx, cy), r_natal);
+        frame.stroke(&natal_circle, canvas::Stroke {
+            style: canvas::Style::Solid(dim),
+            width: 1.0,
+            ..canvas::Stroke::default()
+        });
+        let inner_circle = canvas::Path::circle(Point::new(cx, cy), r_center);
+        frame.stroke(&inner_circle, canvas::Stroke {
+            style: canvas::Style::Solid(dim),
+            width: 1.0,
+            ..canvas::Stroke::default()
+        });
+
+        // --------------- Aspect lines (styled by type, v7.5) ---------------
         for natal_pos in &self.natal {
             for transit in &self.transits {
                 let n_lon = natal_pos.longitude;
@@ -157,58 +190,63 @@ impl canvas::Program<Message> for NatalWheel {
                 let mut diff = (n_lon - t_lon).abs() % 360.0;
                 if diff > 180.0 { diff = 360.0 - diff; }
 
-                // Only draw aspects within orb
-                let (color, draw) = if diff < 8.0 || diff > 172.0 {
-                    (theme::ASPECT_CONJUNCTION, true)
+                let (color, width, draw) = if diff < 8.0 || diff > 172.0 {
+                    (theme::ASPECT_CONJUNCTION, 1.5, true)    // conjunction — thick gold
                 } else if (diff - 60.0).abs() < 6.0 {
-                    (theme::ASPECT_SEXTILE, true)
+                    (theme::ASPECT_SEXTILE, 0.8, true)        // sextile — thin green
                 } else if (diff - 90.0).abs() < 8.0 {
-                    (theme::ASPECT_SQUARE, true)
+                    (theme::ASPECT_SQUARE, 1.2, true)         // square — medium red
                 } else if (diff - 120.0).abs() < 8.0 {
-                    (theme::ASPECT_TRINE, true)
+                    (theme::ASPECT_TRINE, 1.2, true)          // trine — medium blue
                 } else {
-                    (Color::TRANSPARENT, false)
+                    (Color::TRANSPARENT, 0.0, false)
                 };
 
                 if draw {
                     let na = lon_to_angle(n_lon as f32);
                     let ta = lon_to_angle(t_lon as f32);
                     let aspect_line = canvas::Path::new(|b| {
-                        b.move_to(Point::new(cx + r_natal  * na.cos(), cy + r_natal  * na.sin()));
-                        b.line_to(Point::new(cx + r_transit * ta.cos(), cy + r_transit * ta.sin()));
+                        b.move_to(Point::new(cx + r_center * na.cos(), cy + r_center * na.sin()));
+                        b.line_to(Point::new(cx + r_center * ta.cos(), cy + r_center * ta.sin()));
                     });
                     frame.stroke(&aspect_line, canvas::Stroke {
                         style: canvas::Style::Solid(color),
-                        width: 0.8,
+                        width,
                         ..canvas::Stroke::default()
                     });
                 }
             }
         }
 
-        // --------------- Natal planets (gold, inner ring) ---------------
+        // --------------- Natal planets (gold with glow halo, v7.5) ---------------
         for pos in &self.natal {
             let angle = lon_to_angle(pos.longitude as f32);
             let px = cx + r_natal * angle.cos();
             let py = cy + r_natal * angle.sin();
 
-            let dot = canvas::Path::circle(Point::new(px, py), 2.5);
+            // Glow halo
+            let halo = canvas::Path::circle(Point::new(px, py), 6.0);
+            frame.fill(&halo, Color { a: 0.15, ..theme::NATAL_GOLD });
+
+            let dot = canvas::Path::circle(Point::new(px, py), 3.5);
             frame.fill(&dot, theme::NATAL_GOLD);
 
             frame.fill_text(canvas::Text {
-                content: planet_abbrev(&pos.planet).to_string(),
-                position: Point::new(px, py - 7.0),
+                content: planet_glyph(&pos.planet).to_string(),
+                position: Point::new(px, py - 10.0),
                 color: theme::NATAL_GOLD_DIM,
-                size: iced::Pixels(7.0),
+                size: iced::Pixels(10.0),
                 horizontal_alignment: iced::alignment::Horizontal::Center,
                 vertical_alignment: iced::alignment::Vertical::Center,
                 ..canvas::Text::default()
             });
         }
 
-        // --------------- Transit planets (blue, outer ring) ---------------
+        // --------------- Transit planets (blue/red with glow, v7.5) ---------------
+        // Slow drift: 0.5°/sec creates subtle "heavens in motion" (v7.6)
+        let drift = (self.time * 0.5_f32).to_radians();
         for transit in &self.transits {
-            let angle = lon_to_angle(transit.longitude as f32);
+            let angle = lon_to_angle(transit.longitude as f32) + drift;
             let px = cx + r_transit * angle.cos();
             let py = cy + r_transit * angle.sin();
 
@@ -218,15 +256,19 @@ impl canvas::Program<Message> for NatalWheel {
                 theme::TRANSIT_BLUE
             };
 
-            let dot = canvas::Path::circle(Point::new(px, py), 2.5);
+            // Glow halo
+            let halo = canvas::Path::circle(Point::new(px, py), 5.0);
+            frame.fill(&halo, Color { a: 0.12, ..transit_color });
+
+            let dot = canvas::Path::circle(Point::new(px, py), 3.0);
             frame.fill(&dot, transit_color);
 
             let suffix = if transit.retrograde { "ℛ" } else { "" };
             frame.fill_text(canvas::Text {
                 content: format!("{}{}", planet_glyph(&transit.planet), suffix),
-                position: Point::new(px, py - 7.0),
+                position: Point::new(px, py - 9.0),
                 color: transit_color,
-                size: iced::Pixels(8.0),
+                size: iced::Pixels(10.0),
                 horizontal_alignment: iced::alignment::Horizontal::Center,
                 vertical_alignment: iced::alignment::Vertical::Center,
                 ..canvas::Text::default()
@@ -236,17 +278,17 @@ impl canvas::Program<Message> for NatalWheel {
         // --------------- Center label ---------------
         frame.fill_text(canvas::Text {
             content: "Natal".to_string(),
-            position: Point::new(cx, cy + 6.0),
+            position: Point::new(cx, cy + 8.0),
             color: theme::NATAL_GOLD_LABEL,
-            size: iced::Pixels(8.0),
+            size: iced::Pixels(10.0),
             horizontal_alignment: iced::alignment::Horizontal::Center,
             ..canvas::Text::default()
         });
         frame.fill_text(canvas::Text {
             content: "Transit".to_string(),
-            position: Point::new(cx, cy - 4.0),
+            position: Point::new(cx, cy - 5.0),
             color: theme::TRANSIT_BLUE_LABEL,
-            size: iced::Pixels(8.0),
+            size: iced::Pixels(10.0),
             horizontal_alignment: iced::alignment::Horizontal::Center,
             ..canvas::Text::default()
         });
