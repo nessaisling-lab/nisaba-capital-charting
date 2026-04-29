@@ -118,17 +118,17 @@ impl Dashboard {
                 text("Sector")
                     .size(theme::text_sm())
                     .width(Length::FillPortion(2)),
-                sort_hdr("Astro", UniverseSortCol::Astro, Length::Fixed(56.0)),
-                sort_hdr("Score", UniverseSortCol::Score, Length::Fixed(56.0)),
+                sort_hdr("Astro", UniverseSortCol::Astro, Length::Fixed(64.0)),
+                sort_hdr("Score", UniverseSortCol::Score, Length::Fixed(64.0)),
                 text("Zone")
                     .size(theme::text_sm())
                     .width(Length::Fixed(90.0)),
-                sort_hdr("Fin", UniverseSortCol::Fin, Length::Fixed(44.0)),
-                sort_hdr("Macro", UniverseSortCol::Macro, Length::Fixed(44.0)),
-                sort_hdr("Short", UniverseSortCol::Short, Length::Fixed(44.0)),
+                sort_hdr("Fin", UniverseSortCol::Fin, Length::Fixed(52.0)),
+                sort_hdr("Macro", UniverseSortCol::Macro, Length::Fixed(52.0)),
+                sort_hdr("Short", UniverseSortCol::Short, Length::Fixed(52.0)),
                 text("Conc")
                     .size(theme::text_sm())
-                    .width(Length::Fixed(90.0)),
+                    .width(Length::Fixed(100.0)),
             ]
             .spacing(6);
 
@@ -182,11 +182,11 @@ impl Dashboard {
                         text(astro_str)
                             .font(font::INTER)
                             .size(theme::text_sm())
-                            .width(Length::Fixed(56.0)),
+                            .width(Length::Fixed(64.0)),
                         text(format!("{:.0}", u.score))
                             .font(font::INTER)
                             .size(theme::text_sm())
-                            .width(Length::Fixed(56.0)),
+                            .width(Length::Fixed(64.0)),
                         text(u.label.clone())
                             .size(theme::text_sm())
                             .color(zone_color)
@@ -194,18 +194,18 @@ impl Dashboard {
                         text(fin_str)
                             .font(font::INTER)
                             .size(theme::text_sm())
-                            .width(Length::Fixed(44.0)),
+                            .width(Length::Fixed(52.0)),
                         text(macro_str)
                             .font(font::INTER)
                             .size(theme::text_sm())
-                            .width(Length::Fixed(44.0)),
+                            .width(Length::Fixed(52.0)),
                         text(short_str)
                             .font(font::INTER)
                             .size(theme::text_sm())
-                            .width(Length::Fixed(44.0)),
+                            .width(Length::Fixed(52.0)),
                         text(conc.to_string())
                             .size(theme::text_xs())
-                            .width(Length::Fixed(90.0)),
+                            .width(Length::Fixed(100.0)),
                     ]
                     .spacing(6)
                     .align_y(Alignment::Center)

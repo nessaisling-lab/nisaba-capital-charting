@@ -49,6 +49,15 @@ pub const DISPLAY: Font = Font {
     style: Style::Normal,
 };
 
+/// Fraunces Bold — active tab labels, emphasized headings (v9.3).
+/// Same family as DISPLAY but heavier weight for active state emphasis.
+pub const DISPLAY_BOLD: Font = Font {
+    family: Family::Name("Fraunces"),
+    weight: Weight::Bold,
+    stretch: Stretch::Normal,
+    style: Style::Normal,
+};
+
 /// Source Serif 4 Regular — body text, descriptions, labels.
 /// Readable workhorse serif for sustained reading.
 pub const BODY: Font = Font {

@@ -6,6 +6,24 @@
 
 ---
 
+## v9.3.0 — "The Clarity" (2026-04-29)
+
+- **Aspect lines overhaul:** Base width 0.003→0.005 (67% thicker). Alpha values boosted: conjunction 0.20→0.45, sextile 0.14→0.30, square 0.16→0.35, trine 0.20→0.40. Colors more saturated. Conjunctions now 2× base width (was 1.5×). Squares 1.3× width (new). Added outer glow halo (4× line width, 15% alpha) for luminous bleeding effect against galaxy background.
+- **Universe table columns widened:** Astro/Score 56→64px, Fin/Macro/Short 44→52px, Concordance 90→100px. Headers no longer truncated ("Astr o" → "Astro").
+- **Tab labels bolder:** Active tab label uses Fraunces Bold at 16px (was SemiBold at 14px). New `DISPLAY_BOLD` font constant. Active tabs visually heavier and more readable.
+- **Scrollbar gutter:** Page content right padding 10→20px. Scrollbar no longer overlaps content text.
+
+**Files modified:** 5
+
+| Fix | Before | After |
+|-----|--------|-------|
+| Aspect lines | Thin (0.003), faint (0.14-0.20 alpha), no glow | Thick (0.005), bold (0.30-0.45 alpha), luminous glow halo |
+| Universe headers | Truncated "Astr o", "Scor e" | Full "Astro", "Score" at proper width |
+| Active tab label | Fraunces SemiBold 14px | Fraunces Bold 16px |
+| Scrollbar | Overlaps content | Own gutter space (20px right padding) |
+
+---
+
 ## v9.2.0 — "The Cosmos" (2026-04-29)
 
 - **Galaxy background:** Natal chart background replaced from flat bg_color to procedural galaxy field. Deep space gradient (near-black center → dark purple edges) with nebula swirl (layered sine noise in purple/blue) and dense twinkling star field across entire chart. Stars have color variation: cool white (common), blue (medium), gold (rare). 60.0 grid density vs 45.0 for outer-only stars.

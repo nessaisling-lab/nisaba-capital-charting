@@ -61,7 +61,7 @@ const R_CENTER: f32  = 0.478;   // inner circle         (0.52 × 0.92)
 const RING_W: f32    = 0.005;   // ring stroke half-width
 const PLANET_R: f32  = 0.016;   // planet dot radius
 const HALO_R: f32    = 0.045;   // glow halo outer radius
-const ASPECT_W: f32  = 0.003;   // aspect line half-width
+const ASPECT_W: f32  = 0.005;   // aspect line half-width (v9.3: was 0.003, thicker for visibility)
 
 // ── Sign color lookup (element-based — fire/earth/air/water) ──────
 
@@ -246,26 +246,34 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             var asp_w = ASPECT_W;
 
             if diff < 8.0 || diff > 352.0 {
-                // Conjunction — thick gold
-                asp_color = vec3<f32>(1.0, 0.9, 0.3);
-                asp_alpha = 0.20;
-                asp_w = ASPECT_W * 1.5;
+                // Conjunction — thick bright gold (strongest aspect, most visible)
+                asp_color = vec3<f32>(1.0, 0.85, 0.2);
+                asp_alpha = 0.45;
+                asp_w = ASPECT_W * 2.0;
             } else if abs(diff - 60.0) < 6.0 {
-                // Sextile — green
-                asp_color = vec3<f32>(0.3, 1.0, 0.5);
-                asp_alpha = 0.14;
+                // Sextile — bright green
+                asp_color = vec3<f32>(0.2, 1.0, 0.45);
+                asp_alpha = 0.30;
             } else if abs(diff - 90.0) < 8.0 {
-                // Square — red
-                asp_color = vec3<f32>(1.0, 0.3, 0.3);
-                asp_alpha = 0.16;
+                // Square — vivid red (tension = attention)
+                asp_color = vec3<f32>(1.0, 0.2, 0.2);
+                asp_alpha = 0.35;
+                asp_w = ASPECT_W * 1.3;
             } else if abs(diff - 120.0) < 8.0 {
-                // Trine — blue
-                asp_color = vec3<f32>(0.3, 0.7, 1.0);
-                asp_alpha = 0.20;
+                // Trine — bright blue (harmony)
+                asp_color = vec3<f32>(0.25, 0.65, 1.0);
+                asp_alpha = 0.40;
             }
 
             if asp_alpha > 0.0 {
                 let d = sdf_segment(pc, n_pos, t_pos);
+
+                // Outer glow halo — soft wide bloom around aspect line (v9.3)
+                let glow_w = asp_w * 4.0;
+                let glow_a = 1.0 - smoothstep(0.0, glow_w, d);
+                color = mix(color, asp_color, glow_a * asp_alpha * 0.15);
+
+                // Core line — crisp edge
                 let la = 1.0 - smoothstep(0.0, pixel_w * 3.0, d - asp_w);
 
                 // Shimmer wave: traveling alpha pulse along the line (v9.0)

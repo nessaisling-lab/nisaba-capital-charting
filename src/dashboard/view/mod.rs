@@ -217,7 +217,7 @@ impl Dashboard {
             corner_bottom,
         ]
         .spacing(theme::SPACE_XS)
-        .padding(iced::Padding { top: 0.0, right: 10.0, bottom: 0.0, left: 0.0 });
+        .padding(iced::Padding { top: 0.0, right: 20.0, bottom: 0.0, left: 0.0 }); // v9.3: right gutter for scrollbar (was 10)
 
         // Themed scrollbar — gold scroller on translucent rail (v7.5)
         let styled_scroll = scrollable(page_content)
@@ -347,8 +347,8 @@ impl Dashboard {
                 // Hover: label + sparkle fade in.
                 let tab_content: Element<Message> = if is_active {
                     let label = text(tab.label())
-                        .font(font::DISPLAY)
-                        .size(theme::text_sm())
+                        .font(font::DISPLAY_BOLD)
+                        .size(16.0)  // slightly larger than text_sm (14) for active emphasis
                         .color(p.gold);
                     // Persistent subtle shimmer on active tab (2 particles, low alpha)
                     let active_sparkle = Canvas::new(TabSparkle {
