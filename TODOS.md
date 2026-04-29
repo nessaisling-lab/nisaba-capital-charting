@@ -42,6 +42,22 @@
 **What:** Gold scrollbar overlaps page content instead of having its own gutter space.
 **Fix:** Add right padding/margin to page content container to reserve scrollbar space.
 
+### Active tab glow effect (v9.1 video review)
+**What:** Active tab icon should glow (emissive gold shimmer) instead of just bold weight. "Make it go glow, almost like shining." Matches gaming aesthetic.
+**Fix:** Add gold glow/shadow effect to active tab icon in tab bar render. Could use Canvas overlay or text shadow if Iced supports it.
+
+### Galaxy/constellation background for natal chart (v9.1 video review)
+**What:** Natal chart area background should be dark purple/Milky Way with twinkling stars. Chart-local only, rest stays grimoire dark. "Should look like a Galaxy with little stars that flow in and out."
+**Fix:** Extend star field in natal_wheel_3d.wgsl — currently stars only render outside R_OUTER. Add denser star field filling entire chart background with purple/blue tint + nebula gradient. Increase star density and add color variation.
+
+### Chart layer visibility toggles (v9.1 video review)
+**What:** Buttons to show/hide natal planets, transit planets, aspect lines, retrograde markers independently. Helps readability when chart is dense. "Select things to see which is which."
+**Fix:** Add toggle state bools to Dashboard (show_natal, show_transit, show_aspects, show_retro). Pass as uniforms or control which sections render in view. Add toggle buttons near chart legend.
+
+### Background texture — more earthy/Renaissance (v9.1 video review)
+**What:** Background should feel more textured and earthy. "More of a Renaissance book feeling."
+**Fix:** Enhance vignette shader noise grain — increase grain_strength, add subtle warm color variation to grain. Consider parchment-like color banding or subtle paper fiber pattern.
+
 ## Open — v10.0 "The Signal" (data quality)
 
 ### Data sparsity in Lagrange sub-scores
@@ -66,6 +82,10 @@
 ### Sun/Moon/Rising summary per company
 **What:** Show company's Sun sign, Moon sign, and rising sign as quick-reference icons near the chart.
 **Fix:** Compute from natal positions, display as icon row above or beside the chart.
+
+### Astro forecast timeline (v9.1 video review)
+**What:** Project upcoming transits forward in time. Show when next favorable/challenging windows arrive for selected ticker. "Calculate horoscope readings throughout months and years and what's ahead."
+**Fix:** Use Swiss Ephemeris to compute future transit positions (30/60/90 day lookahead). Display as timeline below natal chart showing upcoming aspects with dates and predicted effect.
 
 ### Astro backtest → company history correlation
 **What:** Link astro backtest results to actual historical company events (earnings, product launches, scandals). Show what happened during favorable/unfavorable transit windows.
