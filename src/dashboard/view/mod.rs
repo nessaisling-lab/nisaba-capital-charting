@@ -334,22 +334,31 @@ impl Dashboard {
                 let progress = self.tab_hover_progress[idx];
                 let eased = animation::ease_out_cubic(progress);
 
-                // Icon — bold when active
+                // Icon — bold + gold glow when active (v9.2)
                 let icon_font = if is_active { icons::PHOSPHOR_BOLD } else { icons::PHOSPHOR };
                 let p = theme::palette();
+                let icon_color = if is_active { p.gold } else { p.ink };
                 let icon_el = text(tab.icon().to_string())
                     .font(icon_font)
                     .size(theme::text_md())
-                    .color(p.ink);
+                    .color(icon_color);
 
-                // Active tab: label always visible. Hover: label + sparkle fade in.
+                // Active tab: gold icon + label + subtle sparkle shimmer.
+                // Hover: label + sparkle fade in.
                 let tab_content: Element<Message> = if is_active {
                     let label = text(tab.label())
                         .font(font::DISPLAY)
                         .size(theme::text_sm())
                         .color(p.gold);
-                    row![icon_el, label]
-                        .spacing(6)
+                    // Persistent subtle shimmer on active tab (2 particles, low alpha)
+                    let active_sparkle = Canvas::new(TabSparkle {
+                        alpha: 0.4,  // subtle persistent glow
+                        seed: idx as u32 + 100,  // offset seed from hover sparkle
+                    })
+                    .width(Length::Fixed(16.0))
+                    .height(Length::Fixed(14.0));
+                    row![icon_el, label, active_sparkle]
+                        .spacing(5)
                         .align_y(Alignment::Center)
                         .into()
                 } else if progress > 0.05 {
@@ -373,8 +382,12 @@ impl Dashboard {
                     icon_el.into()
                 };
 
-                // Gold underline for active tab (3px), subtle highlight on hover
-                let tab_bg = if is_active { p.surface } else { Color::TRANSPARENT };
+                // Gold glow background for active tab (v9.2), subtle highlight on hover
+                let tab_bg = if is_active {
+                    Color { a: 0.15, ..p.gold }  // warm gold glow behind active tab
+                } else {
+                    Color::TRANSPARENT
+                };
                 let border_bottom = if is_active { 3.0 } else { 0.0 };
                 let border_color = if is_active { p.gold }
                     else if progress > 0.1 { Color { a: eased * 0.4, ..p.gold } }

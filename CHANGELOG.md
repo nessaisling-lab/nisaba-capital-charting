@@ -6,6 +6,20 @@
 
 ---
 
+## v9.2.0 — "The Cosmos" (2026-04-29)
+
+- **Galaxy background:** Natal chart background replaced from flat bg_color to procedural galaxy field. Deep space gradient (near-black center → dark purple edges) with nebula swirl (layered sine noise in purple/blue) and dense twinkling star field across entire chart. Stars have color variation: cool white (common), blue (medium), gold (rare). 60.0 grid density vs 45.0 for outer-only stars.
+- **Active tab glow:** Active tab icon now renders in gold (was ink color), with warm gold background glow (15% alpha) and persistent subtle sparkle shimmer (2 particles). Tab feels "shining" when selected.
+
+**Files modified:** 3
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Chart background | Flat bg_color (dark brown/cream) | Galaxy gradient + nebula swirl + dense colored star field |
+| Active tab | Bold icon + gold underline | Gold icon + gold glow bg + persistent sparkle + gold underline |
+
+---
+
 ## v9.1.0 — "The Polish" (2026-04-29)
 
 - **[P0] Disable chart rotation:** Natal chart no longer spins, making planetary positions readable. Removed `u.time * 0.015` rotation transform from natal_wheel_3d.wgsl

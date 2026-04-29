@@ -138,8 +138,40 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let r = length(pc);
     let pixel_w = 2.5 / min(u.resolution.x, u.resolution.y);
 
-    // Background
-    var color = u.bg_color.rgb;
+    // Background — galaxy/constellation field (v9.2)
+    // Deep space gradient: dark center → purple edges with nebula swirl
+    let galaxy_center = vec3<f32>(0.02, 0.01, 0.04);   // near-black with purple hint
+    let galaxy_edge   = vec3<f32>(0.08, 0.03, 0.14);   // dark purple
+    let galaxy_mix    = smoothstep(0.0, 1.0, r * 0.9);
+    var color = mix(galaxy_center, galaxy_edge, galaxy_mix);
+
+    // Nebula swirl: subtle colored clouds using layered noise
+    let nebula_angle = atan2(pc.y, pc.x);
+    let nebula1 = sin(nebula_angle * 3.0 + r * 5.0) * 0.5 + 0.5;
+    let nebula2 = sin(nebula_angle * 5.0 - r * 3.0 + 1.5) * 0.5 + 0.5;
+    let nebula_color = mix(
+        vec3<f32>(0.12, 0.04, 0.18),  // deep purple
+        vec3<f32>(0.04, 0.06, 0.16),  // dark blue
+        nebula1 * nebula2
+    );
+    color = mix(color, nebula_color, 0.15 * (1.0 - smoothstep(0.3, 0.9, r)));
+
+    // Dense star field across entire chart (not just outside ring)
+    let star_grid = raw * 60.0;  // denser grid than outer-only stars
+    let star_id = floor(star_grid);
+    let star_frac = fract(star_grid) - 0.5;
+    let star_val = hash(star_id.x * 173.7 + star_id.y * 259.3);
+    if star_val > 0.92 {
+        let star_bright = (star_val - 0.92) * 12.5;
+        let star_dist = length(star_frac);
+        let star_mask = 1.0 - smoothstep(0.0, 0.15, star_dist);
+        let star_twinkle = 0.4 + 0.6 * sin(u.time * 1.2 + star_val * TAU);
+        // Color variation: warm white, cool blue, pale gold
+        var star_tint = vec3<f32>(0.85, 0.85, 0.95);  // default cool white
+        if star_val > 0.97 { star_tint = vec3<f32>(0.95, 0.85, 0.65); }  // gold stars (rare)
+        else if star_val > 0.95 { star_tint = vec3<f32>(0.65, 0.75, 1.0); }  // blue stars
+        color += star_tint * star_mask * star_bright * star_twinkle * 0.18;
+    }
 
     // ── 1. Zodiac ring segments (12 colored arcs) ─────────────────
     if r > R_NATAL - pixel_w && r < R_OUTER + pixel_w {

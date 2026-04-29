@@ -3,7 +3,7 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v9.1.0
+**Current version:** v9.2.0
 **Next milestones:**
 - v9.1 "The Polish" — P0 bug fixes (backtest crash, broken icons, tooltip contrast, disable rotation) + demo prep polish
 - v10.0 "The Signal" — Data quality (Lagrange score sparsity fix, RSS tone sentiment, fetch-this-ticker, richer template agent)
