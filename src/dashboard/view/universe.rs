@@ -124,8 +124,8 @@ impl Dashboard {
                     .size(theme::text_sm())
                     .width(Length::Fixed(90.0)),
                 sort_hdr("Fin", UniverseSortCol::Fin, Length::Fixed(52.0)),
-                sort_hdr("Macro", UniverseSortCol::Macro, Length::Fixed(52.0)),
-                sort_hdr("Short", UniverseSortCol::Short, Length::Fixed(52.0)),
+                sort_hdr("Mac", UniverseSortCol::Macro, Length::Fixed(52.0)),
+                sort_hdr("Sht", UniverseSortCol::Short, Length::Fixed(52.0)),
                 text("Conc")
                     .size(theme::text_sm())
                     .width(Length::Fixed(100.0)),
