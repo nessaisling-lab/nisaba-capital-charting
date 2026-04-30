@@ -3,7 +3,9 @@ use iced::keyboard::{Key, Modifiers};
 use iced::Task;
 use std::sync::Arc;
 
-use pursuit_week4_automation::models::LagrangeAlert;
+use pursuit_week4_automation::astrology::ephemeris::{Planet, PlanetSnapshot, longitude_to_sign};
+use pursuit_week4_automation::astrology::natal::{NatalChart, compute_transit_score};
+use pursuit_week4_automation::models::{FundamentalMetric, LagrangeAlert, NatalPosition, PriceRow};
 
 use crate::db::{
     fetch_astro_calendar, fetch_compare_data, fetch_universe_count, fetch_universe_page,
@@ -102,6 +104,7 @@ impl Dashboard {
                 let (score, _, _) = crate::indicators::compute_lagrange_score(
                     ind, &self.rows, &self.sentiment,
                     &self.astro_score, &self.macro_data, &self.short_interest,
+                    &self.rss_tone,
                 );
                 score
             }),
@@ -109,12 +112,24 @@ impl Dashboard {
                 let (_, label, _) = crate::indicators::compute_lagrange_score(
                     ind, &self.rows, &self.sentiment,
                     &self.astro_score, &self.macro_data, &self.short_interest,
+                    &self.rss_tone,
                 );
                 label
             }),
             current_price: price,
             mercury_rx: self.astro_score.as_ref().and_then(|s| s.mercury_rx).unwrap_or(false),
             moon_phase: self.astro_score.as_ref().and_then(|s| s.moon_phase.clone()),
+            // v10.0 "The Signal" — richer context
+            sector: None,   // TODO: populate from company_metadata when loaded
+            industry: None,
+            recent_headlines: self.news.iter().take(3)
+                .map(|n| n.headline.clone())
+                .collect(),
+            rss_tone_score: self.rss_tone.as_ref()
+                .and_then(|r| r.tone_score.as_ref())
+                .and_then(|v| v.to_string().parse::<f64>().ok()),
+            rss_tone_label: self.rss_tone.as_ref()
+                .and_then(|r| r.tone_label.clone()),
         }
     }
 
@@ -217,6 +232,41 @@ impl Dashboard {
         }
     }
 
+    /// v11.0: Auto-fill calculator inputs from loaded data.
+    /// Only overwrites fields that still hold their original defaults.
+    pub(crate) fn suggest_calculator_defaults(&mut self) {
+        // --- DCF: growth rate from fundamentals ---
+        if self.dcf_growth_rate == "10" {
+            if let Some(ref f) = self.fundamentals {
+                let growth = estimate_growth_rate(f);
+                self.dcf_growth_rate = format!("{growth:.1}");
+            }
+        }
+
+        // --- Greeks: strike near current price, vol from historical data ---
+        let current_price = self.rows.first()
+            .and_then(|r| r.close.to_string().parse::<f64>().ok());
+
+        if let Some(price) = current_price {
+            // Strike: nearest $5 increment for prices > $20, nearest $1 otherwise
+            if self.greeks_strike == "100" || self.greeks_strike.is_empty() {
+                let strike = if price > 20.0 {
+                    (price / 5.0).round() * 5.0
+                } else {
+                    price.round()
+                };
+                self.greeks_strike = format!("{strike:.0}");
+            }
+        }
+
+        // Volatility: 30-day historical vol from price data
+        if self.greeks_vol == "25" {
+            if let Some(vol) = historical_vol_30d(&self.rows) {
+                self.greeks_vol = format!("{vol:.1}");
+            }
+        }
+    }
+
     /// Push an in-app toast notification (auto-expires after 4 seconds).
     pub(crate) fn push_toast(&mut self, msg: impl Into<String>) {
         let expiry = std::time::Instant::now() + std::time::Duration::from_secs(4);
@@ -232,6 +282,112 @@ impl Dashboard {
         let now = std::time::Instant::now();
         self.toasts.retain(|(_, expiry)| *expiry > now);
     }
+}
+
+// ---------------------------------------------------------------------------
+// v11.0 calculator default helpers (free functions)
+// ---------------------------------------------------------------------------
+
+/// Estimate an appropriate FCF growth rate from fundamental metrics.
+/// Uses PEG-implied earnings growth if available, otherwise size-based heuristic.
+fn estimate_growth_rate(f: &FundamentalMetric) -> f64 {
+    // PEG = P/E ÷ earnings_growth → earnings_growth = P/E ÷ PEG
+    if let (Some(pe), Some(peg)) = (f.pe_ratio, f.peg_ratio) {
+        if peg > 0.1 && pe > 0.0 {
+            let implied_growth = pe / peg;
+            // Clamp to reasonable range (3% - 30%)
+            return implied_growth.clamp(3.0, 30.0);
+        }
+    }
+    // Fallback: size-based heuristic (larger companies grow slower)
+    match f.revenue {
+        Some(rev) if rev > 50_000_000_000 => 8.0,   // mega-cap: ~8%
+        Some(rev) if rev > 10_000_000_000 => 12.0,  // large-cap: ~12%
+        Some(rev) if rev > 1_000_000_000  => 15.0,  // mid-cap: ~15%
+        _ => 10.0,                                    // default
+    }
+}
+
+/// Compute 30-day annualized historical volatility from price rows.
+/// Returns percentage (e.g., 25.0 for 25%).
+fn historical_vol_30d(rows: &[PriceRow]) -> Option<f64> {
+    if rows.len() < 31 { return None; }
+    // rows are newest-first; take 31 most recent, reverse to oldest-first
+    let prices: Vec<f64> = rows.iter().take(31).rev()
+        .filter_map(|r| r.close.to_string().parse::<f64>().ok())
+        .collect();
+    if prices.len() < 31 { return None; }
+    let returns: Vec<f64> = prices.windows(2)
+        .map(|w| (w[1] / w[0]).ln())
+        .collect();
+    let mean = returns.iter().sum::<f64>() / returns.len() as f64;
+    let variance = returns.iter()
+        .map(|r| (r - mean).powi(2))
+        .sum::<f64>() / (returns.len() - 1) as f64;
+    Some(variance.sqrt() * (252.0_f64).sqrt() * 100.0)
+}
+
+/// Convert dashboard NatalPosition (DB model) to lib PlanetSnapshot (astrology engine).
+fn natal_positions_to_chart(ticker: &str, positions: &[NatalPosition]) -> Option<NatalChart> {
+    if positions.is_empty() { return None; }
+    let snapshots: Vec<PlanetSnapshot> = positions.iter()
+        .filter_map(|p| {
+            let planet = Planet::from_name(&p.planet)?;
+            let (sign, degree) = longitude_to_sign(p.longitude);
+            Some(PlanetSnapshot {
+                planet,
+                longitude: p.longitude,
+                sign,
+                degree,
+                retrograde: p.retrograde,
+            })
+        })
+        .collect();
+    if snapshots.is_empty() { return None; }
+    // Use today as ipo_date placeholder (not used in transit scoring)
+    Some(NatalChart {
+        ticker: ticker.to_string(),
+        ipo_date: chrono::Utc::now().date_naive(),
+        positions: snapshots,
+    })
+}
+
+/// Compute 90-day astro forecast for a ticker. Blocking (uses Swiss Ephemeris).
+pub fn compute_forecast(
+    ticker: String,
+    positions: Vec<NatalPosition>,
+) -> Vec<crate::state::ForecastDay> {
+    let Some(natal) = natal_positions_to_chart(&ticker, &positions) else {
+        return vec![];
+    };
+    let today = chrono::Utc::now().date_naive();
+
+    (1..=90)
+        .map(|day_offset| {
+            let date = today + chrono::Duration::days(day_offset);
+            let ts = compute_transit_score(&natal, date);
+
+            let label = match ts.astro_score as u32 {
+                0..=24  => "Misaligned",
+                25..=39 => "Unfavorable",
+                40..=59 => "Neutral",
+                60..=75 => "Favorable",
+                _       => "Optimal",
+            }.to_string();
+
+            // Pick strongest aspect as key event
+            let key_aspect = ts.active_aspects.first().map(|a| {
+                let dir = if a.applying { "applying" } else { "separating" };
+                format!("{} {} {} ({dir})",
+                    a.transit_planet.name(),
+                    a.aspect.name(),
+                    a.natal_planet.name(),
+                )
+            });
+
+            crate::state::ForecastDay { date, score: ts.astro_score, label, key_aspect }
+        })
+        .collect()
 }
 
 /// Sort watchlist rows by score or alphabetically.

@@ -75,14 +75,15 @@ impl Dashboard {
         };
 
         // ── Header: ticker name + actions ──────────────────────
+        // v11.0: Compact icon buttons (shorter labels)
         let refresh_icon = text(icons::ARROW_REPEAT.to_string())
             .font(icons::PHOSPHOR)
             .size(theme::text_sm());
         let refresh_btn = button(
             if self.refreshing {
-                row![refresh_icon, text("…").size(theme::text_sm())].spacing(4).align_y(Alignment::Center)
+                row![refresh_icon, text("\u{2026}").size(theme::text_xs())].spacing(3).align_y(Alignment::Center)
             } else {
-                row![refresh_icon, text("Refresh").size(theme::text_sm())].spacing(4).align_y(Alignment::Center)
+                row![refresh_icon].spacing(3).align_y(Alignment::Center)
             }
         ).on_press(Message::RefreshNow);
 
@@ -90,15 +91,12 @@ impl Dashboard {
             button(
                 row![
                     text(icons::DOWNLOAD.to_string()).font(icons::PHOSPHOR).size(theme::text_sm()),
-                    text("…").size(theme::text_sm()),
-                ].spacing(4).align_y(Alignment::Center)
+                    text("\u{2026}").size(theme::text_xs()),
+                ].spacing(3).align_y(Alignment::Center)
             ).into()
         } else {
             button(
-                row![
-                    text(icons::DOWNLOAD.to_string()).font(icons::PHOSPHOR).size(theme::text_sm()),
-                    text(format!("Fetch {}", self.selected_ticker)).size(theme::text_sm()),
-                ].spacing(4).align_y(Alignment::Center)
+                text(icons::DOWNLOAD.to_string()).font(icons::PHOSPHOR).size(theme::text_sm()),
             ).on_press(Message::FetchThisTicker).into()
         };
 
@@ -144,15 +142,16 @@ impl Dashboard {
             })
             .into()
         } else if self.fetching_ticker {
-            // Thin gold loading bar during fetch
+            // v11.0: Pulsing gold loading bar (shimmer animation)
             let p_load = theme::palette();
+            let pulse_alpha = 0.4 + 0.4 * (self.shader_time * 2.5).sin().abs();
             container(Space::with_height(Length::Fixed(0.0)))
                 .width(Length::Fill)
                 .height(Length::Fixed(3.0))
                 .style(move |_theme: &iced::Theme| {
                     container::Style {
                         background: Some(iced::Background::Color(
-                            Color { a: 0.6, ..p_load.gold },
+                            Color { a: pulse_alpha, ..p_load.gold },
                         )),
                         ..Default::default()
                     }

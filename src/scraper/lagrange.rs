@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use pursuit_week4_automation::indicators::{compute_lagrange_score, Indicators};
-use pursuit_week4_automation::models::{AstroScore, MacroIndicator, PriceRow, SentimentScore, ShortInterest};
+use pursuit_week4_automation::models::{AstroScore, MacroIndicator, PriceRow, RssToneScore, SentimentScore, ShortInterest};
 
 pub async fn compute_all_scores(pool: Arc<sqlx::PgPool>) {
     println!("Computing Lagrange scores for all tickers...");
@@ -149,6 +149,18 @@ async fn score_one_ticker(
     .fetch_optional(pool)
     .await?;
 
+    // RSS tone — keyword sentiment from RSS feeds (v10.0)
+    let rss_tone: Option<RssToneScore> = sqlx::query_as(
+        "SELECT ticker, score_date, tone_score, tone_label, article_count
+         FROM rss_tone_scores
+         WHERE ticker = $1
+         ORDER BY score_date DESC
+         LIMIT 1"
+    )
+    .bind(ticker)
+    .fetch_optional(pool)
+    .await?;
+
     let (score, label, components) = compute_lagrange_score(
         &indicators,
         &rows,
@@ -156,6 +168,7 @@ async fn score_one_ticker(
         &astro_score,
         macro_data,
         &short_interest,
+        &rss_tone,
     );
 
     let concordance_name = components.concordance.name();

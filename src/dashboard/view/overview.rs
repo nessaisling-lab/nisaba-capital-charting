@@ -347,6 +347,7 @@ impl Dashboard {
                     &self.astro_score,
                     &self.macro_data,
                     &self.short_interest,
+                    &self.rss_tone,
                 );
                 make_gauge(
                     format!("{} Lagrange Score", self.selected_ticker),
@@ -395,6 +396,7 @@ impl Dashboard {
                         &self.astro_score,
                         &self.macro_data,
                         &self.short_interest,
+                        &self.rss_tone,
                     );
                     let bullets = generate_signal_bullets(
                         &self.selected_ticker,
@@ -406,6 +408,7 @@ impl Dashboard {
                         &self.short_interest,
                         &self.analyst_rating,
                         &self.earnings,
+                        &self.rss_tone,
                     );
                     let bullet_items: Vec<Element<Message>> = bullets
                         .iter()

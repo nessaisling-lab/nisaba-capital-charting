@@ -18,8 +18,9 @@ use std::sync::Arc;
 /// Paper engine configuration — matches design doc provisional defaults.
 /// Stored as constants; the design allows future migration to the settings table.
 /// Lowered from 75.0 → 65.0 while sentiment + short-interest data coverage
-/// is sparse (most tickers default those sub-scores to neutral 50). Raise back
-/// once additional data sources come online or AV rate limits are lifted.
+/// is sparse. v10.0 added RSS tone sentiment + adaptive weighting to reduce
+/// neutral-50 compression. Consider raising back toward 70-75 once RSS tone
+/// coverage is verified across the ticker universe.
 const BUY_THRESHOLD: f64 = 65.0;
 const SELL_THRESHOLD: f64 = 40.0;
 const MAX_POSITIONS: usize = 20;

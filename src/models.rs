@@ -124,6 +124,14 @@ pub struct NatalPosition {
     pub retrograde: bool,
 }
 
+/// One row from natal_angles (Ascendant + Midheaven per ticker)
+#[derive(Debug, Clone, FromRow)]
+pub struct NatalAngles {
+    pub ticker:    String,
+    pub ascendant: f64,
+    pub mc:        f64,
+}
+
 /// One row from daily_transits
 #[derive(Debug, Clone, FromRow)]
 pub struct DailyTransit {
@@ -150,6 +158,16 @@ pub struct MacroIndicator {
     pub series_name: String,
     pub obs_date:    NaiveDate,
     pub value:       Option<rust_decimal::Decimal>,
+}
+
+/// One row from rss_tone_scores (keyword sentiment from RSS feeds)
+#[derive(Debug, Clone, FromRow)]
+pub struct RssToneScore {
+    pub ticker:        String,
+    pub score_date:    NaiveDate,
+    pub tone_score:    Option<rust_decimal::Decimal>,
+    pub tone_label:    Option<String>,
+    pub article_count: Option<i32>,
 }
 
 /// One row from short_interest (Nasdaq Data Link FINRA short interest)

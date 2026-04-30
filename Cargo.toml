@@ -1,6 +1,6 @@
 [package]
 name = "pursuit_week4_automation"
-version = "9.3.0"
+version = "11.0.0"
 edition = "2021"
 
 [[bin]]

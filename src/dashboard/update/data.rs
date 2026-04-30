@@ -137,6 +137,7 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
                 state.indicators = Some(Indicators::compute(&prices));
             }
             state.rows = rows;
+            state.suggest_calculator_defaults();
             Some(Task::none())
         }
         Message::DataLoaded(Err(e)) => {
@@ -181,9 +182,12 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
         Message::MacroDataLoaded(Err(_)) => Some(Task::none()),
         Message::ShortInterestLoaded(Ok(si)) => { state.short_interest = si; Some(Task::none()) }
         Message::ShortInterestLoaded(Err(_)) => Some(Task::none()),
+        Message::RssToneLoaded(Ok(tone)) => { state.rss_tone = tone; Some(Task::none()) }
+        Message::RssToneLoaded(Err(_)) => Some(Task::none()),
 
         Message::FundamentalsLoaded(Ok(f)) => {
             state.fundamentals = f;
+            state.suggest_calculator_defaults();
             state.compute_dcf_if_ready();
             state.recompute_agent_if_active();
             Some(Task::none())

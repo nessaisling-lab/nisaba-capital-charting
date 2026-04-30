@@ -74,6 +74,12 @@ pub struct AgentContext {
     pub current_price: Option<f64>,
     pub mercury_rx: bool,
     pub moon_phase: Option<String>,
+    // v10.0 "The Signal" — richer context for verdicts
+    pub sector: Option<String>,
+    pub industry: Option<String>,
+    pub recent_headlines: Vec<String>,
+    pub rss_tone_score: Option<f64>,
+    pub rss_tone_label: Option<String>,
 }
 
 /// The agent's output.
@@ -259,10 +265,19 @@ fn analyze_buffett(ctx: &AgentContext) -> AgentAnalysis {
 
     let verdict = score_to_verdict(score, &[(5, AgentVerdict::StrongBuy), (3, AgentVerdict::Buy),
         (0, AgentVerdict::Hold), (-2, AgentVerdict::Sell)]);
+    let v = ctx.ticker.len() % 3;
     let headline = match verdict {
         AgentVerdict::StrongBuy => format!("{} looks like a wonderful business at a fair price.", ctx.ticker),
-        AgentVerdict::Buy => format!("{} has solid economics. I'd consider adding to my position.", ctx.ticker),
-        AgentVerdict::Hold => format!("{} is decent but not compelling. I'd hold, not add.", ctx.ticker),
+        AgentVerdict::Buy => [
+            format!("{} has solid economics. I'd consider adding to my position.", ctx.ticker),
+            format!("The fundamentals of {} tell a good story. Worth owning.", ctx.ticker),
+            format!("{} earns its keep. This is the kind of business I understand.", ctx.ticker),
+        ][v].clone(),
+        AgentVerdict::Hold => [
+            format!("{} is decent but not compelling. I'd hold, not add.", ctx.ticker),
+            format!("{} has some merit, but the price doesn't scream value to me.", ctx.ticker),
+            format!("I see what {} does well, but the margin of safety isn't there yet.", ctx.ticker),
+        ][v].clone(),
         AgentVerdict::Sell => format!("{} doesn't meet my quality threshold. Capital is better deployed elsewhere.", ctx.ticker),
         AgentVerdict::StrongSell => format!("{} has fundamental problems. This is outside my circle of competence.", ctx.ticker),
         AgentVerdict::InsufficientData => format!("I need more data on {} before forming an opinion.", ctx.ticker),
@@ -275,6 +290,16 @@ fn analyze_buffett(ctx: &AgentContext) -> AgentAnalysis {
 fn build_buffett_narrative(ctx: &AgentContext, score: i32) -> String {
     let Some(f) = ctx.fundamentals.as_ref() else { return String::new() };
     let mut parts = Vec::new();
+    // Sector context
+    if let Some(ref sector) = ctx.sector {
+        match sector.as_str() {
+            "Technology" => parts.push(format!("I used to avoid tech, but businesses like {} can have wide moats if the switching costs are high enough.", ctx.ticker)),
+            "Financial Services" => parts.push("Banks require understanding leverage deeply. I look for conservative management and consistent ROE.".to_string()),
+            "Healthcare" => parts.push("Healthcare moats come from patents, regulation, and switching costs. I focus on the durability of the franchise.".to_string()),
+            "Consumer Defensive" | "Consumer Cyclical" => parts.push("Consumer brands are my sweet spot. The question is always: will people still want this in 20 years?".to_string()),
+            _ => {}
+        }
+    }
     if let Some(roe) = f.roe {
         let pct = roe * 100.0;
         if pct > 20.0 { parts.push(format!("ROE of {pct:.0}% suggests a durable competitive advantage.")); }
@@ -287,6 +312,14 @@ fn build_buffett_narrative(ctx: &AgentContext, score: i32) -> String {
     if let Some(fcf) = f.fcf {
         if fcf > 10_000_000_000 { parts.push(format!("Free cash flow of {} means the owner is getting real money back.", format_large_number(fcf))); }
         else if fcf < 0 { parts.push("Negative free cash flow is a red flag. The business consumes more cash than it generates.".to_string()); }
+    }
+    // News context
+    if let Some(ref tone_label) = ctx.rss_tone_label {
+        match tone_label.as_str() {
+            "Bullish" | "Somewhat-Bullish" => parts.push("Recent news coverage is positive, but I focus on the business, not the news cycle. Headlines fade; fundamentals endure.".to_string()),
+            "Bearish" | "Somewhat-Bearish" => parts.push("The headlines are unfavorable right now. In my experience, that's often when the best opportunities appear — be greedy when others are fearful.".to_string()),
+            _ => {}
+        }
     }
     if score >= 5 { parts.push("Overall, this has the hallmarks of a wonderful business. I'd be comfortable owning it for decades.".to_string()); }
     else if score <= -3 { parts.push("I'd pass on this one. There are better places to put capital.".to_string()); }
@@ -357,10 +390,19 @@ fn analyze_graham(ctx: &AgentContext) -> AgentAnalysis {
 
     let verdict = score_to_verdict(score, &[(7, AgentVerdict::StrongBuy), (4, AgentVerdict::Buy),
         (0, AgentVerdict::Hold), (-3, AgentVerdict::Sell)]);
+    let v = ctx.ticker.len() % 3;
     let headline = match verdict {
         AgentVerdict::StrongBuy => format!("{} is statistically cheap with a strong balance sheet. A textbook value investment.", ctx.ticker),
-        AgentVerdict::Buy => format!("{} passes most of my quantitative screens. A reasonable investment.", ctx.ticker),
-        AgentVerdict::Hold => format!("{} is neither cheap enough to buy nor expensive enough to sell.", ctx.ticker),
+        AgentVerdict::Buy => [
+            format!("{} passes most of my quantitative screens. A reasonable investment.", ctx.ticker),
+            format!("The numbers for {} check out. This meets my criteria for a defensive investment.", ctx.ticker),
+            format!("{} offers adequate margin of safety at current prices.", ctx.ticker),
+        ][v].clone(),
+        AgentVerdict::Hold => [
+            format!("{} is neither cheap enough to buy nor expensive enough to sell.", ctx.ticker),
+            format!("Mr. Market is pricing {} fairly — no statistical bargain here.", ctx.ticker),
+            format!("{} sits in no-man's land: too expensive for value, too cheap to short.", ctx.ticker),
+        ][v].clone(),
         AgentVerdict::Sell => format!("{} fails my valuation criteria. The margin of safety is inadequate.", ctx.ticker),
         AgentVerdict::StrongSell => format!("{} is speculative at this price. No margin of safety.", ctx.ticker),
         AgentVerdict::InsufficientData => format!("I need financial statements for {} before I can run my screens.", ctx.ticker),
@@ -382,6 +424,13 @@ fn build_graham_narrative(ctx: &AgentContext, score: i32) -> String {
     }
     if let Some(cr) = f.current_ratio {
         if cr < 1.5 { parts.push(format!("Current ratio of {cr:.2} is below my 2.0 minimum. Liquidity risk.")); }
+    }
+    // News context — Graham is skeptical
+    if !ctx.recent_headlines.is_empty() {
+        let headline = &ctx.recent_headlines[0];
+        if headline.len() > 10 {
+            parts.push(format!("The headlines say '{}' — Mr. Market is excitable. I trust the balance sheet over the news ticker.", truncate_str(headline, 60)));
+        }
     }
     if score >= 7 { parts.push("This passes my full battery of quantitative tests. It has the statistical profile of a sound investment.".to_string()); }
     else if score <= -3 { parts.push("The numbers don't lie. This fails on multiple quantitative criteria. Pass.".to_string()); }
@@ -451,10 +500,19 @@ fn analyze_lynch(ctx: &AgentContext) -> AgentAnalysis {
 
     let verdict = score_to_verdict(score, &[(7, AgentVerdict::StrongBuy), (4, AgentVerdict::Buy),
         (1, AgentVerdict::Hold), (-2, AgentVerdict::Sell)]);
+    let v = ctx.ticker.len() % 3;
     let headline = match verdict {
         AgentVerdict::StrongBuy => format!("{} is growing fast and the market hasn't fully priced it in. Classic GARP.", ctx.ticker),
-        AgentVerdict::Buy => format!("{} has a good growth story at a reasonable price.", ctx.ticker),
-        AgentVerdict::Hold => format!("{} is interesting but the price-to-growth ratio isn't compelling yet.", ctx.ticker),
+        AgentVerdict::Buy => [
+            format!("{} has a good growth story at a reasonable price.", ctx.ticker),
+            format!("I like what I see in {}. The growth is real and the price is fair.", ctx.ticker),
+            format!("{} is the kind of stock I'd find by walking through a mall and noticing what people are buying.", ctx.ticker),
+        ][v].clone(),
+        AgentVerdict::Hold => [
+            format!("{} is interesting but the price-to-growth ratio isn't compelling yet.", ctx.ticker),
+            format!("I'd want to walk into a {} store before committing. The numbers alone don't convince me.", ctx.ticker),
+            format!("{} has potential, but I need to see the growth rate accelerate before paying this price.", ctx.ticker),
+        ][v].clone(),
         AgentVerdict::Sell => format!("{} is either too expensive for its growth or the growth isn't there.", ctx.ticker),
         AgentVerdict::StrongSell => format!("{} fails my growth-at-reasonable-price test on multiple fronts.", ctx.ticker),
         AgentVerdict::InsufficientData => format!("I need to see the numbers for {} before I can form an opinion.", ctx.ticker),
@@ -467,13 +525,38 @@ fn analyze_lynch(ctx: &AgentContext) -> AgentAnalysis {
 fn build_lynch_narrative(ctx: &AgentContext, score: i32) -> String {
     let Some(f) = ctx.fundamentals.as_ref() else { return String::new() };
     let mut parts = Vec::new();
+    // Sector categorization — Lynch loved classifying stocks
+    if let Some(ref industry) = ctx.industry {
+        let category = classify_lynch_category(f);
+        parts.push(format!("I'd classify {} in {industry} as a {category}.", ctx.ticker));
+    }
     if let Some(peg) = f.peg_ratio {
         if peg > 0.0 && peg < 1.0 { parts.push(format!("PEG of {peg:.2} is the standout here. The market is pricing in less growth than the company is delivering.")); }
         else if peg > 2.0 { parts.push(format!("PEG of {peg:.2} means you're paying a premium for growth. Make sure you understand what's driving it.")); }
     }
+    // News awareness
+    if let Some(ref tone_label) = ctx.rss_tone_label {
+        if tone_label == "Bullish" || tone_label == "Somewhat-Bullish" {
+            parts.push("The news is favorable right now. Good — but I'd still want to understand the business before the stock.".to_string());
+        } else if tone_label == "Bearish" || tone_label == "Somewhat-Bearish" {
+            parts.push("Negative press can create buying opportunities if the business is sound. I'd investigate what's behind the headlines.".to_string());
+        }
+    }
     if score >= 5 { parts.push("This has the profile of a growth stock at a reasonable price. The kind I'd want to own.".to_string()); }
     else if score <= -2 { parts.push("I'd pass here. There are better growth stories at better prices.".to_string()); }
     if parts.is_empty() { "The growth-value picture is mixed. I'd want to dig deeper into the actual business.".to_string() } else { parts.join(" ") }
+}
+
+/// Lynch's stock categories based on fundamental profile.
+fn classify_lynch_category(f: &FundamentalMetric) -> &'static str {
+    let growth_hint = f.peg_ratio.unwrap_or(2.0);
+    let pe = f.pe_ratio.unwrap_or(20.0);
+    let div = f.dividend_yield.unwrap_or(0.0);
+    if growth_hint < 1.0 && pe < 25.0 { "fast grower" }
+    else if pe < 15.0 && div > 0.02 { "stalwart" }
+    else if pe > 40.0 { "speculative grower" }
+    else if div > 0.04 { "slow grower" }
+    else { "stalwart" }
 }
 
 // ---------------------------------------------------------------------------
@@ -536,10 +619,19 @@ fn analyze_munger(ctx: &AgentContext) -> AgentAnalysis {
 
     let verdict = score_to_verdict(score, &[(8, AgentVerdict::StrongBuy), (5, AgentVerdict::Buy),
         (1, AgentVerdict::Hold), (-2, AgentVerdict::Sell)]);
+    let v = ctx.ticker.len() % 3;
     let headline = match verdict {
         AgentVerdict::StrongBuy => format!("{} is a high-quality business with a durable moat. I'd hold forever.", ctx.ticker),
-        AgentVerdict::Buy => format!("{} shows good quality indicators. Worth owning.", ctx.ticker),
-        AgentVerdict::Hold => format!("{} is acceptable but not the kind of quality that makes me excited.", ctx.ticker),
+        AgentVerdict::Buy => [
+            format!("{} shows good quality indicators. Worth owning.", ctx.ticker),
+            format!("The economics of {} are sound. Not perfect, but the moat is real.", ctx.ticker),
+            format!("{} reminds me of businesses I've admired. Quality deserves a fair price.", ctx.ticker),
+        ][v].clone(),
+        AgentVerdict::Hold => [
+            format!("{} is acceptable but not the kind of quality that makes me excited.", ctx.ticker),
+            format!("I don't hate {} but I don't love it either. In investing, 'okay' is not good enough.", ctx.ticker),
+            format!("{} is mediocre, and the world is full of mediocre businesses I don't need to own.", ctx.ticker),
+        ][v].clone(),
         AgentVerdict::Sell => format!("{} doesn't meet my quality bar. I'd rather own a wonderful business at a fair price.", ctx.ticker),
         AgentVerdict::StrongSell => format!("{} shows multiple quality red flags. Invert: what would make this fail? Too much.", ctx.ticker),
         AgentVerdict::InsufficientData => format!("I need to see the economics of {} before I can form a judgment.", ctx.ticker),
@@ -552,6 +644,19 @@ fn analyze_munger(ctx: &AgentContext) -> AgentAnalysis {
 fn build_munger_narrative(ctx: &AgentContext, score: i32) -> String {
     let Some(f) = ctx.fundamentals.as_ref() else { return String::new() };
     let mut parts = Vec::new();
+    // Sector-specific mental models
+    if let Some(ref sector) = ctx.sector {
+        let model = match sector.as_str() {
+            "Technology" => "network effects and switching costs",
+            "Financial Services" => "leverage and trust",
+            "Healthcare" => "regulatory moats and patent cliffs",
+            "Energy" => "commodity cycles and capital intensity",
+            "Consumer Defensive" => "brand loyalty and habitual consumption",
+            "Industrials" => "scale economics and installed base",
+            _ => "competitive dynamics and durable advantages",
+        };
+        parts.push(format!("In this sector, the key mental model is {model}. Let me evaluate {} through that lens.", ctx.ticker));
+    }
     if let Some(roe) = f.roe {
         let pct = roe * 100.0;
         if pct > 25.0 { parts.push(format!("ROE of {pct:.0}% is exceptional. When you see this consistently, there's usually a moat.")); }
@@ -561,6 +666,16 @@ fn build_munger_narrative(ctx: &AgentContext, score: i32) -> String {
         if pct > 30.0 { parts.push(format!("Operating margin of {pct:.0}% shows real pricing power. Competitors can't touch this.")); }
         else if pct < 5.0 { parts.push("Thin operating margin suggests a commoditized business. No pricing power.".to_string()); }
     }
+    // News as signal vs noise
+    if !ctx.recent_headlines.is_empty() {
+        if let Some(ref tone_label) = ctx.rss_tone_label {
+            match tone_label.as_str() {
+                "Bearish" | "Somewhat-Bearish" => parts.push("The news cycle is negative. Remember: in the short run, the market is a voting machine. In the long run, a weighing machine. I weigh.".to_string()),
+                "Bullish" => parts.push("Positive sentiment is nice, but I've seen enthusiasm destroy more wealth than pessimism. The question remains: what is the quality of this business?".to_string()),
+                _ => {}
+            }
+        }
+    }
     if score >= 8 { parts.push("This is the kind of quality business I want to own forever. The key question is price.".to_string()); }
     else if score <= -2 { parts.push("Invert, always invert. What would destroy this investment? Too many things. Pass.".to_string()); }
     if parts.is_empty() { "The quality picture is mixed. I'd keep watching but not act.".to_string() } else { parts.join(" ") }
@@ -569,6 +684,11 @@ fn build_munger_narrative(ctx: &AgentContext, score: i32) -> String {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+fn truncate_str(s: &str, max: usize) -> String {
+    if s.chars().count() <= max { s.to_string() }
+    else { format!("{}...", s.chars().take(max).collect::<String>()) }
+}
 
 fn format_large_number(n: i64) -> String {
     let f = n as f64;
@@ -735,6 +855,24 @@ fn format_context_for_llm(ctx: &AgentContext) -> String {
     }
     if let Some(ref theme) = ctx.dominant_theme {
         lines.push(format!("Dominant Astrological Theme: {theme}"));
+    }
+
+    // v10.0 context enrichment
+    if let Some(ref sector) = ctx.sector {
+        lines.push(format!("Sector: {sector}"));
+    }
+    if let Some(ref industry) = ctx.industry {
+        lines.push(format!("Industry: {industry}"));
+    }
+    if let Some(tone) = ctx.rss_tone_score {
+        let label = ctx.rss_tone_label.as_deref().unwrap_or("—");
+        lines.push(format!("RSS Tone Sentiment: {label} ({tone:+.2})"));
+    }
+    if !ctx.recent_headlines.is_empty() {
+        lines.push("\n--- Recent Headlines ---".to_string());
+        for h in &ctx.recent_headlines {
+            lines.push(format!("- {h}"));
+        }
     }
 
     if let Some(ref f) = ctx.fundamentals {

@@ -16,6 +16,15 @@ use std::sync::Arc;
 
 use crate::indicators::Indicators;
 
+/// One day in the 90-day astro forecast timeline (v11.0).
+#[derive(Debug, Clone)]
+pub struct ForecastDay {
+    pub date:       chrono::NaiveDate,
+    pub score:      f32,
+    pub label:      String,
+    pub key_aspect: Option<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChartTimeframe {
     OneMonth,
@@ -116,11 +125,13 @@ pub struct Dashboard {
     pub astro_score:       Option<AstroScore>,
     pub astro_aspects:     Vec<serde_json::Value>, // decoded from active_aspects JSONB
     pub natal_positions:   Vec<NatalPosition>,
+    pub natal_angles:      Option<pursuit_week4_automation::models::NatalAngles>,
     pub daily_transits:    Vec<DailyTransit>,
     pub retrograde_events: Vec<RetroEvent>,
     pub horoscope:         Option<pursuit_week4_automation::astrology::interpretation::HoroscopeReading>,
     pub macro_data:        Vec<MacroIndicator>,
     pub short_interest:    Option<ShortInterest>,
+    pub rss_tone:          Option<pursuit_week4_automation::models::RssToneScore>,
     pub fundamentals:      Option<FundamentalMetric>,
     // DCF calculator inputs (user-editable strings for text_input widgets)
     pub dcf_growth_rate:    String,
@@ -188,6 +199,8 @@ pub struct Dashboard {
     pub backtest_result:          Option<BacktestResult>,
     pub backtest_buy_input:       String,
     pub backtest_sell_input:      String,
+    // Astro Forecast (v11.0)
+    pub forecast:                 Vec<ForecastDay>,
     // Portfolio P&L
     pub portfolio_pnl:            Vec<PortfolioPnlRow>,
     // Strategy Builder
@@ -270,11 +283,13 @@ impl Default for Dashboard {
             astro_score:     None,
             astro_aspects:   vec![],
             natal_positions: vec![],
+            natal_angles:    None,
             daily_transits:  vec![],
             retrograde_events: vec![],
             horoscope:         None,
             macro_data:        vec![],
             short_interest:    None,
+            rss_tone:          None,
             fundamentals:      None,
             dcf_growth_rate:    "10".to_string(),
             dcf_growth_years:   "5".to_string(),
@@ -335,6 +350,7 @@ impl Default for Dashboard {
             backtest_result:          None,
             backtest_buy_input:       "65".to_string(),
             backtest_sell_input:      "35".to_string(),
+            forecast:                 vec![],
             portfolio_pnl:            vec![],
             strategy:                 Strategy::default(),
             strategy_result:          None,
@@ -403,12 +419,14 @@ pub enum Message {
     MarketFGLoaded(Result<(f32, String), String>),
     AstroScoreLoaded(Result<Option<AstroScore>, String>),
     NatalChartLoaded(Result<Vec<NatalPosition>, String>),
+    NatalAnglesLoaded(Result<Option<pursuit_week4_automation::models::NatalAngles>, String>),
     TransitsLoaded(Result<Vec<DailyTransit>, String>),
     RetroEventsLoaded(Result<Vec<RetroEvent>, String>),
     AstroAspectsLoaded(Result<serde_json::Value, String>),
     HoroscopeLoaded(Result<Option<pursuit_week4_automation::astrology::interpretation::HoroscopeReading>, String>),
     MacroDataLoaded(Result<Vec<MacroIndicator>, String>),
     ShortInterestLoaded(Result<Option<ShortInterest>, String>),
+    RssToneLoaded(Result<Option<pursuit_week4_automation::models::RssToneScore>, String>),
     FundamentalsLoaded(Result<Option<FundamentalMetric>, String>),
     DcfGrowthRateInput(String),
     DcfGrowthYearsInput(String),
@@ -485,6 +503,7 @@ pub enum Message {
     BacktestSellInput(String),
     RunBacktest,
     ClearBacktest,
+    ForecastComputed(Vec<ForecastDay>),
     BacktestDataLoaded(Result<Vec<crate::db::BacktestDayRow>, String>),
     // Portfolio P&L
     PortfolioPnlLoaded(Result<Vec<PortfolioPnlRow>, String>),

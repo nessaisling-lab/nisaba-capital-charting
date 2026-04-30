@@ -1,7 +1,7 @@
 use chrono::Utc;
 use pursuit_week4_automation::models::{
     AnalystRating, AstroScore, EarningsDate, MacroIndicator, PriceRow,
-    SentimentScore, ShortInterest,
+    RssToneScore, SentimentScore, ShortInterest,
 };
 
 use crate::indicators::Indicators;
@@ -20,6 +20,7 @@ pub fn generate_signal_bullets(
     short_interest: &Option<ShortInterest>,
     analyst_rating: &Option<AnalystRating>,
     earnings: &[EarningsDate],
+    rss_tone: &Option<RssToneScore>,
 ) -> Vec<String> {
     let mut bullets: Vec<String> = Vec::new();
 
@@ -113,13 +114,23 @@ pub fn generate_signal_bullets(
         }
     }
 
-    // News sentiment
+    // News sentiment (Alpha Vantage)
     if let Some(s) = sentiment {
         let label = s.sentiment_label.as_deref().unwrap_or("—");
         let score = s.sentiment_score.as_ref()
             .and_then(|v| v.to_string().parse::<f32>().ok())
             .unwrap_or(0.0);
         bullets.push(format!("News sentiment: {label} ({score:+.2})"));
+    }
+
+    // RSS tone sentiment (keyword-based, from 25 feeds)
+    if let Some(tone) = rss_tone {
+        let label = tone.tone_label.as_deref().unwrap_or("—");
+        let score = tone.tone_score.as_ref()
+            .and_then(|v| v.to_string().parse::<f32>().ok())
+            .unwrap_or(0.0);
+        let count = tone.article_count.unwrap_or(0);
+        bullets.push(format!("RSS tone: {label} ({score:+.2}) from {count} article(s)"));
     }
 
     // Analyst ratings

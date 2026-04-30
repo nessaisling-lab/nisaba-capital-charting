@@ -65,8 +65,39 @@ impl Dashboard {
             .width(Length::Fixed(400.0))
             .height(Length::Fixed(400.0));
 
+            // v11.0: Sun/Moon/Rising "Big Three" summary
+            let big_three_row: Element<Message> = {
+                let sun_sign = self.natal_positions.iter()
+                    .find(|p| p.planet == "Sun")
+                    .map(|p| p.sign.as_str())
+                    .unwrap_or("—");
+                let moon_sign = self.natal_positions.iter()
+                    .find(|p| p.planet == "Moon")
+                    .map(|p| p.sign.as_str())
+                    .unwrap_or("—");
+                let rising_sign = self.natal_angles.as_ref()
+                    .map(|a| {
+                        let (sign, _) = pursuit_week4_automation::astrology::ephemeris::longitude_to_sign(a.ascendant);
+                        sign
+                    })
+                    .unwrap_or("—");
+
+                let gold = theme::palette().gold;
+                row![
+                    text(format!("☉ Sun: {sun_sign}")).font(font::INTER).size(theme::text_base()).color(gold),
+                    text("  ·  ").size(theme::text_base()),
+                    text(format!("☽ Moon: {moon_sign}")).font(font::INTER).size(theme::text_base()).color(gold),
+                    text("  ·  ").size(theme::text_base()),
+                    text(format!("↑ Rising: {rising_sign}")).font(font::INTER).size(theme::text_base()).color(gold),
+                ]
+                .spacing(0)
+                .align_y(Alignment::Center)
+                .into()
+            };
+
             let wheel_col = column![
                 text(format!("{} Birth Chart", self.selected_ticker)).font(font::DISPLAY).size(theme::text_lg()),
+                big_three_row,
                 natal_wheel,
                 build_wheel_legend(),
             ]
@@ -232,19 +263,30 @@ impl Dashboard {
                         .iter()
                         .rev()
                         .take(10)
-                        .map(|t| {
+                        .flat_map(|t| {
                             let color = if t.return_pct > 0.0 {
                                 theme::ZONE_OPTIMAL
                             } else {
                                 theme::ZONE_MISALIGNED
                             };
-                            text(format!(
-                                "  {} @ ${:.2}  ->  {} @ ${:.2}  ({:+.1}%)",
-                                t.buy_date, t.buy_price, t.sell_date, t.sell_price, t.return_pct
-                            ))
-                            .size(theme::text_sm())
-                            .color(color)
-                            .into()
+                            let mut items: Vec<Element<Message>> = vec![
+                                text(format!(
+                                    "  {} @ ${:.2}  ->  {} @ ${:.2}  ({:+.1}%)",
+                                    t.buy_date, t.buy_price, t.sell_date, t.sell_price, t.return_pct
+                                ))
+                                .size(theme::text_sm())
+                                .color(color)
+                                .into()
+                            ];
+                            // v11.0: Show correlated real-world events
+                            for ev in &t.events {
+                                items.push(
+                                    text(format!("    \u{25AB} {ev}"))
+                                        .size(theme::text_xs())
+                                        .into()
+                                );
+                            }
+                            items
                         })
                         .collect();
 
@@ -435,10 +477,68 @@ impl Dashboard {
             .into()
         };
 
-        // ── Final assembly ─────────────────���────────────────
+        // ── Forecast Timeline (v11.0) ─────────────────────
+        let forecast_section: Element<'_, Message> = if self.forecast.is_empty() {
+            text("Computing forecast...").size(theme::text_sm()).into()
+        } else {
+            let mut windows: Vec<String> = Vec::new();
+            let mut i = 0;
+            while i < self.forecast.len() && windows.len() < 6 {
+                let day = &self.forecast[i];
+                if day.score > 60.0 || day.score < 40.0 {
+                    let zone = if day.score > 60.0 { "Favorable" } else { "Unfavorable" };
+                    let start = day.date;
+                    let mut end = start;
+                    while i + 1 < self.forecast.len() {
+                        let next = &self.forecast[i + 1];
+                        if (day.score > 60.0 && next.score > 60.0) || (day.score < 40.0 && next.score < 40.0) {
+                            end = next.date;
+                            i += 1;
+                        } else { break; }
+                    }
+                    let hint = day.key_aspect.as_deref().unwrap_or("");
+                    if start == end {
+                        windows.push(format!("{zone}: {start}  {hint}"));
+                    } else {
+                        windows.push(format!("{zone}: {start} \u{2192} {end}  {hint}"));
+                    }
+                }
+                i += 1;
+            }
+            let window_items: Vec<Element<Message>> = windows.iter().map(|w| {
+                let color = if w.starts_with("Favorable") { theme::ZONE_OPTIMAL } else { theme::ZONE_MISALIGNED };
+                text(format!("  \u{2022} {w}")).size(theme::text_sm()).color(color).into()
+            }).collect();
+            let key_aspects: Vec<Element<Message>> = self.forecast.iter()
+                .take(30)
+                .filter_map(|d| d.key_aspect.as_ref().map(|a| (d.date, a)))
+                .take(5)
+                .map(|(date, aspect)| text(format!("  {date}: {aspect}")).size(theme::text_xs()).into())
+                .collect();
+            let mut col = column![
+                text(format!("90-Day Forecast: {}", self.selected_ticker))
+                    .font(font::DISPLAY).size(theme::text_md()),
+                horizontal_rule(1),
+            ].spacing(4);
+            if window_items.is_empty() {
+                col = col.push(text("  No strong signals in next 90 days.").size(theme::text_sm()));
+            } else {
+                col = col.push(Column::with_children(window_items).spacing(2));
+            }
+            if !key_aspects.is_empty() {
+                col = col.push(text("Key Aspects (30d):").size(theme::text_sm()));
+                col = col.push(Column::with_children(key_aspects).spacing(1));
+            }
+            col.into()
+        };
+
+        // ── Final assembly ─────────────────────────────────
         column![
             eyebrow("NATAL CHART"),
             astrology_section,
+            section_rule(),
+            eyebrow("FORECAST"),
+            container(forecast_section).padding([10, 14]),
             section_rule(),
             eyebrow("ASTRO CALENDAR"),
             container(calendar_section).padding([10, 14]),

@@ -68,11 +68,30 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
                     astro_score: r.astro_score,
                 })
                 .collect();
-            let result = crate::backtest::run_backtest(
+            let mut result = crate::backtest::run_backtest(
                 &state.selected_ticker,
                 &days,
                 &state.backtest_config,
             );
+            // v11.0: Correlate trades with real-world events from loaded news
+            for trade in &mut result.trades {
+                let mut events: Vec<String> = Vec::new();
+                for article in &state.news {
+                    let pub_date = article.published_at.date_naive();
+                    if pub_date >= trade.buy_date && pub_date <= trade.sell_date {
+                        events.push(article.headline.clone());
+                    }
+                }
+                for filing in &state.filings_8k {
+                    if filing.filed_date >= trade.buy_date && filing.filed_date <= trade.sell_date {
+                        let desc = filing.items.as_deref().unwrap_or("8-K filing");
+                        events.push(format!("SEC: {desc}"));
+                    }
+                }
+                // Keep top 3 events per trade
+                events.truncate(3);
+                trade.events = events;
+            }
             state.backtest_result = Some(result);
             Some(Task::none())
         }

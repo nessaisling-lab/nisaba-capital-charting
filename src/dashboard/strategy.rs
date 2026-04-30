@@ -202,6 +202,7 @@ pub fn run_strategy_backtest(
                 sell_date: day.date,
                 sell_price: day.close,
                 return_pct: (day.close - buy_price) / buy_price * 100.0,
+                events: vec![],
             });
             capital = sell_val;
             shares = 0.0;
@@ -231,6 +232,7 @@ pub fn run_strategy_backtest(
             sell_date: last.date,
             sell_price: last.close,
             return_pct: (last.close - buy_price) / buy_price * 100.0,
+            events: vec![],
         });
         capital = shares * last.close;
     }

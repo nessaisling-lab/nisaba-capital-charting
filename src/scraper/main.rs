@@ -16,6 +16,7 @@ mod paper_engine;
 mod polymarket;
 mod prices;
 mod rss_news;
+mod rss_tone;
 mod sentiment;
 mod short_interest;
 mod ticker_seed;
@@ -398,6 +399,10 @@ async fn fetch_single_ticker(
         }
     }
 
+    // 5b. RSS tone sentiment (supplements AV, free)
+    println!("[{ticker}] Phase 5b: RSS tone sentiment...");
+    rss_tone::compute_rss_tone(Arc::clone(&pool)).await;
+
     // 6. Lagrange composite score
     println!("[{ticker}] Phase 6: Lagrange score...");
     lagrange::compute_all_scores(Arc::clone(&pool)).await;
@@ -594,6 +599,9 @@ async fn run_all_fetches(
 
     println!("3.7 Fetching RSS news feeds (25 sources)...");
     rss_news::fetch_all_rss(Arc::clone(&pool), Arc::clone(&client)).await;
+
+    println!("3.7b Computing RSS tone sentiment...");
+    rss_tone::compute_rss_tone(Arc::clone(&pool)).await;
 
     println!("3.8 Fetching Polymarket prediction markets...");
     polymarket::fetch_all_polymarket(Arc::clone(&pool), Arc::clone(&client)).await;

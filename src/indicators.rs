@@ -1,6 +1,6 @@
 //! Technical indicator math shared between the scraper and dashboard binaries.
 
-use crate::models::{AstroScore, MacroIndicator, PriceRow, SentimentScore, ShortInterest};
+use crate::models::{AstroScore, MacroIndicator, PriceRow, RssToneScore, SentimentScore, ShortInterest};
 
 // ---------------------------------------------------------------------------
 // Core math
@@ -132,11 +132,16 @@ impl Indicators {
 // Lagrange Score — shared computation used by both scraper and dashboard
 // ---------------------------------------------------------------------------
 //
-// Component weights (v2.0.5 rebalance — astrology leads):
+// Base weights (v2.0.5 — astrology leads):
 //   Astrology    40%  (today's astro_score — lead signal)
 //   Financial    25%  (RSI + momentum + MACD + sentiment — verification)
 //   Macro        20%  (VIX + yield curve)
 //   Short Squeeze 15% (short % × price direction)
+//
+// v10.0 "The Signal": adaptive weighting. When sentiment or short-interest
+// data is missing, their weight is redistributed proportionally among present
+// components instead of defaulting to neutral 50 (which compressed scores
+// into the 45-73 range). RSS tone serves as sentiment fallback.
 //
 // Labels: Misaligned / Unfavorable / Neutral / Favorable / Optimal
 
@@ -147,10 +152,23 @@ pub fn compute_lagrange_score(
     astro_score: &Option<AstroScore>,
     macro_data: &[MacroIndicator],
     short_interest: &Option<ShortInterest>,
+    rss_tone: &Option<RssToneScore>,
 ) -> (f32, String, LagrangeComponents) {
     let latest = rows.first()
         .and_then(|r| r.close.to_string().parse::<f32>().ok())
         .unwrap_or(0.0);
+
+    // --- Sentiment: AV first, RSS tone fallback ---
+    let av_sent = sentiment.as_ref()
+        .and_then(|s| s.sentiment_score.as_ref())
+        .and_then(|v| v.to_string().parse::<f32>().ok())
+        .map(|v| (v + 1.0) * 50.0); // -1..+1 → 0..100
+    let rss_sent = rss_tone.as_ref()
+        .and_then(|r| r.tone_score.as_ref())
+        .and_then(|v| v.to_string().parse::<f32>().ok())
+        .map(|v| (v + 1.0) * 50.0);
+    let has_sentiment = av_sent.is_some() || rss_sent.is_some();
+    let sent_score = av_sent.or(rss_sent).unwrap_or(50.0);
 
     // Financial component (RSI + momentum + MACD + sentiment)
     let rsi_v = Indicators::last(&indicators.rsi_vals).unwrap_or(50.0);
@@ -163,13 +181,14 @@ pub fn compute_lagrange_score(
     let macd_score = if latest > 0.0 {
         ((macd_v - sig_v) / latest * 500.0 + 50.0).clamp(0.0, 100.0)
     } else { 50.0 };
-    let sent_score = sentiment.as_ref()
-        .and_then(|s| s.sentiment_score.as_ref())
-        .and_then(|v| v.to_string().parse::<f32>().ok())
-        .map(|v| (v + 1.0) * 50.0)
-        .unwrap_or(50.0);
-    let fin_score = (rsi_v * 0.30 + momentum * 0.30 + macd_score * 0.20 + sent_score * 0.20)
-        .clamp(0.0, 100.0);
+    // Adaptive: if sentiment data exists, include it (20%); otherwise RSI+momentum+MACD
+    // split the full weight among available sub-components
+    let fin_score = if has_sentiment {
+        rsi_v * 0.30 + momentum * 0.30 + macd_score * 0.20 + sent_score * 0.20
+    } else {
+        // No sentiment at all → redistribute to technical sub-components
+        rsi_v * 0.375 + momentum * 0.375 + macd_score * 0.25
+    }.clamp(0.0, 100.0);
 
     // Astrology component
     let astro = astro_score
@@ -192,8 +211,8 @@ pub fn compute_lagrange_score(
         .unwrap_or(50.0);
     let macro_score = (vix_score * 0.6 + spread_score * 0.4).clamp(0.0, 100.0);
 
-    // Short squeeze component
-    let short_score = short_interest.as_ref().and_then(|si| {
+    // Short squeeze component — returns None if no short data
+    let short_computed = short_interest.as_ref().and_then(|si| {
         let pct = si.short_pct.as_ref()?.to_string().parse::<f32>().ok()?;
         let price_rising = rows.len() >= 5 && {
             let old = rows[4].close.to_string().parse::<f32>().unwrap_or(latest);
@@ -202,10 +221,26 @@ pub fn compute_lagrange_score(
         let base: f32 = if pct > 30.0 { 75.0 } else if pct > 20.0 { 65.0 } else if pct > 10.0 { 50.0 } else { 40.0 };
         let bonus: f32 = if price_rising && pct > 15.0 { 15.0 } else { 0.0 };
         Some((base + bonus).clamp(0.0, 100.0))
-    }).unwrap_or(50.0);
+    });
+    let has_short = short_computed.is_some();
+    let short_score = short_computed.unwrap_or(50.0);
 
-    // v2.0.5: Astrology leads (40%), Financial verifies (25%), Macro context (20%), Short squeeze (15%)
-    let score = (astro * 0.40 + fin_score * 0.25 + macro_score * 0.20 + short_score * 0.15)
+    // --- Adaptive weighting (v10.0) ---
+    // Base weights: astro 0.40, fin 0.25, macro 0.20, short 0.15
+    // Only include short squeeze weight if we have real data.
+    // Astro, fin, and macro are always computed (from local/price/FRED data).
+    let mut components: Vec<(f32, f32)> = vec![
+        (astro,       0.40),
+        (fin_score,   0.25),
+        (macro_score, 0.20),
+    ];
+    if has_short {
+        components.push((short_score, 0.15));
+    }
+    let total_weight: f32 = components.iter().map(|(_, w)| w).sum();
+    let score = components.iter()
+        .map(|(s, w)| s * w / total_weight)
+        .sum::<f32>()
         .clamp(0.0, 100.0);
 
     let label = match score as u32 {
@@ -224,6 +259,7 @@ pub fn compute_lagrange_score(
         macro_score,
         short_score,
         concordance,
+        rss_tone_used: !has_sentiment && rss_sent.is_none(),
     };
 
     (score, label, components)
@@ -231,11 +267,13 @@ pub fn compute_lagrange_score(
 
 /// Breakdown of each Lagrange component — stored in lagrange_history for debugging.
 pub struct LagrangeComponents {
-    pub fin_score:    f32,
-    pub astro_score:  f32,
-    pub macro_score:  f32,
-    pub short_score:  f32,
-    pub concordance:  Concordance,
+    pub fin_score:      f32,
+    pub astro_score:    f32,
+    pub macro_score:    f32,
+    pub short_score:    f32,
+    pub concordance:    Concordance,
+    /// True when neither AV sentiment nor RSS tone had data (fully adaptive).
+    pub rss_tone_used:  bool,
 }
 
 // ---------------------------------------------------------------------------

@@ -18,9 +18,34 @@ pub(crate) fn handle(state: &mut Dashboard, message: &Message) -> Option<Task<Me
 
         Message::NatalChartLoaded(Ok(p)) => {
             state.natal_positions = p.clone();
-            Some(Task::none())
+            // v11.0: Trigger 90-day forecast computation
+            if !p.is_empty() {
+                let ticker = state.selected_ticker.clone();
+                let positions = p.clone();
+                Some(Task::perform(
+                    async move {
+                        tokio::task::spawn_blocking(move || {
+                            crate::update::helpers::compute_forecast(ticker, positions)
+                        }).await.unwrap_or_default()
+                    },
+                    Message::ForecastComputed,
+                ))
+            } else {
+                Some(Task::none())
+            }
         }
         Message::NatalChartLoaded(Err(_)) => Some(Task::none()),
+
+        Message::ForecastComputed(days) => {
+            state.forecast = days.clone();
+            Some(Task::none())
+        }
+
+        Message::NatalAnglesLoaded(Ok(a)) => {
+            state.natal_angles = a.clone();
+            Some(Task::none())
+        }
+        Message::NatalAnglesLoaded(Err(_)) => Some(Task::none()),
 
         Message::TransitsLoaded(Ok(t)) => {
             state.daily_transits = t.clone();

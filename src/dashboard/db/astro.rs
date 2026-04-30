@@ -1,6 +1,6 @@
 use crate::error::SqlResultExt;
 use chrono::Utc;
-use pursuit_week4_automation::models::{AstroScore, DailyTransit, NatalPosition};
+use pursuit_week4_automation::models::{AstroScore, DailyTransit, NatalAngles, NatalPosition};
 use sqlx::PgPool;
 use std::sync::Arc;
 
@@ -28,6 +28,16 @@ pub async fn fetch_natal_chart(pool: Arc<PgPool>, ticker: String) -> Result<Vec<
     .fetch_all(pool.as_ref())
     .await
     .ctx("fetch_natal_chart")
+}
+
+pub async fn fetch_natal_angles(pool: Arc<PgPool>, ticker: String) -> Result<Option<NatalAngles>, String> {
+    sqlx::query_as::<_, NatalAngles>(
+        "SELECT ticker, ascendant, mc FROM natal_angles WHERE ticker = $1",
+    )
+    .bind(&ticker)
+    .fetch_optional(pool.as_ref())
+    .await
+    .ctx("fetch_natal_angles")
 }
 
 pub async fn fetch_daily_transits(pool: Arc<PgPool>) -> Result<Vec<DailyTransit>, String> {

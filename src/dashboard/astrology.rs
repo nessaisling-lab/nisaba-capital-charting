@@ -402,17 +402,39 @@ pub fn build_transits_section<'a>(
 // ---------------------------------------------------------------------------
 
 pub fn build_wheel_legend<'a>() -> Element<'a, Message> {
-    row![
-        text("●").size(theme::text_base()).color(theme::NATAL_GOLD),
-        text("Natal (IPO)").size(theme::text_sm()),
-        iced::widget::Space::with_width(Length::Fixed(12.0)),
-        text("●").size(theme::text_base()).color(theme::TRANSIT_BLUE),
-        text("Today's transits").size(theme::text_sm()),
-        iced::widget::Space::with_width(Length::Fixed(12.0)),
-        text("●").size(theme::text_base()).color(theme::RETROGRADE_RED),
-        text("Retrograde").size(theme::text_sm()),
-    ]
-    .spacing(4)
-    .align_y(Alignment::Center)
-    .into()
+    // v11.0: Zodiac sign band with element colors
+    let zodiac_row = row![
+        text("\u{2648}").size(theme::text_base()).color(SIGN_COLORS[0]),
+        text("\u{2649}").size(theme::text_base()).color(SIGN_COLORS[1]),
+        text("\u{264A}").size(theme::text_base()).color(SIGN_COLORS[2]),
+        text("\u{264B}").size(theme::text_base()).color(SIGN_COLORS[3]),
+        text("\u{264C}").size(theme::text_base()).color(SIGN_COLORS[4]),
+        text("\u{264D}").size(theme::text_base()).color(SIGN_COLORS[5]),
+        text("\u{264E}").size(theme::text_base()).color(SIGN_COLORS[6]),
+        text("\u{264F}").size(theme::text_base()).color(SIGN_COLORS[7]),
+        text("\u{2650}").size(theme::text_base()).color(SIGN_COLORS[8]),
+        text("\u{2651}").size(theme::text_base()).color(SIGN_COLORS[9]),
+        text("\u{2652}").size(theme::text_base()).color(SIGN_COLORS[10]),
+        text("\u{2653}").size(theme::text_base()).color(SIGN_COLORS[11]),
+    ].spacing(3);
+
+    // Dot legend + planet symbols in one compact row
+    let legend_row = row![
+        text("\u{25CF}").size(theme::text_sm()).color(theme::NATAL_GOLD),
+        text("Natal").size(theme::text_xs()),
+        text(" \u{25CF}").size(theme::text_sm()).color(theme::TRANSIT_BLUE),
+        text("Transit").size(theme::text_xs()),
+        text(" \u{25CF}").size(theme::text_sm()).color(theme::RETROGRADE_RED),
+        text("Rx").size(theme::text_xs()),
+    ].spacing(2).align_y(Alignment::Center);
+
+    let planet_row = row![
+        text("\u{2609}Sun \u{263D}Moon \u{263F}Mer \u{2640}Ven \u{2642}Mar \u{2643}Jup \u{2644}Sat \u{2645}Ura \u{2646}Nep \u{2647}Plu")
+            .size(theme::text_xs()),
+    ];
+
+    column![zodiac_row, legend_row, planet_row]
+        .spacing(2)
+        .align_x(Alignment::Center)
+        .into()
 }

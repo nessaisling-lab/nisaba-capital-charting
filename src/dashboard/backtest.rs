@@ -46,6 +46,8 @@ pub struct Trade {
     pub sell_date: NaiveDate,
     pub sell_price: f64,
     pub return_pct: f64,
+    /// v11.0: Real-world events (news headlines, filings) during this trade window.
+    pub events: Vec<String>,
 }
 
 /// Full backtest results.
@@ -120,6 +122,7 @@ pub fn run_backtest(
                 sell_date: day.date,
                 sell_price: day.close,
                 return_pct: ret_pct,
+                events: vec![],
             });
             capital = sell_value;
             shares = 0.0;
@@ -156,6 +159,7 @@ pub fn run_backtest(
             sell_date: last.date,
             sell_price: last.close,
             return_pct: ret_pct,
+            events: vec![],
         });
         capital = sell_value;
     }

@@ -2,7 +2,7 @@ use crate::error::SqlResultExt;
 use pursuit_week4_automation::models::{
     AnalystRating, EarningsDate, FilingRow, FundamentalMetric, GdeltEvent, HoldingRow,
     InsiderTradeRow, MacroIndicator, NewsArticle, PolymarketMarket, PriceRow,
-    RssArticle, SentimentScore, ShortInterest,
+    RssArticle, RssToneScore, SentimentScore, ShortInterest,
 };
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -104,6 +104,16 @@ pub async fn fetch_short_interest(pool: Arc<PgPool>, ticker: String) -> Result<O
     )
     .bind(&ticker)
     .fetch_optional(pool.as_ref()).await.ctx("fetch_short_interest")
+}
+
+pub async fn fetch_rss_tone(pool: Arc<PgPool>, ticker: String) -> Result<Option<RssToneScore>, String> {
+    sqlx::query_as::<_, RssToneScore>(
+        "SELECT ticker, score_date, tone_score, tone_label, article_count \
+         FROM rss_tone_scores WHERE ticker = $1 \
+         ORDER BY score_date DESC LIMIT 1",
+    )
+    .bind(&ticker)
+    .fetch_optional(pool.as_ref()).await.ctx("fetch_rss_tone")
 }
 
 #[allow(dead_code)] // kept for future watchlist-wide earnings calendar view
