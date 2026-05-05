@@ -310,14 +310,16 @@ impl Dashboard {
                     ..Default::default()
                 });
             let bar_row = row![fill_bar, track_rest].width(Length::Fill);
-            // F4 — ambient sparkle layer over the whole bar (low alpha so
-            // it reads as motion without obscuring fill state).
+            // F4+G — sparkle overlay boosted: alpha 0.45→0.85, taller layer,
+            // animated seed so particles re-position each frame instead of
+            // sitting at fixed dots. User: "make it more visible."
+            let sparkle_seed = (elapsed * 8.0).floor() as u32;
             let sparkle_overlay = Canvas::new(TabSparkle {
-                alpha: 0.45,
-                seed: 7,
+                alpha: 0.85,
+                seed: sparkle_seed,
             })
             .width(Length::Fill)
-            .height(Length::Fixed(8.0));
+            .height(Length::Fixed(14.0));
             let bar_with_sparkle = stack![bar_row, sparkle_overlay];
             let percent_text = text(format!("{phase_label}  {}%", fill_pct))
                 .size(theme::text_xs())

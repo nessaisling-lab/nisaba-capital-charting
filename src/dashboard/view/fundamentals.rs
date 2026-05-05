@@ -317,7 +317,7 @@ impl Dashboard {
                 rule::horizontal(1),
                 Column::with_children(metrics_rows).spacing(3),
                 rule::horizontal(1),
-                text(format!("On the stars: {}", analysis.astro_take)).size(theme::text_xs()),
+                text(format!("Closing thought: {}", analysis.astro_take)).size(theme::text_xs()),
             ].spacing(6);
             if let Some(ref err) = self.agent_llm_error {
                 content = content.push(text(format!("LLM error: {}", err)).size(theme::text_xs()).color(theme::ZONE_MISALIGNED));

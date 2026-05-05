@@ -297,33 +297,57 @@ impl canvas::Program<Message> for TabSparkle {
         let w = bounds.width;
         let h = bounds.height;
 
-        // 8 particles at deterministic positions seeded per tab (v9.0: up from 5)
-        let particles: [(f32, f32, f32); 8] = [
-            (0.10, 0.25, 2.5),
-            (0.30, 0.65, 1.8),
-            (0.50, 0.20, 3.0),
-            (0.65, 0.75, 2.0),
-            (0.80, 0.35, 3.5),
-            (0.20, 0.80, 2.2),
-            (0.90, 0.50, 1.5),
-            (0.45, 0.45, 4.0),
+        // v11.6.G — 12 particles (up from 8), bigger sizes, gold + soft-white
+        // mix, brighter alpha. User: "make it like a little star or sparkly
+        // animation so you can see it more visibly."
+        let particles: [(f32, f32, f32, bool); 12] = [
+            (0.08, 0.20, 3.5, true),  (0.22, 0.55, 2.4, false),
+            (0.36, 0.18, 4.2, true),  (0.50, 0.62, 2.8, false),
+            (0.62, 0.30, 3.0, true),  (0.74, 0.78, 2.2, false),
+            (0.85, 0.40, 4.5, true),  (0.92, 0.20, 2.0, false),
+            (0.18, 0.82, 3.2, false), (0.40, 0.45, 5.0, true),
+            (0.58, 0.85, 2.6, false), (0.78, 0.55, 3.8, true),
         ];
 
-        for (i, &(fx, fy, size)) in particles.iter().enumerate() {
-            // Faster initial burst: 0.08 stagger (was 0.12), 4× fade-in speed
-            let delay = i as f32 * 0.08;
-            let particle_alpha = ((self.alpha - delay) * 4.0).clamp(0.0, 1.0);
+        let soft_white = Color { r: 1.0, g: 0.95, b: 0.82, a: 1.0 };
+
+        for (i, &(fx, fy, size, is_gold)) in particles.iter().enumerate() {
+            let delay = i as f32 * 0.05;  // tighter stagger (was 0.08)
+            let particle_alpha = ((self.alpha - delay) * 5.0).clamp(0.0, 1.0); // 5× fade-in (was 4×)
             if particle_alpha < 0.01 { continue; }
 
-            // Offset positions slightly by seed for variety across tabs
             let seed_f = (self.seed.wrapping_mul(2654435761_u32.wrapping_add(i as u32))) as f32 / u32::MAX as f32;
             let px = (fx + seed_f * 0.2 - 0.1).clamp(0.05, 0.95) * w;
-            // Gravity drift: particles drift downward as alpha progresses
-            let gravity = self.alpha * 2.5;  // pixels of downward drift
+            let gravity = self.alpha * 2.5;
             let py = ((fy + seed_f * 0.15 - 0.075).clamp(0.05, 0.95) * h) + gravity;
 
-            let dot = canvas::Path::circle(Point::new(px, py.min(h - 1.0)), size);
-            frame.fill(&dot, Color { a: particle_alpha * 0.55, ..p.gold });
+            // 4-pointed star sparkle (cross of two lines) for the bigger
+            // gold particles; circles for the soft-white sub-particles.
+            let center = Point::new(px, py.min(h - 1.0));
+            let base_color = if is_gold { p.gold } else { soft_white };
+            let final_alpha = particle_alpha * if is_gold { 0.85 } else { 0.65 };
+            let color = Color { a: final_alpha, ..base_color };
+
+            if is_gold && size >= 3.0 {
+                let r = size;
+                let cross = canvas::Path::new(|b| {
+                    b.move_to(Point::new(center.x - r, center.y));
+                    b.line_to(Point::new(center.x + r, center.y));
+                    b.move_to(Point::new(center.x, center.y - r));
+                    b.line_to(Point::new(center.x, center.y + r));
+                });
+                frame.stroke(&cross, canvas::Stroke {
+                    style: canvas::Style::Solid(color),
+                    width: 1.4,
+                    line_cap: canvas::LineCap::Round,
+                    ..Default::default()
+                });
+                let dot = canvas::Path::circle(center, size * 0.4);
+                frame.fill(&dot, color);
+            } else {
+                let dot = canvas::Path::circle(center, size * 0.6);
+                frame.fill(&dot, color);
+            }
         }
 
         vec![frame.into_geometry()]

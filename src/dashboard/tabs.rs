@@ -71,7 +71,7 @@ impl Tab {
             Tab::Fundamentals => icons::BAR_CHART,
             Tab::Research     => icons::NEWSPAPER,
             Tab::Portfolio    => icons::BRIEFCASE,
-            Tab::PaperTrail   => icons::GRAPH_UP,
+            Tab::PaperTrail   => icons::RECEIPT,
             Tab::Encyclopedia => icons::BOOK_OPEN,
         }
     }

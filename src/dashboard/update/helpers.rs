@@ -65,20 +65,21 @@ impl Dashboard {
         }
     }
 
+    /// v11.6.D — fetch a 3-month window starting at calendar_year/month.
+    /// Stepping in 3-month increments (`CalendarPrev/NextMonth`) means each
+    /// page shows the next/previous quarter as one block.
     pub(crate) fn refresh_calendar(&self) -> Task<Message> {
         if let Some(pool) = &self.pool {
             let now = chrono::Local::now().date_naive();
             let start = chrono::NaiveDate::from_ymd_opt(self.calendar_year, self.calendar_month, 1)
                 .unwrap_or(now);
-            let end = if self.calendar_month == 12 {
-                chrono::NaiveDate::from_ymd_opt(self.calendar_year + 1, 1, 1)
-                    .and_then(|d| d.pred_opt())
-                    .unwrap_or(now)
-            } else {
-                chrono::NaiveDate::from_ymd_opt(self.calendar_year, self.calendar_month + 1, 1)
-                    .and_then(|d| d.pred_opt())
-                    .unwrap_or(now)
-            };
+            // End = last day of (calendar_month + 2). Wrap year if needed.
+            let mut end_year = self.calendar_year;
+            let mut end_month = self.calendar_month + 3;
+            while end_month > 12 { end_month -= 12; end_year += 1; }
+            let end = chrono::NaiveDate::from_ymd_opt(end_year, end_month, 1)
+                .and_then(|d| d.pred_opt())
+                .unwrap_or(now);
             Task::perform(
                 fetch_astro_calendar(Arc::clone(pool), self.selected_ticker.clone(), start, end),
                 Message::CalendarLoaded,

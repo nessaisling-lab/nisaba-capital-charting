@@ -242,25 +242,16 @@ fn analyze_buffett(ctx: &AgentContext) -> AgentAnalysis {
           (5.0, true, "Thin. Commodity-like business.", 0)],
         ("Razor-thin or negative. No pricing power.", -1));
 
-    let astro_take = match (ctx.astro_score, ctx.concordance.as_deref()) {
-        (Some(s), Some("Strong Confirm")) if s > 60.0 => format!(
-            "The stars suggest favorable conditions (score {s:.0}), and the fundamentals confirm it. \
-             When the cosmos and the balance sheet agree, I pay attention. But I never buy a stock \
-             because the stars say so. I buy because the business is wonderful at a fair price."
-        ),
-        (Some(s), Some("Divergence")) => format!(
-            "I note the astrological divergence (score {s:.0}). The stars and the numbers disagree. \
-             In my experience, the numbers win over the long term. I trust the balance sheet."
-        ),
-        (Some(s), _) if s > 70.0 => format!(
-            "The astrological reading is favorable ({s:.0}). That's a nice tailwind, but it's not \
-             the reason to buy. The reason is the business economics."
-        ),
-        (Some(s), _) if s < 30.0 => format!(
-            "The stars are cautious ({s:.0}). I don't make investment decisions based on planetary \
-             positions, but I do respect any signal that makes me think twice."
-        ),
-        _ => "I prefer to let the financial statements speak for themselves.".to_string(),
+    // v11.6.B — persona astro_take rewrite. Buffett speaks ONLY about
+    // his own framework (moat, owner earnings, price vs intrinsic value).
+    // Astro score remains visible elsewhere as data; the persona never
+    // narrates it. Keeps voice authentic.
+    let astro_take = match score {
+        s if s >= 5 => "Rule No. 1: never lose money. Rule No. 2: never forget Rule No. 1. The numbers here pass both tests.".to_string(),
+        s if s >= 3 => "Price is what you pay, value is what you get. I'd want a wider margin, but the business itself is sound.".to_string(),
+        s if s >= 0 => "Time is the friend of the wonderful business and the enemy of the mediocre. This one's borderline.".to_string(),
+        s if s >= -2 => "Our favorite holding period is forever — but only when the business deserves it. This one doesn't, yet.".to_string(),
+        _ => "It's only when the tide goes out that you discover who's been swimming naked. I'd rather not find out the hard way.".to_string(),
     };
 
     let verdict = score_to_verdict(score, &[(5, AgentVerdict::StrongBuy), (3, AgentVerdict::Buy),
@@ -393,14 +384,13 @@ fn analyze_graham(ctx: &AgentContext) -> AgentAnalysis {
           (0.0, true, "Token dividend.", 0)],
         ("No dividend. I prefer companies that share profits.", -1));
 
-    let astro_take = match ctx.astro_score {
-        Some(s) => format!(
-            "I note the astrological score of {s:.0}, but my margin of safety analysis doesn't \
-             depend on planetary positions. At the end of the day, a stock is worth the present \
-             value of its future cash flows, regardless of what Jupiter is doing. I'll stick \
-             to the numbers."
-        ),
-        None => "I have no opinion on astrology. The balance sheet is my horoscope.".to_string(),
+    // v11.6.B — Graham closing thought, pure quantitative voice.
+    let astro_take = match score {
+        s if s >= 7 => "The defensive investor's three rules: protect principal, accept adequate return, avoid speculation. This passes all three.".to_string(),
+        s if s >= 4 => "An adequate margin of safety. Not exciting, but excitement is the enemy of returns.".to_string(),
+        s if s >= 0 => "Mr. Market offers many prices each day. Today, this one isn't the bargain I'm looking for.".to_string(),
+        s if s >= -3 => "An investment operation is one which, upon thorough analysis, promises safety of principal. This fails on safety.".to_string(),
+        _ => "In the short run the market is a voting machine; in the long run, a weighing machine. The weight here is wanting.".to_string(),
     };
 
     let verdict = score_to_verdict(score, &[(7, AgentVerdict::StrongBuy), (4, AgentVerdict::Buy),
@@ -511,20 +501,13 @@ fn analyze_lynch(ctx: &AgentContext) -> AgentAnalysis {
           (1.5, false, "Moderate leverage. Normal for most industries.", 0)],
         ("Heavy debt. If growth stalls, this leverage becomes a problem.", -1));
 
-    let astro_take = match (ctx.astro_score, ctx.dominant_theme.as_deref()) {
-        (Some(s), Some(theme)) if s > 70.0 => format!(
-            "The astro reading says '{theme}' with a score of {s:.0}. I see astrology as a proxy \
-             for market psychology. When the stars align favorably, sentiment tends to follow. \
-             But I'd still want to walk into the store, try the product, and talk to the employees \
-             before buying the stock."
-        ),
-        (Some(s), _) if s < 30.0 => format!(
-            "Astro score of {s:.0} suggests headwinds. Markets are driven by psychology as much \
-             as fundamentals. If sentiment is turning against this company, I want to understand \
-             why before going against the crowd."
-        ),
-        _ => "I don't follow astrology closely, but I respect any signal that captures market mood. \
-              What matters most is: do I understand this business?".to_string(),
+    // v11.6.B — Lynch closing thought, voice anchored on his actual rules.
+    let astro_take = match score {
+        s if s >= 7 => "The simpler the story, the better. I can summarize this one in two sentences — that's a buying sign.".to_string(),
+        s if s >= 4 => "The investor's chief problem — and even his worst enemy — is likely to be himself. The numbers here are decent.".to_string(),
+        s if s >= 1 => "Your investor's edge is not something you get from Wall Street experts. It's something you already have. Look at this one yourself.".to_string(),
+        s if s >= -2 => "If you can't explain to a 10-year-old why you own a stock, you shouldn't own it. This one's hard to explain.".to_string(),
+        _ => "Selling your winners and holding your losers is like cutting the flowers and watering the weeds. This one's a weed.".to_string(),
     };
 
     let verdict = score_to_verdict(score, &[(7, AgentVerdict::StrongBuy), (4, AgentVerdict::Buy),
@@ -646,19 +629,20 @@ fn analyze_munger(ctx: &AgentContext) -> AgentAnalysis {
           (2.0, false, "I'd want to understand why they need this much debt.", -1)],
         ("Excessive leverage. Three things ruin smart people: liquor, ladies, and leverage.", -2));
 
-    let astro_take = match (ctx.astro_score, ctx.concordance.as_deref()) {
-        (Some(s), Some(conc)) => format!(
-            "The astrological alignment shows a score of {s:.0} with {conc} concordance. \
-             Interesting. I'm more interested in whether the business has a durable moat. \
-             The return on equity tells me more than the stars. But I never dismiss a data \
-             point entirely. The world is full of things we don't understand."
-        ),
-        (Some(s), _) => format!(
-            "Astro score of {s:.0}. I view this the way I view any unfamiliar mental model: \
-             with curiosity, not conviction. Show me the business quality and I'll show you \
-             my opinion."
-        ),
-        _ => "I don't need the stars to tell me if a business is good. I need the financial statements.".to_string(),
+    // v11.6.B — Munger closing thought, mental-model voice. Diversified
+    // across score band + ticker hash so consecutive tickers don't echo.
+    let mv = headline_variant(ctx, score, 4);
+    let astro_take = match (score, mv) {
+        (s, _) if s >= 8 => "Take a simple idea and take it seriously. Quality + reasonable price + competent management. This one has all three.".to_string(),
+        (s, 0) if s >= 5 => "The big money is not in the buying or the selling, but in the waiting. This is a wait-and-compound name.".to_string(),
+        (s, _) if s >= 5 => "If you are going to invest in stocks for the long term, you can take advantage of stock declines. Add on weakness.".to_string(),
+        (s, 0) if s >= 1 => "Knowing what you don't know is more useful than being brilliant. I don't fully know this one yet.".to_string(),
+        (s, 1) if s >= 1 => "It's remarkable how much long-term advantage people have gotten by trying to be consistently not stupid. Hold and watch.".to_string(),
+        (s, _) if s >= 1 => "A great business at a fair price is superior to a fair business at a great price. This is fair-business territory.".to_string(),
+        (s, 0) if s >= -2 => "Three things ruin people: drugs, liquor, and leverage. Two of those show up here.".to_string(),
+        (s, _) if s >= -2 => "Invert, always invert. What would make this position fail? Too many things.".to_string(),
+        (_, 0) => "It is remarkable how much long-term advantage people have gotten by trying to be consistently not stupid. Avoiding this is the smart play.".to_string(),
+        _ => "There are worse situations than drowning in cash and sitting in your own private aviation. Pass on this one.".to_string(),
     };
 
     let verdict = score_to_verdict(score, &[(8, AgentVerdict::StrongBuy), (5, AgentVerdict::Buy),
@@ -825,11 +809,12 @@ fn no_fundamentals_fallback(
         _ => AgentVerdict::Sell,
     };
 
+    // v11.6.B — fallback notes also strip astro refs.
     let persona_note = match persona {
-        AgentPersona::Buffett => "Without financials, I'm flying blind. The astrological reading gives me a sense of timing, but I invest in businesses, not star charts. Still, here's what the available signals tell me.",
-        AgentPersona::Graham => "My quantitative screens require financial data. However, I can offer a preliminary view based on the composite signals available.",
-        AgentPersona::Lynch => "I'd normally want to understand the business before the numbers. Without financials, I'll work with what we have: the market signal and the cosmic one.",
-        AgentPersona::Munger => "I'm working with incomplete information. The astrology and composite signals provide some context, but show me the business economics for a real opinion.",
+        AgentPersona::Buffett => "Without financials, I'm flying blind. I invest in businesses, not stories. Run the scraper and let me see the numbers — then we can talk.",
+        AgentPersona::Graham => "My quantitative screens require financial data. Without P/E, P/B, current ratio, and dividend history, there's nothing for me to evaluate.",
+        AgentPersona::Lynch => "Know what you own. I can't tell you what to own without seeing what the company actually does and how it's growing.",
+        AgentPersona::Munger => "Show me the business economics. Show me the return on equity, the operating margin, the management's track record. Then we can talk.",
     };
 
     let analysis = format!(
@@ -849,28 +834,39 @@ fn no_fundamentals_fallback(
 
 /// Build the system prompt for a persona + financial context.
 fn build_system_prompt(persona: AgentPersona, ctx: &AgentContext) -> String {
+    // v11.6.B — persona prompts speak ONLY about the persona's own
+    // framework. Astrology is provided as background data context but the
+    // persona must NOT mention astrology, planets, stars, horoscope,
+    // zodiac, etc. in the response prose. They evaluate the ticker
+    // through their own discipline.
     let persona_desc = match persona {
         AgentPersona::Buffett => "\
 You are Warren Buffett, the Oracle of Omaha. You evaluate companies through the lens of durable \
 competitive moats, free cash flow generation, and margin of safety. You are patient, folksy, and \
-speak in plain language. You acknowledge astrological signals when they align with fundamentals, \
-but never rely on them alone. You care about return on equity, debt levels, and whether you'd be \
-happy owning the entire business for a decade.",
+speak in plain language. You care about return on equity, debt levels, and whether you'd be happy \
+owning the entire business for a decade. \
+IMPORTANT: do NOT mention astrology, planets, stars, horoscopes, or any cosmic/celestial language \
+in your response. Speak strictly in your own financial framework.",
         AgentPersona::Graham => "\
 You are Benjamin Graham, the father of value investing. You are methodical, quantitative, and \
 skeptical of anything that cannot be measured. You focus on P/E under 15, P/B under 1.5, the \
-Graham Number, current ratio above 2, and dividend history. You are politely dismissive of \
-astrology but acknowledge market psychology exists. You never overpay, even for quality.",
+Graham Number, current ratio above 2, and dividend history. You never overpay, even for quality. \
+IMPORTANT: do NOT mention astrology, planets, stars, horoscopes, or any cosmic/celestial language \
+in your response. Speak strictly in your quantitative discipline.",
         AgentPersona::Lynch => "\
 You are Peter Lynch, the legendary Fidelity Magellan fund manager. Your mantra is 'know what you \
 own and why you own it.' You love the PEG ratio, growth at a reasonable price, and companies whose \
-products you can see and touch. You see astrology as a market sentiment indicator, like the \
-magazine cover indicator. You are enthusiastic, practical, and classify stocks into categories.",
+products you can see and touch. You are enthusiastic, practical, and classify stocks into \
+categories. \
+IMPORTANT: do NOT mention astrology, planets, stars, horoscopes, or any cosmic/celestial language \
+in your response. Speak strictly about the business and its growth story.",
         AgentPersona::Munger => "\
 You are Charlie Munger, Warren Buffett's partner and a polymath investor. You think in mental \
 models drawn from psychology, physics, and biology. You focus on business quality over price: high \
-return on equity, wide operating margins, and rational management. You view astrology as one lens \
-among many for pattern recognition. You are blunt, witty, and allergic to foolishness.",
+return on equity, wide operating margins, and rational management. You are blunt, witty, and \
+allergic to foolishness. \
+IMPORTANT: do NOT mention astrology, planets, stars, horoscopes, or any cosmic/celestial language \
+in your response. Speak strictly through mental models and business economics.",
     };
 
     let context_block = format_context_for_llm(ctx);
@@ -882,11 +878,13 @@ among many for pattern recognition. You are blunt, witty, and allergic to foolis
          ## Response Format\n\n\
          Respond with a JSON object (no markdown fences) containing:\n\
          - \"headline\": one-line summary, max 120 characters\n\
-         - \"analysis\": 3-5 sentence analysis in character\n\
+         - \"analysis\": 3-5 sentence analysis in character (NO astrology references)\n\
          - \"verdict\": one of \"StrongBuy\", \"Buy\", \"Hold\", \"Sell\", \"StrongSell\"\n\
          - \"key_metrics\": array of [metric_name, value, assessment] arrays (3-6 items)\n\
-         - \"astro_take\": your in-character take on the astrological signals (1-2 sentences)\n\n\
-         Stay in character throughout. Do not break persona.",
+         - \"astro_take\": your in-character closing thought, 1-2 sentences. This must ALSO avoid \
+            astrology references — speak in your own framework's voice as a final remark.\n\n\
+         Stay in character throughout. Do not break persona. Do not mention astrology, planets, \
+         stars, horoscopes, or zodiac signs anywhere in the response.",
         ticker = ctx.ticker
     )
 }

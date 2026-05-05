@@ -1,6 +1,65 @@
 # TODOS
 
-## Active — v11.6 "The Persistence" (~6 days remaining, video review 2026-05-05)
+## Active — v11.7 "The Resolution" (~3 days remaining, video review 2026-05-05)
+
+**Source:** 6.5-min v11.6 production review (`docs/video-review-v11.6-transcript.txt`). User: *"Overall, huge improvement. Proper circling."* Council de-astro validated. 6 issues + 1 mockup request.
+
+### v11.7.A — "Paper Trail icon redesign" — SHIPPED 2026-05-05
+
+- [x] HTML mockup with 6 candidates (current GRAPH_UP, RECEIPT, NOTEBOOK, COINS, TROPHY, GAME_CONTROLLER) — `docs/v11.7.a-paper-trail-icon-mockup.html`
+- [x] User picked RECEIPT (B) — literal paper-trail semantic
+- [x] New const `icons::RECEIPT` (\u{e3aa})
+- [x] `Tab::PaperTrail` icon swapped from GRAPH_UP
+
+### v11.7.B — "Munger phrase variance" (~0.5d, next)
+
+User [02:48-03:25]: *"Munger keeps on saying stuff like 'doesn't meet my quality bar.' He has not changed."*
+
+- [ ] **B1** Audit Munger headline match arms in `agents.rs` — currently 5-6 variants per verdict, but the closing/sell verdicts feel repetitive across tickers
+- [ ] **B2** Add ticker-hash + score-band based phrase rotation (8+ variants for Sell/StrongSell since user complaint focused there)
+- [ ] **B3** Munger narrative sometimes only emits 1-2 paragraphs — add more sector + metric branching
+
+### v11.7.C — "OS notifications debug" (~0.5d)
+
+User [01:50]: *"We have yet to get a notification on any of these. That's clearly broken."*
+
+- [ ] **C1** Log fire_toast invocation: print every time it's called + every condition that gates it
+- [ ] **C2** Verify `state.notifications_fired` flag isn't stuck true across boots
+- [ ] **C3** Test notify-rust on Windows 11 — confirm permissions, app registration
+- [ ] **C4** Add a manual "Test notification" button in Settings → Alerts card
+
+### v11.7.D — "Chart hover lag" (~1d)
+
+User [00:43]: *"Still keeps on lagging. Used to change literally real time. So that's something to be resolved."*
+
+6.K Cache split shipped but didn't resolve.
+- [ ] **D1** Profile cache.draw — confirm geometry is reused across hover frames (add `eprintln!` inside the closure)
+- [ ] **D2** Check if `chart_draw_progress` animation is forcing cache.clear() on every tick (likely culprit)
+- [ ] **D3** If draw_progress invalidates: separate the candle draw-in animation from static layers — animate only with overlay frame, keep candles in cache
+- [ ] **D4** Profile hover frame cost — should be <1ms; if higher, investigate fill_text bottleneck
+
+### v11.7.E — "Sparkles visibility audit" (~0.5d)
+
+User [00:32]: *"There was a little animation for the sparkles. Oh."*
+
+- [ ] **E1** Confirm sparkles fire only during fetch (currently true — only renders when `fetching_ticker`)
+- [ ] **E2** Decide: ambient sparkles always-on (subtle) vs only-during-fetch
+- [ ] **E3** If keeping fetch-only, increase visibility — bigger particles, tighter cluster, brighter alpha during the first 5s of fetch
+- [ ] **E4** Add ambient star-twinkle to the page header ornament rule (independent surface)
+
+### v11.7.F — "Blinking element" (~0.5d)
+
+User [05:50, 06:07]: *"Don't know why he does that blinking. Got to find out how come it does that."*
+
+- [ ] **F1** Identify which element blinks — likely the loading sparkle re-seed (every 0.125s the seed changes → particles re-position)
+- [ ] **F2** Confirm v11.6.G `sparkle_seed = (elapsed * 8.0).floor() as u32` is the source — 8Hz re-seed = 8 visible "blinks" per second
+- [ ] **F3** Slow re-seed to 2-3Hz OR animate particles smoothly between seeds
+
+---
+
+## Closed — v11.6 "The Persistence" — COMPLETED 2026-05-05
+
+### v11.6.A — "Header redo" — SHIPPED 2026-05-05
 
 **Source:** 18-min post-v11.5 video review (`docs/video-review-v11.5-transcript.txt`) + iterative mockup loop (4 short videos totaling ~22min). Header layout was the loudest unresolved theme — re-spec'd three different ways before convergence.
 

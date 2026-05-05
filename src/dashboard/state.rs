@@ -342,6 +342,7 @@ pub struct Dashboard {
     pub tooltip_size:             TooltipSize,
     pub os_notifications:         bool,
     pub natal_zoom:               f32,
+    pub price_chart_cache:        std::sync::Arc<iced::widget::canvas::Cache>,
     pub wiki_summary:             Option<crate::db::WikiSummary>,
     pub wiki_thumbnail_bytes:     Option<Vec<u8>>,
 }
@@ -496,6 +497,7 @@ impl Default for Dashboard {
             tooltip_size:             TooltipSize::Default,
             os_notifications:         true,
             natal_zoom:               1.0,
+            price_chart_cache:        std::sync::Arc::new(iced::widget::canvas::Cache::default()),
             wiki_summary:             None,
             wiki_thumbnail_bytes:     None,
         }

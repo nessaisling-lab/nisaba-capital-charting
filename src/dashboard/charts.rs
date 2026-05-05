@@ -31,6 +31,11 @@ pub struct PriceChart {
     pub astro_markers: Vec<AstroMarker>,
     pub draw_progress: f32,  // v9.0: 0→1 candle draw-in animation
     pub tooltip_dims:  (f32, f32, f32), // v11.3: (font_px, box_w, box_h)
+    /// v11.6.K — cached static geometry. Cleared on data change so the
+    /// expensive candle/SMA/BB/volume painting only runs once per data
+    /// load instead of on every cursor move. Hover overlay still paints
+    /// fresh each tick.
+    pub cache:         std::sync::Arc<canvas::Cache>,
 }
 
 impl PriceChart {
@@ -101,12 +106,16 @@ impl canvas::Program<Message> for PriceChart {
         bounds: Rectangle,
         _cursor: mouse::Cursor,
     ) -> Vec<canvas::Geometry> {
-        let mut frame = canvas::Frame::new(renderer, bounds.size());
-        frame.fill_rectangle(Point::ORIGIN, bounds.size(), theme::canvas_bg(_theme));
-
+        // v11.6.K — split static (cached) + hover (fresh) layers. Cursor
+        // moves trigger only the lightweight hover repaint; candles, SMAs,
+        // Bollinger bands, volume, and astro markers stay cached.
         if self.data.len() < 2 {
-            return vec![frame.into_geometry()];
+            let mut empty = canvas::Frame::new(renderer, bounds.size());
+            empty.fill_rectangle(Point::ORIGIN, bounds.size(), theme::canvas_bg(_theme));
+            return vec![empty.into_geometry()];
         }
+        let static_geo = self.cache.draw(renderer, bounds.size(), |frame| {
+            frame.fill_rectangle(Point::ORIGIN, bounds.size(), theme::canvas_bg(_theme));
 
         // Price range — expand to fit OHLC wicks + BB bands
         let mut min = self.data.iter().cloned().fold(f32::INFINITY, f32::min);
@@ -121,7 +130,7 @@ impl canvas::Program<Message> for PriceChart {
         for &v in self.bb_upper.iter().filter_map(|x| x.as_ref()) { if v > max { max = v; } }
         for &v in self.bb_lower.iter().filter_map(|x| x.as_ref()) { if v < min { min = v; } }
         let range = max - min;
-        if range == 0.0 { return vec![frame.into_geometry()]; }
+        if range == 0.0 { return; }
 
         let pad_left   = 55.0_f32;
         let pad_right  = 15.0_f32;
@@ -168,22 +177,22 @@ impl canvas::Program<Message> for PriceChart {
                 .map(|(i, &v)| v.map(|p| Point::new(x_of(i), y_of(p)))).collect();
             let lower_pts: Vec<Option<Point>> = self.bb_lower.iter().enumerate()
                 .map(|(i, &v)| v.map(|p| Point::new(x_of(i), y_of(p)))).collect();
-            Self::draw_series(&mut frame, &upper_pts, theme::BB_BLUE, 1.0);
-            Self::draw_series(&mut frame, &lower_pts, theme::BB_BLUE, 1.0);
+            Self::draw_series(frame, &upper_pts, theme::BB_BLUE, 1.0);
+            Self::draw_series(frame, &lower_pts, theme::BB_BLUE, 1.0);
         }
 
         // SMA 50 (yellow)
         if self.sma50.len() == n {
             let pts: Vec<Option<Point>> = self.sma50.iter().enumerate()
                 .map(|(i, &v)| v.map(|p| Point::new(x_of(i), y_of(p)))).collect();
-            Self::draw_series(&mut frame, &pts, theme::SMA50_YELLOW, 1.2);
+            Self::draw_series(frame, &pts, theme::SMA50_YELLOW, 1.2);
         }
 
         // SMA 20 (orange)
         if self.sma20.len() == n {
             let pts: Vec<Option<Point>> = self.sma20.iter().enumerate()
                 .map(|(i, &v)| v.map(|p| Point::new(x_of(i), y_of(p)))).collect();
-            Self::draw_series(&mut frame, &pts, theme::SMA20_ORANGE, 1.2);
+            Self::draw_series(frame, &pts, theme::SMA20_ORANGE, 1.2);
         }
 
         // Candlestick chart — OHLC bodies + wicks
@@ -362,7 +371,36 @@ impl canvas::Program<Message> for PriceChart {
             }
         }
 
-        // Hover crosshair + OHLCV tooltip
+        }); // close cache.draw closure (v11.6.K)
+
+        // ── Hover overlay — fresh frame each tick (cheap) ─────────
+        // Recompute layout vars used by hover (cache closure consumed them)
+        let mut hover_frame = canvas::Frame::new(renderer, bounds.size());
+        let pad_left   = 55.0_f32;
+        let pad_right  = 15.0_f32;
+        let pad_top    = 15.0_f32;
+        let pad_bottom = 30.0_f32;
+        let vol_height = (bounds.height - pad_top - pad_bottom) * 0.18;
+        let w = bounds.width  - pad_left - pad_right;
+        let h = bounds.height - pad_top  - pad_bottom - vol_height;
+        let n = self.data.len();
+        let mut min = f32::INFINITY;
+        let mut max = f32::NEG_INFINITY;
+        for &v in &self.data { if v < min { min = v; } if v > max { max = v; } }
+        for row in &self.rows_chrono {
+            let h_f = row.high.to_string().parse::<f32>().unwrap_or(0.0);
+            let l_f = row.low.to_string().parse::<f32>().unwrap_or(f32::INFINITY);
+            if h_f > max { max = h_f; }
+            if l_f < min { min = l_f; }
+        }
+        for &v in self.bb_upper.iter().filter_map(|x| x.as_ref()) { if v > max { max = v; } }
+        for &v in self.bb_lower.iter().filter_map(|x| x.as_ref()) { if v < min { min = v; } }
+        let range = max - min;
+        if range > 0.0 {
+        let x_of = |i: usize| pad_left + (i as f32 / (n - 1) as f32) * w;
+        let y_of = |p: f32| Self::price_to_y(p, min, range, pad_top, h);
+        let frame = &mut hover_frame;
+
         if let Some(pos) = state {
             if pos.x >= pad_left && pos.x <= pad_left + w && n > 1 {
                 let frac = ((pos.x - pad_left) / w).clamp(0.0, 1.0);
@@ -430,8 +468,9 @@ impl canvas::Program<Message> for PriceChart {
                 }
             }
         }
+        } // close `if range > 0.0`
 
-        vec![frame.into_geometry()]
+        vec![static_geo, hover_frame.into_geometry()]
     }
 }
 
@@ -514,16 +553,52 @@ impl<Message> canvas::Program<Message> for LagrangeSparkline {
             Point::new(x, y.max(pad))
         }).collect();
 
+        // v11.6.F — color the score line by the most-recent zone so the
+        // line itself reflects current state (in addition to the dot).
+        let last_score = self.history.last().map(|r| r.score).unwrap_or(50.0);
+        let line_color = if last_score >= 76.0 {
+            theme::ZONE_OPTIMAL
+        } else if last_score >= 56.0 {
+            theme::ZONE_FAVORABLE
+        } else if last_score >= 45.0 {
+            theme::SPARKLINE_BLUE
+        } else if last_score >= 25.0 {
+            theme::ZONE_UNFAVORABLE
+        } else {
+            theme::ZONE_MISALIGNED
+        };
+
         let line = canvas::Path::new(|b| {
             for (i, &pt) in pts.iter().enumerate() {
                 if i == 0 { b.move_to(pt); } else { b.line_to(pt); }
             }
         });
         frame.stroke(&line, canvas::Stroke {
-            style: canvas::Style::Solid(theme::SPARKLINE_BLUE),
-            width: 1.5,
+            style: canvas::Style::Solid(line_color),
+            width: 1.8,
             ..Default::default()
         });
+
+        // v11.6.F — zone tags on right edge (Opt/Fav/Neu/Unf/Mis)
+        let tag_x = pad + inner_w + 1.0;
+        if tag_x < bounds.width - 4.0 {
+            for (level, label, color) in [
+                (88.0_f32, "Opt", theme::ZONE_OPTIMAL),
+                (66.0,    "Fav", theme::ZONE_FAVORABLE),
+                (50.0,    "Neu", theme::SPARKLINE_BLUE),
+                (35.0,    "Unf", theme::ZONE_UNFAVORABLE),
+                (12.0,    "Mis", theme::ZONE_MISALIGNED),
+            ] {
+                let y = pad + inner_h - (level / 100.0) * inner_h;
+                frame.fill_text(canvas::Text {
+                    content: label.to_string(),
+                    position: Point::new(tag_x.min(bounds.width - 22.0), y - 5.0),
+                    color: Color { a: 0.7, ..color },
+                    size: iced::Pixels(8.0),
+                    ..canvas::Text::default()
+                });
+            }
+        }
 
         // Dot + label at last point
         if let Some(&last) = pts.last() {
@@ -539,22 +614,23 @@ impl<Message> canvas::Program<Message> for LagrangeSparkline {
             }
         }
 
-        // Date labels: first and last
-        if let (Some(first), Some(last_row)) = (self.history.first(), self.history.last()) {
-            frame.fill_text(canvas::Text {
-                content: first.score_date.to_string(),
-                position: Point::new(pad, bounds.height - 2.0),
-                color: theme::fg_dim(_theme),
-                size: iced::Pixels(8.0),
-                ..canvas::Text::default()
-            });
-            frame.fill_text(canvas::Text {
-                content: last_row.score_date.to_string(),
-                position: Point::new(pad + inner_w - 60.0, bounds.height - 2.0),
-                color: theme::fg_dim(_theme),
-                size: iced::Pixels(8.0),
-                ..canvas::Text::default()
-            });
+        // v11.6.F — date axis labels every ~25% of width (5 anchors).
+        if n >= 2 {
+            let anchors = [0.0, 0.25, 0.50, 0.75, 1.0];
+            for (i, t) in anchors.iter().enumerate() {
+                let row_idx = ((n - 1) as f32 * t).round() as usize;
+                let Some(row) = self.history.get(row_idx) else { continue };
+                let x = pad + t * inner_w;
+                // shift label off the edges to avoid clipping
+                let x_pos = if i == 0 { x } else if i == anchors.len() - 1 { x - 52.0 } else { x - 28.0 };
+                frame.fill_text(canvas::Text {
+                    content: row.score_date.format("%m-%d").to_string(),
+                    position: Point::new(x_pos.max(pad), bounds.height - 2.0),
+                    color: theme::fg_dim(_theme),
+                    size: iced::Pixels(8.0),
+                    ..canvas::Text::default()
+                });
+            }
         }
 
         vec![frame.into_geometry()]

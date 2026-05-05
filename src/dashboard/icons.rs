@@ -84,6 +84,7 @@ pub const CALENDAR: char       = '\u{e108}';  // ph-calendar
 pub const LIGHTNING: char      = '\u{e2de}';  // ph-lightning
 pub const GRAPH_UP: char       = '\u{e4ae}';  // ph-trend-up
 pub const GRAPH_DOWN: char     = '\u{e4ac}';  // ph-trend-down
+pub const RECEIPT: char        = '\u{e3aa}';  // ph-receipt — Paper Trail tab (v11.7.A)
 pub const ACTIVITY: char       = '\u{e000}';  // ph-activity
 pub const WALLET: char         = '\u{e68a}';  // ph-wallet
 pub const KEY: char            = '\u{e2d6}';  // ph-key

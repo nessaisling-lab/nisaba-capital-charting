@@ -6,7 +6,57 @@
 
 ---
 
-## v11.6 Plan — "The Persistence" (in-progress, 2026-05-05)
+## v11.7 Plan — "The Resolution" (in-progress, 2026-05-05)
+
+Triggered by 6.5-min v11.6 production review (`docs/video-review-v11.6-transcript.txt`). User: *"Overall, huge improvement. Proper circling."* Council de-astro confirmed working — *"all the usables are getting hit differently. Much more diverse and much more meaningful."* Hero header silently approved (no comments). 6 issues + 1 mockup request:
+
+### v11.7.A — "Paper Trail icon redesign" — SHIPPED 2026-05-05
+
+User: *"Reimagine or find another icon. Less noise. Mock it up via HTML. I actually like that flow."* HTML mockup with 6 candidates (current GRAPH_UP, RECEIPT, NOTEBOOK, COINS, TROPHY, GAME_CONTROLLER). User picked **RECEIPT (B)** — literal paper-trail semantic. New icon const `\u{e3aa}` (ph-receipt) replaces GRAPH_UP in `Tab::PaperTrail` icon.
+
+Mockup artifact: `docs/v11.7.a-paper-trail-icon-mockup.html`
+
+### v11.7 backlog (5 items, ~3 days)
+
+| Sub-wave | Theme | Source |
+|----------|-------|--------|
+| **7.B** | Munger phrase variance — vary actual verdict-level phrases, not just astro_take cycling | v11.6 review [02:48-03:25]: *"Munger keeps on saying stuff like 'doesn't meet my quality bar.' He has not changed."* |
+| **7.C** | OS notifications debug — clearly broken in v11.6 despite shipping | v11.6 review [01:50]: *"We have yet to get a notification on any of these. That's clearly broken."* |
+| **7.D** | Chart hover lag — 6.K Cache split insufficient, lag persists | v11.6 review [00:43]: *"Still keeps on lagging. Used to change literally real time as I moved my mouse."* |
+| **7.E** | Sparkles visibility audit — user couldn't find them | v11.6 review [00:32]: *"There was a little animation for the sparkles. Oh."* |
+| **7.F** | Blinking element root cause — unexplained UI flicker | v11.6 review [05:50, 06:07]: *"Don't know why he does that blinking."* |
+
+---
+
+## v11.6 Plan — "The Persistence" (shipped 2026-05-05)
+
+9 sub-waves shipped from post-v11.5 video review. Triggered by 18-min review (transcript: `docs/video-review-v11.5-transcript.txt`). User confirmed ~10 v11.5 features working but flagged 12 fresh issues + 3 persistent ones — most loudly the header layout (re-spec'd three different ways across the review).
+
+### v11.6.A — "Header redo" — shipped 2026-05-05
+
+Resolved through 4 mockup iterations totaling ~22 minutes of video review feedback (vs estimated 6+ hours of code-then-rework cycles). Final approved layout:
+
+- **Tab strip moved to very top of page** (above ornament rule, full-width across border)
+- **Hero ticker block left-anchored**: `★ AAPL $278.78 H/L-stacked ⓘ` — star and info-icon SANDWICH the price block (favorites toggle on left, Encyclopedia jump on right)
+- **Right column** (fixed 420px): search row with magnifier + 4 action icons inline → Favorites + Recent dropdowns side-by-side beneath
+- **Hardcoded ticker buttons dropped** — 10 demo tickers (AAPL/AMZN/GOOGL/JPM/META/MSFT/NVDA/TSLA/UNH/V) seeded into `favorites` table on every boot via `seed_default_favorites_if_empty` (idempotent ON CONFLICT DO NOTHING)
+- **Encyclopedia tab dropped from strip** — variant retained, reachable only via the info-circle icon on the ticker hero
+- **Tab::all() now 7 entries** (was 8); fixed accompanying `0..8` hardcoded loop in `update::mod` that panicked on first frame after the change
+
+Mockup artifact: `docs/v11.6.a-header-mockup.html` (parchment/gold theme, Fraunces+Inter, annotation panel).
+
+### v11.6.B-K — shipped 2026-05-05
+
+- **6.B** — Council de-astro: 4 persona astro_take rewrites, LLM prompt anti-astro guards, fallback notes scrubbed, Munger 4-cycle diversification. View label "On the stars:" → "Closing thought:". Validated in v11.6 review.
+- **6.C** — Natal sphere: CAMERA_TILT 0.32→0.10 in WGSL uniform + matching overlay constant. Wheel reads as sphere not oval.
+- **6.D** — Calendar 3-month forward: Prev/Next steps ±3 months instead of ±1; renders 3 month-grids stacked vertically; data fetch range expanded to match.
+- **6.F** — Lagrange chart polish: zone-color line tinting (line color matches current zone), 5-anchor date axis labels (mm-dd format), zone tags on right edge (Opt/Fav/Neu/Unf/Mis).
+- **6.G** — Sparkle upgrade: 8→12 particles, alpha 0.45→0.85, gold + soft-white mix, 4-pointed star-cross shapes for big particles, animated seed.
+- **6.H** — Score gauge clarity: titles renamed (Market: Crypto F&G, Market: Equities F&G, Technical: TICKER, Astrology: TICKER, ★ LAGRANGE: TICKER); Lagrange gets star prefix + sharper "★ THE PRIMARY SCORE" tooltip.
+- **6.J** — Fetch stuck timeout: 90s `tokio::time::timeout` wrapping scraper subprocess; toast fallback "Fetch timed out — try again."
+- **6.K** — Chart hover Cache split: `Arc<canvas::Cache>` on Dashboard threads into PriceChart; static layers (background, grid, BB bands, SMAs, candles, volume bars, astro markers) painted inside `cache.draw(...)`; hover overlay (crosshair + OHLCV tooltip) painted fresh on a separate Frame each tick. Cache cleared on `DataLoaded` + ticker change.
+
+
 
 Triggered by post-v11.5 18-min video review (transcript: `docs/video-review-v11.5-transcript.txt`). User confirmed ~10 v11.5 features working in production but flagged 12 fresh issues + 3 persistent ones — most loudly the header layout (re-spec'd three different ways across the review).
 

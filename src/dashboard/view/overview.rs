@@ -122,6 +122,7 @@ impl Dashboard {
                 astro_markers,
                 draw_progress: self.chart_draw_progress,
                 tooltip_dims: self.tooltip_size.dims(),
+                cache: std::sync::Arc::clone(&self.price_chart_cache),
             })
             .width(Length::Fill)
             .height(Length::Fixed(300.0))
@@ -298,8 +299,12 @@ impl Dashboard {
             };
             (anim_score, label.clone())
         });
+        // v11.6.H — gauge titles disambiguated. Lagrange is THE primary
+        // composite — its title gets a bold ★ prefix so users see it as
+        // "the score" while the others are tagged as supporting market /
+        // pure-astro / pure-technical context.
         let crypto_gauge = make_gauge(
-            "Crypto / Risk Sentiment".to_string(),
+            "Market: Crypto F&G".to_string(),
             animated_fg,
             match &self.fear_greed_err {
                 Some(_) => "unavailable".to_string(),
@@ -307,7 +312,7 @@ impl Dashboard {
             },
         );
         let equities_gauge = make_gauge(
-            "Equities Sentiment".to_string(),
+            "Market: Equities F&G".to_string(),
             self.market_fg.clone(),
             match &self.market_fg_err {
                 Some(e) => format!("err: {}", &e[..e.len().min(60)]),
@@ -318,13 +323,13 @@ impl Dashboard {
             Some(ind) => {
                 let (score, label) = compute_ticker_score(ind, &self.rows, &self.sentiment);
                 make_gauge(
-                    format!("{} Score", self.selected_ticker),
+                    format!("Technical: {}", self.selected_ticker),
                     Some((score, label)),
                     String::new(),
                 )
             }
             None => make_gauge(
-                format!("{} Score", self.selected_ticker),
+                format!("Technical: {}", self.selected_ticker),
                 None,
                 if self.rows.is_empty() {
                     "no data".to_string()
@@ -334,7 +339,7 @@ impl Dashboard {
             ),
         };
         let astro_gauge = make_gauge(
-            format!("{} Astrology", self.selected_ticker),
+            format!("Astrology: {}", self.selected_ticker),
             self.astro_score.as_ref().and_then(|s| {
                 let score = s.astro_score? as f32;
                 let label = s.astro_label.clone().unwrap_or_default();
@@ -354,13 +359,13 @@ impl Dashboard {
                     &self.rss_tone,
                 );
                 make_gauge(
-                    format!("{} Lagrange Score", self.selected_ticker),
+                    format!("\u{2605} LAGRANGE: {}", self.selected_ticker),
                     Some((score, label)),
                     String::new(),
                 )
             }
             None => make_gauge(
-                format!("{} Lagrange Score", self.selected_ticker),
+                format!("\u{2605} LAGRANGE: {}", self.selected_ticker),
                 None,
                 if self.rows.is_empty() {
                     "no data".to_string()
@@ -391,7 +396,7 @@ impl Dashboard {
             ),
             explain(
                 lagrange_gauge,
-                "Lagrange Score — adaptive composite of Astro × Financial × Macro × Short × Sentiment. Weights shift based on signal agreement (concordance).",
+                "★ THE PRIMARY SCORE. Lagrange is the adaptive composite of all 5 inputs (Astro × Financial × Macro × Short × Sentiment). Weights shift based on signal agreement (concordance). When other gauges disagree with Lagrange, trust Lagrange — it's already weighted them.",
             ),
         ]
         .spacing(12);

@@ -3,7 +3,10 @@ use iced::widget::{button, column, container, mouse_area, pick_list, pin, row, r
 use iced::{Alignment, Element, Length};
 
 // v11.3 — natal wheel overlay constants (must match WGSL shader)
-const CAMERA_TILT: f32 = 0.32;
+// v11.6.C — reduce tilt 0.32 → 0.10 so wheel reads as a sphere not an oval.
+// User feedback 2026-05-05 video review: "I don't know why it keeps on
+// being oval, but that needs to be resolved."
+const CAMERA_TILT: f32 = 0.10;
 const R_NATAL: f32 = 0.644;
 const R_TRANSIT: f32 = 0.810;
 const GLYPH_SIZE: f32 = 14.0;
@@ -698,15 +701,28 @@ impl Dashboard {
             .spacing(6)
             .align_y(Alignment::Center);
 
+            // v11.6.D — render 3 month grids stacked (calendar_month + 0/1/2)
+            // so the user sees the full quarter at once. Prev/Next steps the
+            // window in 3-month increments.
+            let mut grids: Vec<Element<'_, Message>> = Vec::new();
+            for offset in 0..3 {
+                let mut m = self.calendar_month as i32 + offset;
+                let mut y = self.calendar_year;
+                while m > 12 { m -= 12; y += 1; }
+                grids.push(
+                    Canvas::new(AstroCalendar {
+                        year: y,
+                        month: m as u32,
+                        days: self.calendar_days.clone(),
+                    })
+                    .width(Length::Fill)
+                    .height(Length::Fixed(170.0))
+                    .into(),
+                );
+            }
             column![
                 nav,
-                Canvas::new(AstroCalendar {
-                    year: self.calendar_year,
-                    month: self.calendar_month,
-                    days: self.calendar_days.clone(),
-                })
-                .width(Length::Fill)
-                .height(Length::Fixed(180.0)),
+                Column::with_children(grids).spacing(8),
                 legend,
             ]
             .spacing(6)

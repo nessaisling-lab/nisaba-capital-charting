@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>v11.7.A — Paper Trail icon mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
+<style>
+  :root {
+    --bg:        #f4ecd8;
+    --surface:   #ebdfb8;
+    --rule:      #c9b074;
+    --gold:      #b08a2e;
+    --gold-soft: #d4a94c;
+    --ink:       #2c2418;
+    --ink-soft:  #5b4d36;
+  }
+  *           { box-sizing: border-box; margin: 0; padding: 0; }
+  body        { background: #1a140d; padding: 24px; font-family: "Inter", system-ui, sans-serif; color: var(--ink); }
+  h1          { color: #e5d8a8; font: 600 22px Fraunces; max-width: 1280px; margin: 0 auto 6px; }
+  .subtitle   { color: #b89e58; font: 400 13px Inter; max-width: 1280px; margin: 0 auto 22px; font-style: italic; }
+  .verdict    { color: #b89e58; max-width: 1280px; margin: 0 auto 20px; font-size: 12px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; }
+
+  .grid {
+    max-width: 1280px; margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  .card {
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    padding: 18px 20px 20px;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.35);
+    position: relative;
+  }
+  .card.current { border-color: #a83a2c; }
+  .badge {
+    position: absolute; top: 10px; right: 12px;
+    font: 600 10px Inter; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .card.current .badge { color: #a83a2c; }
+  .opt-letter {
+    font: 700 28px Fraunces; color: var(--gold);
+    line-height: 1; margin-bottom: 4px;
+  }
+  .opt-name {
+    font: 500 16px Inter; color: var(--ink); margin-bottom: 12px;
+  }
+
+  /* ─── Tab strip preview ─── */
+  .tabs-preview {
+    display: flex; gap: 2px; padding: 4px 8px 0;
+    background: linear-gradient(to bottom, rgba(176,138,46,0.06), transparent);
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: 12px;
+    overflow-x: hidden;
+  }
+  .tab {
+    padding: 8px 12px 7px;
+    font: 500 13px Fraunces;
+    color: var(--ink);
+    border: 1px solid transparent;
+    border-bottom: 0;
+    border-radius: 5px 5px 0 0;
+    opacity: .76;
+    display: flex; align-items: center; gap: 5px;
+    white-space: nowrap;
+    margin-top: 4px;
+  }
+  .tab.active {
+    border-color: var(--gold);
+    border-width: 2px;
+    color: var(--gold);
+    font-weight: 700;
+    opacity: 1;
+    background: var(--bg);
+    margin-bottom: -1px;
+  }
+  .tab i { font-size: 14px; }
+
+  /* ─── Detail lockup ─── */
+  .detail {
+    display: flex; align-items: center; gap: 14px;
+    padding: 8px 4px 4px;
+  }
+  .detail-glyph {
+    width: 56px; height: 56px;
+    display: grid; place-items: center;
+    background: rgba(176,138,46,0.08);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    color: var(--gold);
+    font-size: 32px;
+  }
+  .detail-glyph.bold i { font-weight: 700; }
+  .detail-meta { flex: 1; }
+  .detail-meta .codepoint {
+    font: 500 11px monospace; color: var(--ink-soft); letter-spacing: .05em;
+  }
+  .detail-meta .reasoning {
+    font: 400 12px Inter; color: var(--ink); margin-top: 4px;
+    line-height: 1.45;
+  }
+
+  .footer-pick {
+    max-width: 1280px; margin: 26px auto 0;
+    background: rgba(255,255,255,.06);
+    border-left: 2px solid var(--gold-soft);
+    padding: 14px 18px;
+    color: #e5d8a8;
+    font: 400 13px Inter;
+    border-radius: 0 3px 3px 0;
+    line-height: 1.55;
+  }
+  .footer-pick b { color: #f3e7b8; }
+</style>
+</head>
+<body>
+
+<h1>v11.7.A — Paper Trail icon redesign</h1>
+<div class="subtitle">User: "Reimagine or find another icon. Less noise. Mock it up via HTML." Six Phosphor candidates below — current GRAPH_UP top-left for comparison.</div>
+<div class="verdict">Pick one (A / B / C / D / E / F) and reply. Will port to icons.rs + Tab::icon() once chosen.</div>
+
+<div class="grid">
+
+  <!-- A — current (for comparison) -->
+  <div class="card current">
+    <span class="badge">Current</span>
+    <div class="opt-letter">A</div>
+    <div class="opt-name">GRAPH_UP — current icon</div>
+    <div class="tabs-preview">
+      <div class="tab"><i class="ph ph-star-four"></i> Astrology</div>
+      <div class="tab"><i class="ph ph-speedometer"></i> Overview</div>
+      <div class="tab"><i class="ph ph-globe"></i> Universe</div>
+      <div class="tab active"><i class="ph-bold ph-trend-up"></i> Paper Trail</div>
+      <div class="tab"><i class="ph ph-chart-bar"></i> …</div>
+    </div>
+    <div class="detail">
+      <div class="detail-glyph bold"><i class="ph-bold ph-trend-up"></i></div>
+      <div class="detail-meta">
+        <div class="codepoint">ph-trend-up · U+E4AE</div>
+        <div class="reasoning">Trending arrow. User feedback: "introducing unnecessary noise" — same shape as Universe-tab signal arrows + alert direction indicators elsewhere.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- B — receipt (paper trail literal) -->
+  <div class="card">
+    <span class="badge">Option</span>
+    <div class="opt-letter">B</div>
+    <div class="opt-name">RECEIPT — literal paper trail</div>
+    <div class="tabs-preview">
+      <div class="tab"><i class="ph ph-star-four"></i> Astrology</div>
+      <div class="tab"><i class="ph ph-speedometer"></i> Overview</div>
+      <div class="tab"><i class="ph ph-globe"></i> Universe</div>
+      <div class="tab active"><i class="ph-bold ph-receipt"></i> Paper Trail</div>
+      <div class="tab"><i class="ph ph-chart-bar"></i> …</div>
+    </div>
+    <div class="detail">
+      <div class="detail-glyph bold"><i class="ph-bold ph-receipt"></i></div>
+      <div class="detail-meta">
+        <div class="codepoint">ph-receipt · U+E3AA</div>
+        <div class="reasoning">A receipt — literal "paper trail." Recordkeeping vibe matches the tab content (transaction log, position history). Most-on-the-nose semantically; never confused with another tab.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- C — notebook -->
+  <div class="card">
+    <span class="badge">Option</span>
+    <div class="opt-letter">C</div>
+    <div class="opt-name">NOTEBOOK — trader's journal</div>
+    <div class="tabs-preview">
+      <div class="tab"><i class="ph ph-star-four"></i> Astrology</div>
+      <div class="tab"><i class="ph ph-speedometer"></i> Overview</div>
+      <div class="tab"><i class="ph ph-globe"></i> Universe</div>
+      <div class="tab active"><i class="ph-bold ph-notebook"></i> Paper Trail</div>
+      <div class="tab"><i class="ph ph-chart-bar"></i> …</div>
+    </div>
+    <div class="detail">
+      <div class="detail-glyph bold"><i class="ph-bold ph-notebook"></i></div>
+      <div class="detail-meta">
+        <div class="codepoint">ph-notebook · U+E34A</div>
+        <div class="reasoning">A bound notebook — the trader's journal of plays. Carries the grimoire/leather-ledger aesthetic from the brand voice. Matches BOOK_OPEN feel of the (now-hidden) Encyclopedia tab without conflicting with it.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- D — coins (track record of trades) -->
+  <div class="card">
+    <span class="badge">Option</span>
+    <div class="opt-letter">D</div>
+    <div class="opt-name">COINS — stack of plays</div>
+    <div class="tabs-preview">
+      <div class="tab"><i class="ph ph-star-four"></i> Astrology</div>
+      <div class="tab"><i class="ph ph-speedometer"></i> Overview</div>
+      <div class="tab"><i class="ph ph-globe"></i> Universe</div>
+      <div class="tab active"><i class="ph-bold ph-coins"></i> Paper Trail</div>
+      <div class="tab"><i class="ph ph-chart-bar"></i> …</div>
+    </div>
+    <div class="detail">
+      <div class="detail-glyph bold"><i class="ph-bold ph-coins"></i></div>
+      <div class="detail-meta">
+        <div class="codepoint">ph-coins · U+E1B2</div>
+        <div class="reasoning">Stacked coins — embodies the paper-trading-as-game-with-stakes idea without the trend-line ambiguity. Reads as "your wallet of bets."</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- E — trophy (track record) -->
+  <div class="card">
+    <span class="badge">Option</span>
+    <div class="opt-letter">E</div>
+    <div class="opt-name">TROPHY — track record</div>
+    <div class="tabs-preview">
+      <div class="tab"><i class="ph ph-star-four"></i> Astrology</div>
+      <div class="tab"><i class="ph ph-speedometer"></i> Overview</div>
+      <div class="tab"><i class="ph ph-globe"></i> Universe</div>
+      <div class="tab active"><i class="ph-bold ph-trophy"></i> Paper Trail</div>
+      <div class="tab"><i class="ph ph-chart-bar"></i> …</div>
+    </div>
+    <div class="detail">
+      <div class="detail-glyph bold"><i class="ph-bold ph-trophy"></i></div>
+      <div class="detail-meta">
+        <div class="codepoint">ph-trophy · U+E470</div>
+        <div class="reasoning">A trophy — your simulated track record. Reinforces the gamified-but-stakes brand position. Only risk: too celebratory if portfolio is in the red.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- F — game-controller (paper = simulation) -->
+  <div class="card">
+    <span class="badge">Option</span>
+    <div class="opt-letter">F</div>
+    <div class="opt-name">GAME CONTROLLER — practice mode</div>
+    <div class="tabs-preview">
+      <div class="tab"><i class="ph ph-star-four"></i> Astrology</div>
+      <div class="tab"><i class="ph ph-speedometer"></i> Overview</div>
+      <div class="tab"><i class="ph ph-globe"></i> Universe</div>
+      <div class="tab active"><i class="ph-bold ph-game-controller"></i> Paper Trail</div>
+      <div class="tab"><i class="ph ph-chart-bar"></i> …</div>
+    </div>
+    <div class="detail">
+      <div class="detail-glyph bold"><i class="ph-bold ph-game-controller"></i></div>
+      <div class="detail-meta">
+        <div class="codepoint">ph-game-controller · U+E26E</div>
+        <div class="reasoning">A game controller — paper trading as the practice mode before real-money. Strongest "Pro tier — skin in the game without real risk" framing per PRODUCT.md. Most playful; risks reading as childish at Master tier.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer-pick">
+  <b>Recommendation:</b> <b>B (RECEIPT)</b> reads most cleanly across all three tiers (Free → Pro → Master) — literal "paper trail" semantic, no aesthetic clash with the grimoire/ledger brand, no risk of celebratory tone when portfolio is red. <b>C (NOTEBOOK)</b> is the strongest visual-fit alternative if you want trader's-journal vibe over receipt vibe. <b>D (COINS)</b> is the playful runner-up.
+  <br><br>
+  Reply with the letter — A keep / B receipt / C notebook / D coins / E trophy / F game controller — or describe a different direction.
+</div>
+
+</body>
+</html>

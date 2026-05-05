@@ -474,7 +474,7 @@ impl shader::Program<Message> for NatalWheel3DProgram {
             uniforms: NatalWheel3DUniforms {
                 resolution: [bounds.width, bounds.height],
                 time: self.time,
-                camera_tilt: 0.32,
+                camera_tilt: 0.10, // v11.6.C — sphere not oval (was 0.32)
                 bg_color: self.bg_color,
                 gold_color: self.gold_color,
                 transit_color: self.transit_color,

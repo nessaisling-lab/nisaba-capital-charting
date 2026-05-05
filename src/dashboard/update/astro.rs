@@ -84,22 +84,23 @@ pub(crate) fn handle(state: &mut Dashboard, message: &Message) -> Option<Task<Me
         }
         Message::CalendarLoaded(Err(_)) => Some(Task::none()),
 
+        // v11.6.D — calendar steps ±3 months per video review request
+        // ("It should do at least three months ahead, instead of just one
+        // month"). Wrap year boundaries when stepping past December/January.
         Message::CalendarPrevMonth => {
-            if state.calendar_month == 1 {
-                state.calendar_month = 12;
-                state.calendar_year -= 1;
-            } else {
-                state.calendar_month -= 1;
-            }
+            let mut m = state.calendar_month as i32 - 3;
+            let mut y = state.calendar_year;
+            while m < 1 { m += 12; y -= 1; }
+            state.calendar_month = m as u32;
+            state.calendar_year = y;
             Some(state.refresh_calendar())
         }
         Message::CalendarNextMonth => {
-            if state.calendar_month == 12 {
-                state.calendar_month = 1;
-                state.calendar_year += 1;
-            } else {
-                state.calendar_month += 1;
-            }
+            let mut m = state.calendar_month as i32 + 3;
+            let mut y = state.calendar_year;
+            while m > 12 { m -= 12; y += 1; }
+            state.calendar_month = m as u32;
+            state.calendar_year = y;
             Some(state.refresh_calendar())
         }
 

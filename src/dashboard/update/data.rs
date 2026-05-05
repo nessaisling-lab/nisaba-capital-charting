@@ -166,6 +166,9 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
 
         Message::DataLoaded(Ok(rows)) => {
             state.refreshing = false;
+            // v11.6.K — invalidate price-chart cache so the static layers
+            // re-render with fresh OHLCV / SMA / BB data on next view tick.
+            state.price_chart_cache.clear();
             state.status = if rows.is_empty() {
                 format!(
                     "{} — no data yet (run the scraper first)",
@@ -403,19 +406,27 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
             state.fetching_ticker = true;
             state.fetch_start_time = Some(std::time::Instant::now());
             state.push_toast(format!("Fetching data for {}...", ticker));
+            // v11.6.J — 90-second hard timeout. Without this, an unresponsive
+            // child process leaves the UI stuck on "Fetching..." forever.
+            // User feedback: "When I fetched, this ended up being stuck."
             Some(Task::perform(
                 async move {
-                    let output = tokio::process::Command::new(&scraper_path)
-                        .args(["--ticker", &ticker])
-                        .output()
-                        .await
-                        .map_err(|e| format!("Failed to spawn scraper: {e}"))?;
-
-                    if output.status.success() {
-                        Ok(())
-                    } else {
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        Err(format!("Scraper failed: {}", stderr.chars().take(200).collect::<String>()))
+                    let fetch_future = async {
+                        let output = tokio::process::Command::new(&scraper_path)
+                            .args(["--ticker", &ticker])
+                            .output()
+                            .await
+                            .map_err(|e| format!("Failed to spawn scraper: {e}"))?;
+                        if output.status.success() {
+                            Ok(())
+                        } else {
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            Err(format!("Scraper failed: {}", stderr.chars().take(200).collect::<String>()))
+                        }
+                    };
+                    match tokio::time::timeout(std::time::Duration::from_secs(90), fetch_future).await {
+                        Ok(result) => result,
+                        Err(_) => Err("Fetch timed out after 90s. Scraper may be hung — try again.".to_string()),
                     }
                 },
                 Message::FetchTickerComplete,
