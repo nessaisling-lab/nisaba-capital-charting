@@ -15,6 +15,7 @@ mod options;
 mod paper_engine;
 mod polymarket;
 mod prices;
+mod retry;
 mod rss_news;
 mod rss_tone;
 mod sentiment;
@@ -353,11 +354,17 @@ async fn fetch_single_ticker(
     fmp_key: Option<Arc<String>>,
     ticker: &str,
 ) -> anyhow::Result<()> {
-    // 1. Astrology: ensure natal chart + daily transits + scores
-    println!("[{ticker}] Phase 1: Astrology...");
-    astrology::seed_natal_charts(Arc::clone(&pool)).await;
+    // 1. Astrology: scope to this ticker only (v11.3 — was universe-wide)
+    println!("[{ticker}] Phase 1: Astrology (single-ticker)...");
+    if let Err(e) = astrology::seed_natal_chart_one(Arc::clone(&pool), ticker).await {
+        eprintln!("[{ticker}] Natal seed error: {e:#}");
+    }
+    // Daily transits are date-keyed (not ticker-keyed) — runs once per day,
+    // skips if already computed. Keep the universe-wide call.
     astrology::compute_daily_transits(Arc::clone(&pool)).await;
-    astrology::compute_astro_scores(Arc::clone(&pool)).await;
+    if let Err(e) = astrology::compute_astro_score_one(Arc::clone(&pool), ticker).await {
+        eprintln!("[{ticker}] Astro score error: {e:#}");
+    }
 
     // 2. Price data (Alpha Vantage)
     println!("[{ticker}] Phase 2: Price data...");

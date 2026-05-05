@@ -265,19 +265,34 @@ fn analyze_buffett(ctx: &AgentContext) -> AgentAnalysis {
 
     let verdict = score_to_verdict(score, &[(5, AgentVerdict::StrongBuy), (3, AgentVerdict::Buy),
         (0, AgentVerdict::Hold), (-2, AgentVerdict::Sell)]);
-    let v = ctx.ticker.len() % 3;
+    let v = headline_variant(ctx, score, 6);
+    let roe_pct = ctx.fundamentals.as_ref().and_then(|f| f.roe).map(|v| v * 100.0);
+    let pe = ctx.fundamentals.as_ref().and_then(|f| f.pe_ratio);
     let headline = match verdict {
-        AgentVerdict::StrongBuy => format!("{} looks like a wonderful business at a fair price.", ctx.ticker),
-        AgentVerdict::Buy => [
-            format!("{} has solid economics. I'd consider adding to my position.", ctx.ticker),
-            format!("The fundamentals of {} tell a good story. Worth owning.", ctx.ticker),
-            format!("{} earns its keep. This is the kind of business I understand.", ctx.ticker),
-        ][v].clone(),
-        AgentVerdict::Hold => [
-            format!("{} is decent but not compelling. I'd hold, not add.", ctx.ticker),
-            format!("{} has some merit, but the price doesn't scream value to me.", ctx.ticker),
-            format!("I see what {} does well, but the margin of safety isn't there yet.", ctx.ticker),
-        ][v].clone(),
+        AgentVerdict::StrongBuy => match v {
+            0 => format!("{} looks like a wonderful business at a fair price.", ctx.ticker),
+            1 => format!("{} is the kind of franchise I'd hold for a decade.", ctx.ticker),
+            2 => match roe_pct { Some(r) if r > 20.0 => format!("{} earns {:.0}% on equity. Wonderful business.", ctx.ticker, r), _ => format!("{} prints cash. I'd back up the truck.", ctx.ticker) },
+            3 => format!("Mr. Market is offering me {} cheaper than its intrinsic value.", ctx.ticker),
+            4 => format!("{} has the moat, the margins, and the management. All three.", ctx.ticker),
+            _ => format!("{} reminds me of See's Candies — quality with pricing power.", ctx.ticker),
+        },
+        AgentVerdict::Buy => match v {
+            0 => format!("{} has solid economics. I'd consider adding to my position.", ctx.ticker),
+            1 => format!("The fundamentals of {} tell a good story. Worth owning.", ctx.ticker),
+            2 => format!("{} earns its keep. This is the kind of business I understand.", ctx.ticker),
+            3 => match pe { Some(p) if p < 18.0 => format!("{} at {p:.0}x earnings is reasonable for the quality.", ctx.ticker), _ => format!("{} is a buy if you have a long enough holding period.", ctx.ticker) },
+            4 => format!("I'd own {} in size — but only at this price or lower.", ctx.ticker),
+            _ => format!("{} passes the 'would I buy the whole company' test.", ctx.ticker),
+        },
+        AgentVerdict::Hold => match v {
+            0 => format!("{} is decent but not compelling. I'd hold, not add.", ctx.ticker),
+            1 => format!("{} has some merit, but the price doesn't scream value to me.", ctx.ticker),
+            2 => format!("I see what {} does well, but the margin of safety isn't there yet.", ctx.ticker),
+            3 => format!("Holding {} makes sense. Buying more here doesn't.", ctx.ticker),
+            4 => format!("{} is acceptable. Not the kind of business I'd seek out.", ctx.ticker),
+            _ => format!("Mr. Market is pricing {} fairly today. I'd wait for a fat pitch.", ctx.ticker),
+        },
         AgentVerdict::Sell => format!("{} doesn't meet my quality threshold. Capital is better deployed elsewhere.", ctx.ticker),
         AgentVerdict::StrongSell => format!("{} has fundamental problems. This is outside my circle of competence.", ctx.ticker),
         AgentVerdict::InsufficientData => format!("I need more data on {} before forming an opinion.", ctx.ticker),
@@ -390,19 +405,33 @@ fn analyze_graham(ctx: &AgentContext) -> AgentAnalysis {
 
     let verdict = score_to_verdict(score, &[(7, AgentVerdict::StrongBuy), (4, AgentVerdict::Buy),
         (0, AgentVerdict::Hold), (-3, AgentVerdict::Sell)]);
-    let v = ctx.ticker.len() % 3;
+    let v = headline_variant(ctx, score, 6);
+    let pb = ctx.fundamentals.as_ref().and_then(|f| f.pb_ratio);
+    let pe = ctx.fundamentals.as_ref().and_then(|f| f.pe_ratio);
     let headline = match verdict {
-        AgentVerdict::StrongBuy => format!("{} is statistically cheap with a strong balance sheet. A textbook value investment.", ctx.ticker),
-        AgentVerdict::Buy => [
-            format!("{} passes most of my quantitative screens. A reasonable investment.", ctx.ticker),
-            format!("The numbers for {} check out. This meets my criteria for a defensive investment.", ctx.ticker),
-            format!("{} offers adequate margin of safety at current prices.", ctx.ticker),
-        ][v].clone(),
-        AgentVerdict::Hold => [
-            format!("{} is neither cheap enough to buy nor expensive enough to sell.", ctx.ticker),
-            format!("Mr. Market is pricing {} fairly — no statistical bargain here.", ctx.ticker),
-            format!("{} sits in no-man's land: too expensive for value, too cheap to short.", ctx.ticker),
-        ][v].clone(),
+        AgentVerdict::StrongBuy => match v {
+            0 => format!("{} is statistically cheap with a strong balance sheet. A textbook value investment.", ctx.ticker),
+            1 => match (pe, pb) { (Some(e), Some(b)) => format!("{} at P/E {e:.0}, P/B {b:.1} — passes the 22.5 rule decisively.", ctx.ticker), _ => format!("{} is a net-net candidate. Buy with margin of safety.", ctx.ticker) },
+            2 => format!("{} screens like the bargains I documented in Security Analysis.", ctx.ticker),
+            3 => format!("The numbers for {} are unambiguous. This is deep value.", ctx.ticker),
+            _ => format!("{} offers protection of capital and chance for profit. Both criteria met.", ctx.ticker),
+        },
+        AgentVerdict::Buy => match v {
+            0 => format!("{} passes most of my quantitative screens. A reasonable investment.", ctx.ticker),
+            1 => format!("The numbers for {} check out. Defensive investor territory.", ctx.ticker),
+            2 => format!("{} offers adequate margin of safety at current prices.", ctx.ticker),
+            3 => format!("{} qualifies under my enterprising-investor criteria.", ctx.ticker),
+            4 => format!("Statistically, {} is in my buy zone. Not glamorous, but sound.", ctx.ticker),
+            _ => format!("{} could fit a diversified portfolio of value names.", ctx.ticker),
+        },
+        AgentVerdict::Hold => match v {
+            0 => format!("{} is neither cheap enough to buy nor expensive enough to sell.", ctx.ticker),
+            1 => format!("Mr. Market is pricing {} fairly — no statistical bargain here.", ctx.ticker),
+            2 => format!("{} sits in no-man's land: too expensive for value, too cheap to short.", ctx.ticker),
+            3 => format!("{} doesn't insult my intelligence, but doesn't reward it either.", ctx.ticker),
+            4 => format!("Hold on {}. The margin of safety is razor-thin.", ctx.ticker),
+            _ => format!("{} fails the 'would I lend money against this' test by a hair.", ctx.ticker),
+        },
         AgentVerdict::Sell => format!("{} fails my valuation criteria. The margin of safety is inadequate.", ctx.ticker),
         AgentVerdict::StrongSell => format!("{} is speculative at this price. No margin of safety.", ctx.ticker),
         AgentVerdict::InsufficientData => format!("I need financial statements for {} before I can run my screens.", ctx.ticker),
@@ -500,19 +529,34 @@ fn analyze_lynch(ctx: &AgentContext) -> AgentAnalysis {
 
     let verdict = score_to_verdict(score, &[(7, AgentVerdict::StrongBuy), (4, AgentVerdict::Buy),
         (1, AgentVerdict::Hold), (-2, AgentVerdict::Sell)]);
-    let v = ctx.ticker.len() % 3;
+    let v = headline_variant(ctx, score, 6);
+    let peg = ctx.fundamentals.as_ref().and_then(|f| f.peg_ratio);
+    let sector_short = ctx.sector.as_deref().unwrap_or("");
     let headline = match verdict {
-        AgentVerdict::StrongBuy => format!("{} is growing fast and the market hasn't fully priced it in. Classic GARP.", ctx.ticker),
-        AgentVerdict::Buy => [
-            format!("{} has a good growth story at a reasonable price.", ctx.ticker),
-            format!("I like what I see in {}. The growth is real and the price is fair.", ctx.ticker),
-            format!("{} is the kind of stock I'd find by walking through a mall and noticing what people are buying.", ctx.ticker),
-        ][v].clone(),
-        AgentVerdict::Hold => [
-            format!("{} is interesting but the price-to-growth ratio isn't compelling yet.", ctx.ticker),
-            format!("I'd want to walk into a {} store before committing. The numbers alone don't convince me.", ctx.ticker),
-            format!("{} has potential, but I need to see the growth rate accelerate before paying this price.", ctx.ticker),
-        ][v].clone(),
+        AgentVerdict::StrongBuy => match v {
+            0 => format!("{} is growing fast and the market hasn't fully priced it in. Classic GARP.", ctx.ticker),
+            1 => match peg { Some(p) if p < 1.0 => format!("{} at PEG {p:.2}? The market is asleep on this one.", ctx.ticker), _ => format!("{} is a tenbagger candidate hiding in plain sight.", ctx.ticker) },
+            2 => format!("{} is the kind of {} story I'd buy and forget for five years.", ctx.ticker, if sector_short.is_empty() { "growth".into() } else { sector_short.to_lowercase() }),
+            3 => format!("Walk into a {} retailer — you'll see why this is a tenbagger.", ctx.ticker),
+            4 => format!("{} is fast-grower territory at value-investor prices. Rare combo.", ctx.ticker),
+            _ => format!("Buy {}, hold it, ignore the chatter. Growth wins.", ctx.ticker),
+        },
+        AgentVerdict::Buy => match v {
+            0 => format!("{} has a good growth story at a reasonable price.", ctx.ticker),
+            1 => format!("I like what I see in {}. Growth is real and the price is fair.", ctx.ticker),
+            2 => format!("{} is the kind of stock I'd find walking through a mall.", ctx.ticker),
+            3 => format!("{} fits my GARP screen. The 'G' and the 'P' both check out.", ctx.ticker),
+            4 => format!("If {} can keep this growth rate, today's price is a steal.", ctx.ticker),
+            _ => format!("{} — I'd own this in a growth allocation, not a value one.", ctx.ticker),
+        },
+        AgentVerdict::Hold => match v {
+            0 => format!("{} is interesting but the price-to-growth ratio isn't compelling yet.", ctx.ticker),
+            1 => format!("I'd want to walk into a {} store before committing.", ctx.ticker),
+            2 => format!("{} has potential, but the growth rate must accelerate first.", ctx.ticker),
+            3 => format!("{} is a stalwart for now. Watch for a fast-grower phase.", ctx.ticker),
+            4 => format!("I'd hold {} and wait for the next earnings catalyst.", ctx.ticker),
+            _ => format!("{} — neither cheap enough nor growing fast enough. Hold.", ctx.ticker),
+        },
         AgentVerdict::Sell => format!("{} is either too expensive for its growth or the growth isn't there.", ctx.ticker),
         AgentVerdict::StrongSell => format!("{} fails my growth-at-reasonable-price test on multiple fronts.", ctx.ticker),
         AgentVerdict::InsufficientData => format!("I need to see the numbers for {} before I can form an opinion.", ctx.ticker),
@@ -619,19 +663,33 @@ fn analyze_munger(ctx: &AgentContext) -> AgentAnalysis {
 
     let verdict = score_to_verdict(score, &[(8, AgentVerdict::StrongBuy), (5, AgentVerdict::Buy),
         (1, AgentVerdict::Hold), (-2, AgentVerdict::Sell)]);
-    let v = ctx.ticker.len() % 3;
+    let v = headline_variant(ctx, score, 6);
+    let om = ctx.fundamentals.as_ref().and_then(|f| f.operating_margin).map(|v| v * 100.0);
     let headline = match verdict {
-        AgentVerdict::StrongBuy => format!("{} is a high-quality business with a durable moat. I'd hold forever.", ctx.ticker),
-        AgentVerdict::Buy => [
-            format!("{} shows good quality indicators. Worth owning.", ctx.ticker),
-            format!("The economics of {} are sound. Not perfect, but the moat is real.", ctx.ticker),
-            format!("{} reminds me of businesses I've admired. Quality deserves a fair price.", ctx.ticker),
-        ][v].clone(),
-        AgentVerdict::Hold => [
-            format!("{} is acceptable but not the kind of quality that makes me excited.", ctx.ticker),
-            format!("I don't hate {} but I don't love it either. In investing, 'okay' is not good enough.", ctx.ticker),
-            format!("{} is mediocre, and the world is full of mediocre businesses I don't need to own.", ctx.ticker),
-        ][v].clone(),
+        AgentVerdict::StrongBuy => match v {
+            0 => format!("{} is a high-quality business with a durable moat. I'd hold forever.", ctx.ticker),
+            1 => match om { Some(m) if m > 30.0 => format!("{} runs at {:.0}% operating margin. That's not luck — that's a moat.", ctx.ticker, m), _ => format!("{} has the rare combination: quality and reasonable price.", ctx.ticker) },
+            2 => format!("{} clears my quality bar. The world's wonderful businesses are few.", ctx.ticker),
+            3 => format!("{} is the kind of compounder Warren and I would buy outright.", ctx.ticker),
+            4 => format!("Quality, moat, management — {} has all three. Rare.", ctx.ticker),
+            _ => format!("{} — invert: what would make me sell? Almost nothing comes to mind.", ctx.ticker),
+        },
+        AgentVerdict::Buy => match v {
+            0 => format!("{} shows good quality indicators. Worth owning.", ctx.ticker),
+            1 => format!("The economics of {} are sound. Not perfect, but the moat is real.", ctx.ticker),
+            2 => format!("{} reminds me of businesses I've admired. Quality deserves a fair price.", ctx.ticker),
+            3 => format!("{} has the right architectural traits — I'd hold a position.", ctx.ticker),
+            4 => format!("{} is good quality at a fair price. Buffett's formula.", ctx.ticker),
+            _ => format!("Owning {} won't keep me up at night. That's the test.", ctx.ticker),
+        },
+        AgentVerdict::Hold => match v {
+            0 => format!("{} is acceptable but not the kind of quality that excites me.", ctx.ticker),
+            1 => format!("I don't hate {} but I don't love it either. 'Okay' isn't good enough.", ctx.ticker),
+            2 => format!("{} is mediocre. The world is full of mediocre businesses I don't need to own.", ctx.ticker),
+            3 => format!("{} is in my too-hard pile. Move on.", ctx.ticker),
+            4 => format!("{} — not bad, not wonderful. Quality compounders are rare.", ctx.ticker),
+            _ => format!("Hold {} if you must. I'd rather wait for a fat pitch.", ctx.ticker),
+        },
         AgentVerdict::Sell => format!("{} doesn't meet my quality bar. I'd rather own a wonderful business at a fair price.", ctx.ticker),
         AgentVerdict::StrongSell => format!("{} shows multiple quality red flags. Invert: what would make this fail? Too much.", ctx.ticker),
         AgentVerdict::InsufficientData => format!("I need to see the economics of {} before I can form a judgment.", ctx.ticker),
@@ -684,6 +742,14 @@ fn build_munger_narrative(ctx: &AgentContext, score: i32) -> String {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/// Pick a headline variant index using ticker chars + score so different
+/// tickers (and same ticker at different scores) get different phrasings.
+/// v11.3 — replaces simpler `ticker.len() % 3` to cut "same template" feel.
+fn headline_variant(ctx: &AgentContext, score: i32, pool_size: usize) -> usize {
+    let char_sum: u32 = ctx.ticker.chars().map(|c| c as u32).sum();
+    ((char_sum.wrapping_add(score.unsigned_abs())) as usize) % pool_size
+}
 
 fn truncate_str(s: &str, max: usize) -> String {
     if s.chars().count() <= max { s.to_string() }

@@ -1,9 +1,9 @@
-use iced::widget::{button, column, horizontal_rule, row, slider, text, text_input};
+use iced::widget::{button, column, pick_list, row, rule, slider, text, text_input};
 use iced::{Alignment, Element, Length};
 
 use crate::font;
 use crate::icons;
-use crate::state::{Dashboard, Message};
+use crate::state::{ChartSize, Dashboard, Message, TooltipSize};
 use crate::theme;
 use super::shared::{card, eyebrow, section_heading, section_rule};
 
@@ -48,7 +48,7 @@ impl Dashboard {
         let circadian_row = column![
             row![
                 text(slider_label).size(theme::text_sm()),
-                iced::widget::Space::with_width(Length::Fill),
+                iced::widget::Space::new().width(Length::Fill),
                 button(text("Reset to clock").size(theme::text_xs()))
                     .on_press(Message::CircadianSliderReset),
             ].spacing(8).align_y(Alignment::Center),
@@ -56,11 +56,32 @@ impl Dashboard {
                 .width(Length::Fill),
         ].spacing(4);
 
+        // ── v11.3 — chart + tooltip size pickers ────────────
+        let chart_size_row = row![
+            text("Natal wheel size:").font(font::BODY_BOLD).size(theme::text_sm()),
+            pick_list(
+                ChartSize::all().to_vec(),
+                Some(self.chart_size),
+                Message::SetChartSize,
+            ).text_size(theme::text_sm()),
+        ].spacing(8).align_y(Alignment::Center);
+
+        let tooltip_size_row = row![
+            text("Candle tooltip size:").font(font::BODY_BOLD).size(theme::text_sm()),
+            pick_list(
+                TooltipSize::all().to_vec(),
+                Some(self.tooltip_size),
+                Message::SetTooltipSize,
+            ).text_size(theme::text_sm()),
+        ].spacing(8).align_y(Alignment::Center);
+
         let appearance_card = card(column![
             section_heading(icons::GEAR, "Appearance"),
-            horizontal_rule(1),
+            rule::horizontal(1),
             theme_row,
             font_row,
+            chart_size_row,
+            tooltip_size_row,
             circadian_row,
         ].spacing(6));
 
@@ -78,7 +99,7 @@ impl Dashboard {
 
         let data_card = card(column![
             section_heading(icons::ARROW_REPEAT, "Data & Refresh"),
-            horizontal_rule(1),
+            rule::horizontal(1),
             refresh_row,
         ].spacing(6));
 
@@ -93,7 +114,7 @@ impl Dashboard {
         };
         let api_keys_card = card(column![
             section_heading(icons::KEY, "API Keys"),
-            horizontal_rule(1),
+            rule::horizontal(1),
             row![
                 text("Anthropic API Key:").size(theme::text_sm()),
                 text_input("sk-ant-...", &self.api_key_input)
@@ -111,7 +132,7 @@ impl Dashboard {
         // ── Alerts card ─────────────────────────────────────
         let alerts_card = card(column![
             section_heading(icons::BELL, "Alert Thresholds"),
-            horizontal_rule(1),
+            rule::horizontal(1),
             text("Alerts fire when a ticker transitions into an extreme Lagrange zone:").size(theme::text_sm()),
             text("  Optimal (score >= 70) or Misaligned (score < 30)").size(theme::text_sm()),
             text(format!("Active alerts: {}  |  Unread: {}", self.alerts.len(), self.unread_alert_count)).size(theme::text_sm()),
@@ -120,7 +141,7 @@ impl Dashboard {
         // ── Info card ───────────────────────────────────────
         let info_card = card(column![
             section_heading(icons::INFO_CIRCLE, "Dashboard Info"),
-            horizontal_rule(1),
+            rule::horizontal(1),
             text(format!("Tickers loaded: {}", self.tickers.len())).size(theme::text_sm()),
             text(format!("Universe size: {}", self.universe_total)).size(theme::text_sm()),
             text(format!("Transactions: {}", self.transactions.len())).size(theme::text_sm()),

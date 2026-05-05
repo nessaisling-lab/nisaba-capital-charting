@@ -12,12 +12,16 @@ use std::sync::Arc;
 // ---------------------------------------------------------------------------
 
 pub async fn seed_natal_charts(pool: Arc<sqlx::PgPool>) {
+    // v11.3 — also re-seed tickers that have positions but are missing
+    // natal_angles (Ascendant + MC). Earlier builds populated positions
+    // without angles, leaving Rising sign blank in the UI.
     let rows: Vec<(String, NaiveDate)> = match sqlx::query_as(
         "SELECT cm.ticker, cm.ipo_date \
          FROM company_metadata cm \
          WHERE cm.ipo_date IS NOT NULL \
-           AND NOT EXISTS ( \
-               SELECT 1 FROM natal_positions np WHERE np.ticker = cm.ticker \
+           AND ( \
+               NOT EXISTS (SELECT 1 FROM natal_positions np WHERE np.ticker = cm.ticker) \
+               OR NOT EXISTS (SELECT 1 FROM natal_angles na WHERE na.ticker = cm.ticker) \
            ) \
          ORDER BY cm.ticker",
     )
@@ -79,6 +83,60 @@ pub async fn seed_natal_charts(pool: Arc<sqlx::PgPool>) {
     }
 
     println!("Natal chart seeding complete.");
+}
+
+/// Seed natal chart (positions + angles) for ONE ticker. Idempotent.
+/// v11.3 — added so single-ticker fetches don't trigger universe-wide loops.
+pub async fn seed_natal_chart_one(pool: Arc<sqlx::PgPool>, ticker: &str) -> anyhow::Result<()> {
+    let ipo_date: Option<NaiveDate> = sqlx::query_scalar(
+        "SELECT ipo_date FROM company_metadata WHERE ticker = $1",
+    )
+    .bind(ticker)
+    .fetch_optional(pool.as_ref())
+    .await?
+    .flatten();
+
+    let Some(ipo_date) = ipo_date else {
+        println!("[{ticker}] No IPO date — skipping natal chart");
+        return Ok(());
+    };
+
+    let chart = NatalChart::compute(ticker, ipo_date);
+    for pos in &chart.positions {
+        let _ = sqlx::query(
+            "INSERT INTO natal_positions (ticker, planet, longitude, sign, degree, retrograde) \
+             VALUES ($1, $2, $3, $4, $5, $6) \
+             ON CONFLICT (ticker, planet) DO UPDATE \
+             SET longitude = EXCLUDED.longitude, sign = EXCLUDED.sign, \
+                 degree = EXCLUDED.degree, retrograde = EXCLUDED.retrograde",
+        )
+        .bind(ticker)
+        .bind(pos.planet.name())
+        .bind(pos.longitude)
+        .bind(pos.sign)
+        .bind(pos.degree)
+        .bind(pos.retrograde)
+        .execute(pool.as_ref())
+        .await;
+    }
+
+    let jdn = date_to_jdn(ipo_date.year(), ipo_date.month(), ipo_date.day(), 14.5);
+    if let Ok(houses) = compute_houses_nyse(jdn) {
+        let _ = sqlx::query(
+            "INSERT INTO natal_angles (ticker, ascendant, mc) \
+             VALUES ($1, $2, $3) \
+             ON CONFLICT (ticker) DO UPDATE \
+             SET ascendant = EXCLUDED.ascendant, mc = EXCLUDED.mc",
+        )
+        .bind(ticker)
+        .bind(houses.ascendant)
+        .bind(houses.mc)
+        .execute(pool.as_ref())
+        .await;
+    }
+
+    println!("[{ticker}] Natal chart seeded ({} bodies, IPO {ipo_date})", chart.positions.len());
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -232,6 +290,76 @@ pub async fn compute_astro_scores(pool: Arc<sqlx::PgPool>) {
     }
 
     println!("Astrological scoring and horoscope generation complete.");
+}
+
+/// Compute astro score + horoscope for ONE ticker.
+/// v11.3 — single-ticker variant so fetch button doesn't rescore the universe.
+pub async fn compute_astro_score_one(pool: Arc<sqlx::PgPool>, ticker: &str) -> anyhow::Result<()> {
+    let today = Utc::now().date_naive();
+
+    let ipo_date: Option<NaiveDate> = sqlx::query_scalar(
+        "SELECT ipo_date FROM company_metadata WHERE ticker = $1",
+    )
+    .bind(ticker)
+    .fetch_optional(pool.as_ref())
+    .await?
+    .flatten();
+
+    let Some(ipo_date) = ipo_date else {
+        println!("[{ticker}] No IPO date — skipping astro score");
+        return Ok(());
+    };
+
+    let natal        = NatalChart::compute(ticker, ipo_date);
+    let score        = compute_transit_score(&natal, today);
+    let aspects_json = aspects_to_json(&score.active_aspects);
+
+    sqlx::query(
+        "INSERT INTO astro_scores \
+         (ticker, score_date, astro_score, astro_label, moon_phase, \
+          moon_phase_deg, mercury_rx, active_aspects) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+         ON CONFLICT (ticker, score_date) DO UPDATE \
+         SET astro_score    = EXCLUDED.astro_score, \
+             astro_label    = EXCLUDED.astro_label, \
+             moon_phase     = EXCLUDED.moon_phase, \
+             moon_phase_deg = EXCLUDED.moon_phase_deg, \
+             mercury_rx     = EXCLUDED.mercury_rx, \
+             active_aspects = EXCLUDED.active_aspects",
+    )
+    .bind(ticker)
+    .bind(today)
+    .bind(score.astro_score as f64)
+    .bind(&score.astro_label)
+    .bind(&score.moon_phase)
+    .bind(score.moon_phase_deg)
+    .bind(score.mercury_rx)
+    .bind(&aspects_json)
+    .execute(pool.as_ref())
+    .await?;
+
+    let reading = generate_horoscope(&score);
+    let reading_json = horoscope_to_json(&reading);
+
+    let _ = sqlx::query(
+        "INSERT INTO horoscope_readings \
+         (ticker, reading_date, reading, dominant_theme, confidence) \
+         VALUES ($1, $2, $3, $4, $5) \
+         ON CONFLICT (ticker, reading_date) DO UPDATE \
+         SET reading        = EXCLUDED.reading, \
+             dominant_theme  = EXCLUDED.dominant_theme, \
+             confidence      = EXCLUDED.confidence",
+    )
+    .bind(ticker)
+    .bind(today)
+    .bind(&reading_json)
+    .bind(&reading.dominant_theme)
+    .bind(reading.confidence as f64)
+    .execute(pool.as_ref())
+    .await;
+
+    println!("[{ticker}] Astro: {:.0} ({}) — {}", score.astro_score, score.astro_label, reading.dominant_theme);
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------

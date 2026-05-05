@@ -1,8 +1,8 @@
 use iced::widget::canvas::Canvas;
-use iced::widget::{column, container, horizontal_rule, row, scrollable, text, Column, Row};
+use iced::widget::{column, container, row, rule, text, Column, Row};
 use iced::{Alignment, Element, Length};
 
-use super::shared::gold_scrollbar_style;
+use super::shared::gutter_scroll;
 use crate::charts::{AstroMarker, LagrangeSparkline, PriceChart};
 use crate::font;
 use crate::helpers;
@@ -121,6 +121,7 @@ impl Dashboard {
                 volumes,
                 astro_markers,
                 draw_progress: self.chart_draw_progress,
+                tooltip_dims: self.tooltip_size.dims(),
             })
             .width(Length::Fill)
             .height(Length::Fixed(300.0))
@@ -423,9 +424,9 @@ impl Dashboard {
                         text(format!("Signal Intelligence: {}", self.selected_ticker))
                             .font(font::DISPLAY)
                             .size(theme::text_lg()),
-                        horizontal_rule(1),
+                        rule::horizontal(1),
                         Column::with_children(bullet_items).spacing(4),
-                        horizontal_rule(1),
+                        rule::horizontal(1),
                         verdict,
                     ]
                     .spacing(6)
@@ -545,12 +546,10 @@ impl Dashboard {
 
             column![
                 panel_header,
-                horizontal_rule(1),
+                rule::horizontal(1),
                 hdr,
-                horizontal_rule(1),
-                scrollable(Column::with_children(rank_rows).spacing(4))
-                    .height(Length::Fixed(240.0))
-                    .style(gold_scrollbar_style),
+                rule::horizontal(1),
+                gutter_scroll(Column::with_children(rank_rows).spacing(4), 240.0),
             ]
             .spacing(5)
         };
@@ -619,9 +618,7 @@ impl Dashboard {
                 .collect();
             column![
                 text("Prediction Markets (Polymarket)").font(font::DISPLAY).size(theme::text_md()),
-                scrollable(Column::with_children(pm_items).spacing(3))
-                    .height(Length::Fixed(140.0))
-                    .style(gold_scrollbar_style),
+                gutter_scroll(Column::with_children(pm_items).spacing(3), 140.0),
             ]
             .spacing(4)
             .into()

@@ -1,8 +1,136 @@
 # Changelog — Pursuit Week 4 Financial Dashboard
 
 **Author:** Aisling Leiva
-**Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
-**Development:** 2026-04-07 to 2026-04-29
+**Stack:** Rust, Iced 0.14, SQLx, PostgreSQL
+**Development:** 2026-04-07 to 2026-05-04
+
+---
+
+## v11.3.0 — "The Refinement" (2026-05-04)
+
+**Theme:** All 22 video-review feedback items shipped across 5 waves. Polish pass on UI density, layout flow, chart overlays, council templates, gauges, and background atmosphere.
+
+### Wave 1 — Quick Visual Wins
+- **1a Aspect line thickness** — `ASPECT_W` 0.005 → 0.003 in `natal_wheel_3d.wgsl`. Reverts v9.3 thickening that produced "lines spitting at each other."
+- **1b Section icons** — Phosphor icons (GLOBE/GRAPH_UP/CALENDAR/MOON_STARS/LIGHTNING) on Astrology tab section headers. New `icon_eyebrow()` helper in `shared.rs`.
+- **1c Compact horoscope** — Moon/Mercury/Timing collapsed into single `row![]` at `text_xs`. "Mercury: Direct — clear communications" trimmed to "Mercury: Direct".
+- **1d Scrollbar gutter audit** — New `gutter_scroll()` helper wraps content with 20px right padding + gold style. Applied to 13 sub-scrollables across 6 view files.
+- **1e Galaxy background mute** — Desaturated nebula purples, fewer stars (threshold 0.92→0.93), slower twinkle (1.2→0.8). Less "screaming nebula."
+
+### Wave 2 — Layout Restructure
+- **2a Header price + H/L** — Ticker block now shows last close (gold) + day high/low pulled from `self.rows.last()`. No state changes needed.
+- **2b Search above ornament** — `compact_nav` moved above `PageHeaderOrnament`. Ornament now divides header from tab bar.
+- **2c Astrology tab reorder** — Horoscope extracted to standalone section. New flow: Natal → Calendar+Forecast (row) → Horoscope → Backtest → Strategy.
+- **2d Two-column compression** — `row![calendar_col, forecast_col]` with `Length::FillPortion(1)` each. ~250px vertical compression.
+
+### Wave 3 — UX + Chart Overlays (Iced 0.14 features)
+- **3a Sector dropdown** — Button row → `pick_list` with "All" sentinel mapping to `None`.
+- **3b Column header tooltips** — `tooltip()` widget on Fin/Mac/Sht/Conc with full names + descriptions. Custom `tip_style` container.
+- **3c Rising sign backfill** — Seeder WHERE clause now matches tickers missing EITHER `natal_positions` OR `natal_angles`. Fixes blank Rising sign for tickers seeded pre-angles.
+- **3d Per-ticker fetch scope** — New `seed_natal_chart_one` + `compute_astro_score_one` for `--ticker` mode. Fixes universe-wide loops on single-ticker fetches.
+- **3e Planet symbols overlay** — `stack![shader, pin(text_glyph)]` with Unicode astrology glyphs (☉☽☿♀♂♃♄⛢♆♇☊☋⚷). Position math in `planet_pixel_pos()` accounts for camera tilt.
+- **3f Chart hover tooltips** — Each glyph wrapped in `tooltip()` showing planet+sign+degree on hover.
+
+### Wave 4 — Council Fix + Chart Polish
+- **4a Council diversification** — Headline pools 3→6 variants per persona/verdict. Ticker-specific fundamental injection (ROE, P/E, PEG, op margin). New `headline_variant()` hashes char codepoints + score so AAPL/MSFT/META no longer share strings.
+- **4b Chart size enum** — `ChartSize::{Compact 320, Default 400, Large 520}`. State field + pick_list in Astrology tab and Settings. `planet_pixel_pos` parametrized by `chart_px`.
+- **4c Fetch progress bar** — `fetch_start_time: Option<Instant>` drives time-based fill (cap 0.85 over 30s). `FillPortion` split: gold filled / 15%-alpha track. Replaces indefinite pulse.
+
+### Wave 5 — Deferred Polish
+- **5a Tooltip size setting** — `TooltipSize::{Small/Default/Large}` enum. State field + Settings UI. Tuple `(font_px, box_w, box_h)` passed into `PriceChart` via new `tooltip_dims` field.
+- **5b Scraper retry helper** — New `src/scraper/retry.rs` with `with_retry()` higher-order async helper (3 attempts, 2s/8s backoff). Wired into FMP fundamentals fetch (key-metrics + ratios endpoints).
+- **5c Gauge reimagination** — Compass-rose detailing: outer gilt arc (45% gold), sundial tick marks (major every 25pt, minor every 5pt), gold-backed needle, 8-point star center cap.
+- **5d Background texture** — Vignette shader gains 3 new layers: 8x60 horizontal "fiber" pattern (chain lines), 5x5 sepia-warm aging blotches, retains existing per-pixel grain. Renaissance parchment feel.
+
+**Files modified:** 23 (`shaders/natal_wheel_3d.wgsl`, `shaders/vignette.wgsl`, `view/shared.rs`, `view/astrology_tab.rs`, `view/mod.rs`, `view/universe.rs`, `view/overview.rs`, `view/research.rs`, `view/fundamentals.rs`, `view/settings.rs`, `state.rs`, `agents.rs`, `gauges.rs`, `charts.rs`, `astrology.rs`, `update/astro.rs`, `update/data.rs`, `scraper/main.rs`, `scraper/astrology.rs`, `scraper/fundamentals.rs`, `scraper/retry.rs` new)
+
+---
+
+## v11.2.0 — "The Foundation" (2026-04-30)
+
+**Iced 0.13 → 0.14 framework upgrade.** Major dependency migration touching 13+ source files across 19 breaking API changes.
+
+### Breaking API Changes Resolved
+| Category | Count | Change |
+|----------|-------|--------|
+| Shader system | 6 | `Storage` pattern → `Pipeline` trait (auto-creates on first frame) |
+| wgpu 22 → 27 | 8 | `entry_point` now `Option`, new `compilation_options`/`cache`/`depth_slice` fields |
+| Canvas events | 2 | `update()` returns `Option<Action<Message>>` instead of `(Status, Option<Message>)` |
+| Widget renames | 17 | `horizontal_rule` → `rule::horizontal`, `Space::with_width` → `Space::new().width()` |
+| Text alignment | 32 | `horizontal_alignment` → `align_x`, `vertical_alignment` → `align_y` |
+| Application boot | 1 | First arg now boot fn, title via builder, `.run()` replaces `.run_with()` |
+| Keyboard | 1 | `on_key_press(f)` → `keyboard::listen().filter_map()` |
+| Palette | 1 | New `warning` field required |
+| Scrollable | 1 | `Scroller.color` → `Scroller.background`, new `auto_scroll` field |
+| Button style | 1 | New `snap` field required |
+
+### Environment Fix
+- Added `C:\msys64\ucrt64\bin` to Windows user PATH — `swiss-eph` C compilation now works from PowerShell (was only working from bash/MSYS2)
+
+### Unblocked by Upgrade
+- `pin` widget: absolute (x,y) positioning for planet labels over shader
+- `float` widget: floating overlays with dynamic positioning
+- `stack` improvements: `push_under` for shader-behind-UI layering
+- Animation API: built-in animation primitives for hover transitions
+- cosmic-text 0.15: better Unicode symbol rendering (zodiac glyphs)
+- wgpu 27: modern GPU backend
+
+**Files modified:** 19 (`Cargo.toml`, `shaders/mod.rs`, `charts.rs`, `main.rs`, `update/mod.rs`, `theme.rs`, `view/mod.rs`, `view/shared.rs`, `view/overview.rs`, `view/portfolio_tab.rs`, `view/universe.rs`, `view/paper_trail.rs`, `view/settings.rs`, `view/fundamentals.rs`, `view/astrology_tab.rs`, `calendar.rs`, `astrology.rs`, `gauges.rs`, `heatmap.rs`)
+
+---
+
+## v11.1.0 — "The Craft" (2026-04-30)
+
+- **Clickable entity links:** Insider names and institutional holder names in Research tab now open Google search on click. Reusable `link_button()` helper in `shared.rs` with gold hover styling.
+- **Tab glow rework:** Active tab now has 2px gold border with bookmark shape (rounded top corners, flat bottom) replacing the 15% alpha gold background fill. Hover tabs show faint gold border preview.
+- **Chart layer visibility toggles:** 4 toggle buttons (Natal/Transit/Aspects/Retro) above the natal wheel. Eye/eye-slash Phosphor icons. State flows through Dashboard bools -> shader uniforms -> WGSL conditionals. Retrogrades handled in Rust packing (no extra shader uniform needed).
+- **Nav layout redesign:** Two-row header: search bar (280px) left, ticker name centered, icon-only action buttons (refresh/fetch/theme) right. Second row: ticker DB buttons + recently viewed. Theme button changed from text to moon-stars icon.
+
+**Files modified:** 8 (`view/shared.rs`, `view/research.rs`, `view/mod.rs`, `view/astrology_tab.rs`, `state.rs`, `update/astro.rs`, `shaders/mod.rs`, `shaders/natal_wheel_3d.wgsl`, `icons.rs`)
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Entity names | Plain text | Gold clickable links (Google search) |
+| Active tab | Gold bg fill + sparkle | 2px gold border bookmark shape |
+| Chart layers | Always all visible | 4 toggleable layers (eye/eye-slash) |
+| Header layout | Single row, text buttons | Two-row, icon-only actions, search-left |
+
+---
+
+## v11.1 Video Review (2026-04-30)
+
+15-minute screen recording review of v11.1 build. Audio transcribed via faster-whisper.
+
+**Approved:** Tab bookmark borders, icon theme toggle, Universe legibility, Council verdict accuracy, overall layout direction.
+
+**21 feedback items captured** across 5 categories:
+- P0 Layout (5): Header price/high-low, search position, forecast-calendar merge, horoscope reposition, reduce dead space
+- P0 Chart (5): Aspect lines too thick, galaxy bg rework, planet symbols, interactivity, chart size
+- P1 UX (5): Sector dropdown, column tooltips, tooltip sizing, Rising sign bug, horoscope formatting
+- P1 Visual/Data (5): Section icons, scrollbar gutter, gauge redesign, progress bar, data reliability
+- P1 Bug (1): Council template responses too generic
+
+Full feedback structured in TODOS.md with video timestamps.
+
+---
+
+## v11.0.0 — "The Intelligence" (2026-04-29)
+
+- **90-day astro forecast:** Computed from natal positions + transit ephemeris, displayed as colored timeline events (favorable/unfavorable date ranges with aspect descriptions)
+- **Big Three summary:** Sun/Moon/Rising signs displayed prominently above natal chart
+- **Smart calculator defaults:** DCF growth% auto-fills from PEG ratio, Options Greeks vol% from historical volatility
+- **Zodiac sign band + planet symbol legend:** Visual legend below natal chart showing planet glyphs with natal/transit/retro color coding
+- **Pulsing loading bar:** Shimmer animation during data fetch operations
+- **Icon-only nav buttons:** Action buttons converted to Phosphor icons
+
+---
+
+## v10.0.0 — "The Signal" (2026-04-29)
+
+- **RSS tone sentiment:** Keyword-based sentiment scoring from 25 news feeds
+- **Lagrange adaptive weighting:** Removed 50-default compression, signals now scale to their actual range
+- **Richer agent verdicts:** Sector-aware, news-informed verdicts with 3 headline variants
+- **Fetch-this-ticker button:** One-click data fetch for selected ticker
 
 ---
 

@@ -1,4 +1,4 @@
-use iced::widget::{canvas::Canvas, column, horizontal_rule, row, text};
+use iced::widget::{canvas::Canvas, column, row, rule, text};
 use iced::{Alignment, Color, Element, Length};
 
 use crate::charts::EquityCurve;
@@ -60,7 +60,7 @@ impl Dashboard {
 
                 card(column![
                     section_heading(icons::WALLET, "Paper Trading Account"),
-                    horizontal_rule(1),
+                    rule::horizontal(1),
                     row![
                         column![
                             text("Initial Capital").size(theme::text_sm()),
@@ -95,7 +95,7 @@ impl Dashboard {
             None => {
                 card(column![
                     section_heading(icons::WALLET, "Paper Trading Account"),
-                    horizontal_rule(1),
+                    rule::horizontal(1),
                     text("No paper trading account found. Run the scraper to initialize.").size(theme::text_base()),
                     text("The paper engine runs automatically as Phase 5 of the daily pipeline.").size(theme::text_sm()),
                 ].spacing(8))
@@ -106,7 +106,7 @@ impl Dashboard {
     fn build_paper_positions_card(&self) -> Element<'_, Message> {
         let mut col = column![
             section_heading(icons::BRIEFCASE, "Open Positions"),
-            horizontal_rule(1),
+            rule::horizontal(1),
         ].spacing(6);
 
         if self.paper_positions.is_empty() {
@@ -124,7 +124,7 @@ impl Dashboard {
                 text("Entry Date").size(theme::text_sm()).width(Length::Fixed(100.0)),
             ].spacing(8).align_y(Alignment::Center);
             col = col.push(header);
-            col = col.push(horizontal_rule(1));
+            col = col.push(rule::horizontal(1));
 
             for pos in &self.paper_positions {
                 let shares: f64 = pos.shares.to_string().parse().unwrap_or(0.0);
@@ -266,7 +266,7 @@ impl Dashboard {
             ].spacing(4);
 
             if has_spy {
-                stats_col = stats_col.push(horizontal_rule(1));
+                stats_col = stats_col.push(rule::horizontal(1));
                 stats_col = stats_col.push(
                     text("vs. SPY Benchmark").size(theme::text_sm())
                 );
@@ -305,7 +305,7 @@ impl Dashboard {
 
         card(column![
             section_heading(icons::ACTIVITY, "Performance Statistics"),
-            horizontal_rule(1),
+            rule::horizontal(1),
             stats_body,
         ].spacing(8))
     }
@@ -313,7 +313,7 @@ impl Dashboard {
     fn build_equity_curve_card(&self) -> Element<'_, Message> {
         card(column![
             section_heading(icons::GRAPH_UP, "Equity Curve"),
-            horizontal_rule(1),
+            rule::horizontal(1),
             Canvas::new(EquityCurve {
                 portfolio_values: self.paper_daily_values.clone(),
                 spy_values: self.paper_spy_values.clone(),
@@ -326,7 +326,7 @@ impl Dashboard {
     fn build_paper_trades_card(&self) -> Element<'_, Message> {
         let mut col = column![
             section_heading(icons::CLOCK, "Trade Log"),
-            horizontal_rule(1),
+            rule::horizontal(1),
         ].spacing(6);
 
         if self.paper_trades.is_empty() {
@@ -342,7 +342,7 @@ impl Dashboard {
                 text("Score").size(theme::text_sm()).width(Length::Fixed(70.0)),
             ].spacing(8).align_y(Alignment::Center);
             col = col.push(header);
-            col = col.push(horizontal_rule(1));
+            col = col.push(rule::horizontal(1));
 
             // Show most recent 50 trades
             for trade in self.paper_trades.iter().take(50) {

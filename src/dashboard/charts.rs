@@ -1,4 +1,4 @@
-use iced::widget::canvas::{self};
+use iced::widget::canvas::{self, Action};
 use iced::{Color, Point, Rectangle, Size};
 use iced::mouse;
 use pursuit_week4_automation::models::{LagrangeHistory, PriceRow};
@@ -30,6 +30,7 @@ pub struct PriceChart {
     pub volumes:       Vec<i64>,
     pub astro_markers: Vec<AstroMarker>,
     pub draw_progress: f32,  // v9.0: 0→1 candle draw-in animation
+    pub tooltip_dims:  (f32, f32, f32), // v11.3: (font_px, box_w, box_h)
 }
 
 impl PriceChart {
@@ -62,20 +63,20 @@ impl canvas::Program<Message> for PriceChart {
     fn update(
         &self,
         state: &mut Option<Point>,
-        event: canvas::Event,
+        event: &canvas::Event,
         bounds: Rectangle,
         cursor: mouse::Cursor,
-    ) -> (canvas::event::Status, Option<Message>) {
+    ) -> Option<Action<Message>> {
         match event {
             canvas::Event::Mouse(mouse::Event::CursorMoved { .. }) => {
                 *state = cursor.position_in(bounds);
-                (canvas::event::Status::Captured, None)
+                Some(Action::capture())
             }
             canvas::Event::Mouse(mouse::Event::CursorLeft) => {
                 *state = None;
-                (canvas::event::Status::Captured, None)
+                Some(Action::capture())
             }
-            _ => (canvas::event::Status::Ignored, None),
+            _ => None,
         }
     }
 
@@ -155,8 +156,8 @@ impl canvas::Program<Message> for PriceChart {
                 position: Point::new(pad_left - 5.0, y),
                 color: theme::fg_muted(_theme),
                 size: iced::Pixels(10.0),
-                horizontal_alignment: iced::alignment::Horizontal::Right,
-                vertical_alignment: iced::alignment::Vertical::Center,
+                align_x: iced::alignment::Horizontal::Right.into(),
+                align_y: iced::alignment::Vertical::Center,
                 ..canvas::Text::default()
             });
         }
@@ -275,7 +276,7 @@ impl canvas::Program<Message> for PriceChart {
                 position: Point::new(p.x, p.y - 10.0),
                 color: theme::label_color(_theme),
                 size: iced::Pixels(9.0),
-                horizontal_alignment: iced::alignment::Horizontal::Center,
+                align_x: iced::alignment::Horizontal::Center.into(),
                 ..canvas::Text::default()
             });
         }
@@ -299,7 +300,7 @@ impl canvas::Program<Message> for PriceChart {
                 position: Point::new(pad_left + w + 4.0, last_y),
                 color: Color::WHITE,
                 size: iced::Pixels(10.0),
-                vertical_alignment: iced::alignment::Vertical::Center,
+                align_y: iced::alignment::Vertical::Center,
                 ..canvas::Text::default()
             });
         }
@@ -391,7 +392,7 @@ impl canvas::Program<Message> for PriceChart {
                     ..canvas::Stroke::default()
                 });
 
-                // OHLCV tooltip
+                // OHLCV tooltip — v11.3: size driven by user setting
                 if let Some(row) = self.rows_chrono.get(bar_i) {
                     let label = format!(
                         "{}\nO:{:.2}  H:{:.2}\nL:{:.2}  C:{:.2}\nVol: {}",
@@ -399,19 +400,19 @@ impl canvas::Program<Message> for PriceChart {
                         row.open, row.high, row.low, row.close,
                         format_shares(row.volume),
                     );
-                    let tip_x = if bar_x < pad_left + w / 2.0 { bar_x + 8.0 } else { bar_x - 110.0 };
+                    let (font_px, box_w, box_h) = self.tooltip_dims;
+                    let tip_x = if bar_x < pad_left + w / 2.0 { bar_x + 8.0 } else { bar_x - (box_w + 4.0) };
                     let tip_y = pad_top + 4.0;
                     let p = theme::palette();
                     // Dark bg card for contrast in both Parchment and Leather (v9.1)
                     let tip_bg = Color { r: 0.12, g: 0.10, b: 0.08, a: 0.95 };
                     frame.fill_rectangle(
                         Point::new(tip_x - 2.0, tip_y - 2.0),
-                        iced::Size::new(106.0, 64.0),
+                        iced::Size::new(box_w, box_h),
                         tip_bg,
                     );
-                    // Gold border accent
                     let border = canvas::Path::new(|b| {
-                        b.rectangle(Point::new(tip_x - 2.0, tip_y - 2.0), iced::Size::new(106.0, 64.0));
+                        b.rectangle(Point::new(tip_x - 2.0, tip_y - 2.0), iced::Size::new(box_w, box_h));
                     });
                     frame.stroke(&border, canvas::Stroke {
                         style: canvas::Style::Solid(Color { a: 0.4, ..p.gold }),
@@ -421,8 +422,8 @@ impl canvas::Program<Message> for PriceChart {
                     frame.fill_text(canvas::Text {
                         content: label,
                         position: Point::new(tip_x + 4.0, tip_y + 4.0),
-                        color: Color { r: 0.95, g: 0.90, b: 0.80, a: 1.0 },  // warm cream, readable on dark
-                        size: iced::Pixels(10.0),
+                        color: Color { r: 0.95, g: 0.90, b: 0.80, a: 1.0 },
+                        size: iced::Pixels(font_px),
                         ..canvas::Text::default()
                     });
                 }
@@ -603,20 +604,20 @@ impl canvas::Program<Message> for EquityCurve {
     fn update(
         &self,
         state: &mut Option<Point>,
-        event: canvas::Event,
+        event: &canvas::Event,
         bounds: Rectangle,
         cursor: mouse::Cursor,
-    ) -> (canvas::event::Status, Option<Message>) {
+    ) -> Option<Action<Message>> {
         match event {
             canvas::Event::Mouse(mouse::Event::CursorMoved { .. }) => {
                 *state = cursor.position_in(bounds);
-                (canvas::event::Status::Captured, None)
+                Some(Action::capture())
             }
             canvas::Event::Mouse(mouse::Event::CursorLeft) => {
                 *state = None;
-                (canvas::event::Status::Captured, None)
+                Some(Action::capture())
             }
-            _ => (canvas::event::Status::Ignored, None),
+            _ => None,
         }
     }
 
@@ -707,8 +708,8 @@ impl canvas::Program<Message> for EquityCurve {
                 position: Point::new(pad_left - 5.0, y),
                 color: theme::fg_muted(_theme),
                 size: iced::Pixels(9.0),
-                horizontal_alignment: iced::alignment::Horizontal::Right,
-                vertical_alignment: iced::alignment::Vertical::Center,
+                align_x: iced::alignment::Horizontal::Right.into(),
+                align_y: iced::alignment::Vertical::Center,
                 ..canvas::Text::default()
             });
         }
@@ -745,7 +746,7 @@ impl canvas::Program<Message> for EquityCurve {
                     position: Point::new(lx + 4.0, ly),
                     color: spy_color,
                     size: iced::Pixels(9.0),
-                    vertical_alignment: iced::alignment::Vertical::Center,
+                    align_y: iced::alignment::Vertical::Center,
                     ..canvas::Text::default()
                 });
             }
@@ -767,7 +768,7 @@ impl canvas::Program<Message> for EquityCurve {
                 position: Point::new(lx + 4.0, ly - 12.0),
                 color: port_color,
                 size: iced::Pixels(9.0),
-                vertical_alignment: iced::alignment::Vertical::Center,
+                align_y: iced::alignment::Vertical::Center,
                 ..canvas::Text::default()
             });
         }

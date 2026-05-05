@@ -1,38 +1,52 @@
 # TODOS
 
-## Open — Polish
+## Open — Wave 6: Data Reliability + Astro Depth (~900 lines, medium risk)
 
-### Clickable entity links — insider names, holders (v9.2 video review)
-**What:** Insider trade names and institutional holder names should be clickable. "Click on this and it does a Google search or LinkedIn."
-**Fix:** Wrap entity names in clickable text that calls `open::that(url)` to launch browser with Google/LinkedIn search for that person/institution.
+**Theme:** Pair Track A (financial data) + Track B (astrology engine) so Concordance metric strengthens on both sides. 8 items, 4 sub-waves.
 
-### Chart layer visibility toggles (v9.1 video review)
-**What:** Buttons to show/hide natal planets, transit planets, aspect lines, retrograde markers independently. Helps readability when chart is dense. "Select things to see which is which."
-**Fix:** Add toggle state bools to Dashboard (show_natal, show_transit, show_aspects, show_retro). Pass as uniforms or control which sections render in view. Add toggle buttons near chart legend.
+### Wave 6.0 — "The Reliability" (highest impact pair)
 
-### Background texture — more earthy/Renaissance (v9.1 video review)
-**What:** Background should feel more textured and earthy. "More of a Renaissance book feeling."
-**Status:** Grain exists in vignette shader but not enhanced with warm color variation or parchment-like banding.
-**Fix:** Add warm color noise variation to grain, subtle paper fiber pattern.
+- [ ] **6.A1 Multi-source price fallback** — `PriceSource` trait, AV→Tiingo→Finnhub→Yahoo→Stooq cascade. `data_source` provenance column. Migration `0026`.
+- [ ] **6.B1 Aspect pattern recognition** — Grand Trine, T-Square, Grand Cross, Yod, Mystic Rectangle, Stellium. `aspect_patterns` table. Migration `0030`.
 
-### Tab glow rework — bookmark style with gold border (v9.2 video review)
-**What:** Current tab glow (gold bg tint + sparkle) works but user wanted "shining" bookmark-tab shape with gold border. "This is not what I mean by glow."
-**Status:** Gold icon + gold bg + sparkle done (v9.2). Bookmark shape + gold border not yet.
-**Fix:** Replace 15% alpha gold bg with strong gold border (2-3px) around active tab. Bookmark-tab shape.
+### Wave 6.1 — "The Precision"
+
+- [ ] **6.A2 Multi-source fundamentals fallback** — FMP→Finnhub `metric/all`→AV `OVERVIEW`. Migration `0027`.
+- [ ] **6.B2 Aspect strength model** — orb tightness, applying/separating, body weight, essential dignity, mutual reception, out-of-sign flag.
+
+### Wave 6.2 — "The Depth"
+
+- [ ] **6.A3 Earnings calendar + analyst targets** — FMP `/earning_calendar` + Finnhub `/stock/price-target`. Migration `0028`.
+- [ ] **6.B3 Fixed stars + Arabic Parts** — Regulus/Algol/Spica/Antares/Sirius/Vega/Aldebaran/Fomalhaut + Part of Fortune/Spirit/Commerce.
+
+### Wave 6.3 — "The Trust"
+
+- [ ] **6.A4 Data freshness UI badges** — `data_freshness` SQL view. Universe table badge column. Verdict confidence annotation. Migration `0029`.
+- [ ] **6.B4 Eclipse cycles + lunar nodes** — `swe_sol_eclipse_when_loc` + Saros series. New `eclipses` table. Forecast tab timeline. Migration `0031`.
 
 ## Open — Future
 
-### Nav layout full redesign
-**What:** Search bar position, buttons as icons with hover labels, ticker under buttons, "Recent" placement.
-**Scope:** Significant layout change to header/nav area. Needs design mockup first.
-
 ### House numbers on natal chart
 **What:** Add house numbers (1-12) to the 3D natal chart.
-**Challenge:** WGSL has no text rendering. Needs SDF glyph rendering in shader or Iced absolute overlay.
+**Approach:** Iced 0.14 `pin` overlay (same as planet symbols). No shader text needed.
 
 ### Real-time fetch progress bar
-**What:** Parse scraper stdout line-by-line to show real progress %. Currently pulsing shimmer bar.
-**Challenge:** Iced Task::perform doesn't support mid-task message updates. Needs subscription or stream.
+**What:** Parse scraper stdout line-by-line to show real progress %. Currently time-based estimate (capped at 0.85).
+**Approach:** Iced 0.14 Animation API + subscription stream from subprocess stdout.
+
+### Harmonic charts (H4, H5, H7, H9)
+**What:** Compute `(longitude × N) mod 360` derivative charts, run aspect detection on harmonic positions.
+**Why:** Reveals patterns invisible in natal chart. H4 = manifestation, H7 = inspiration.
+**Deferred from Wave 6** — pure math, no new dependencies, but UI surface unclear.
+
+### Sidereal vs Tropical concordance
+**What:** Run aspect detection in both Tropical (current) and Sidereal (`SE_SIDM_LAHIRI`). Surface agreement as new metric.
+**Why:** Two-system confirmation = stronger signal. Disagreement = ambiguity, smaller position size.
+**Deferred from Wave 6** — depends on B2 strength model first.
+
+### Progressed charts (Secondary + Solar Arc)
+**What:** "1 day = 1 year" progressions for long-horizon forecasts.
+**Why:** Current 90-day forecast is purely transit-based. Progressions add slow-unfolding layer.
 
 ## Open — Infrastructure
 
@@ -40,21 +54,30 @@
 **What:** `docker-compose.yml` to start PostgreSQL. 10-line file, `POSTGRES_PASSWORD=dev`, port 5432.
 **Blocked by:** User wants to explore Docker first.
 
-### v9.0 post-implementation frame time profiling
-**What:** Measure actual frame times on astrology tab with all shader effects active. Target: <16ms per frame at 400x400.
-**How:** Add temporary `Instant::now()` before/after shader draw call, log to console. Remove after verification.
+### OpenBB Platform integration
+**What:** Replace some scraper modules with OpenBB Platform aggregator (wraps many sources).
+**Why:** ~5 of our 20 scrapers could collapse into one OpenBB call. Trade-off: external dep vs less code.
 
-## Completed (v6.0-v11.0)
-- v11.0: "The Intelligence" — 90-day astro forecast timeline, backtest→history event correlation, Sun/Moon/Rising Big Three summary, smart calculator defaults (DCF growth from PEG, Greeks vol from historical data), zodiac sign band + planet symbol legend, pulsing loading bar shimmer, icon-only nav buttons
-- v10.0: "The Signal" — RSS tone sentiment (keyword scoring from 25 feeds), Lagrange adaptive weighting (no more 50-default compression), richer agent verdicts (sector-aware, news-informed, 3 headline variants per verdict), fetch-this-ticker button (already existed, marked done)
-- v9.3: "The Clarity" — aspect line contrast overhaul (width+alpha+glow), column widths fixed, tab labels bold (Fraunces Bold 16px), scrollbar gutter (20px right padding)
-- v9.2: "The Cosmos" — galaxy chart background (purple gradient + nebula + star field), active tab gold glow + sparkle
-- v9.1: "The Polish" — [P0] backtest crash fix (Clear Results button), [P0] broken icons (Phosphor X_LG), [P0] tooltip contrast (dark card + cream text), [P0] disable chart rotation
-- v9.0: "The Performance" — 9 animation items: planet pulse, orbital trails, aspect shimmer, zodiac glow, dust mote cursor, candlestick draw-in, layered transitions, sparkle tuning, 60fps astrology tick
-- v8.0: "The Observatory" — 3D natal chart GPU shader (procedural SDF, perspective tilt, 496-byte uniforms)
-- v7.6: "The Consistency" — gold scrollbars, canvas sparkle, animated transit ring
-- v7.3: "The Grimoire" — game-book UI, right-side tabs, Canvas ornaments, page transition fade
-- v7.2: "The Motion" — Phosphor Icons, animation infrastructure, gauge sweep, toast fade, tab crossfade, responsive font scaling
-- v7.1: Spatial polish — compact header, 1240px max-width, eyebrow labels, Inter font numerics
-- v7.0: Renaissance book UI/UX overhaul (Parchment/Leather themes, 24-stage circadian)
-- v6.0-6.2: Paper trading engine ($100K virtual capital, equity curve, NYSE holidays)
+## Completed (v6.0-v11.3)
+
+- **v11.3: "The Refinement"** — All 22 video-review feedback items shipped across 5 waves:
+  - Wave 1: aspect line thickness, section icons, compact horoscope, scrollbar gutter, galaxy mute
+  - Wave 2: header price/H/L, search above ornament, astrology tab reorder, two-column compression
+  - Wave 3: sector dropdown, column tooltips, rising sign backfill, per-ticker fetch, planet symbol overlay, hover tooltips
+  - Wave 4: council template diversification, chart size enum, fetch progress bar
+  - Wave 5: tooltip size setting, scraper retry helper, gauge compass-rose, parchment fiber texture
+- **v11.2: "The Foundation"** — Iced 0.13→0.14 framework upgrade (13+ files, 19 breaking API changes: Pipeline trait, wgpu 27, canvas Action, widget renames, application boot). PowerShell gcc PATH fix.
+- **v11.1: "The Craft"** — clickable entity links, tab glow bookmark, chart layer toggles, nav redesign
+- **v11.0: "The Intelligence"** — 90-day forecast, Big Three summary, smart calculator defaults, zodiac legend, loading shimmer
+- **v10.0: "The Signal"** — RSS tone sentiment, Lagrange adaptive weighting, richer agent verdicts
+- **v9.3: "The Clarity"** — aspect line contrast, column widths, tab labels bold, scrollbar gutter
+- **v9.2: "The Cosmos"** — galaxy background, active tab gold glow + sparkle
+- **v9.1: "The Polish"** — backtest crash fix, broken icons, tooltip contrast, disable chart rotation
+- **v9.0: "The Performance"** — 9 animation items: planet pulse, aspect shimmer, dust motes, candle draw-in
+- **v8.0: "The Observatory"** — 3D natal chart GPU shader (procedural SDF, perspective tilt, 496-byte uniforms)
+- **v7.6: "The Consistency"** — gold scrollbars, canvas sparkle, animated transit ring
+- **v7.3: "The Grimoire"** — game-book UI, right-side tabs, Canvas ornaments, page transition fade
+- **v7.2: "The Motion"** — Phosphor Icons, animation infrastructure, gauge sweep, responsive font scaling
+- **v7.1: Spatial polish** — compact header, 1240px max-width, eyebrow labels, Inter font numerics
+- **v7.0: Renaissance book UI/UX overhaul** (Parchment/Leather themes, 24-stage circadian)
+- **v6.0-6.2: Paper trading engine** ($100K virtual capital, equity curve, NYSE holidays)

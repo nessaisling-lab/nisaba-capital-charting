@@ -28,7 +28,8 @@ mod view;
 use state::Dashboard;
 
 pub fn main() -> iced::Result {
-    iced::application("Financial Dashboard", Dashboard::update, Dashboard::view)
+    iced::application(Dashboard::new, Dashboard::update, Dashboard::view)
+        .title("Financial Dashboard")
         .subscription(Dashboard::subscription)
         .theme(Dashboard::theme)
         .default_font(font::BODY)
@@ -39,5 +40,5 @@ pub fn main() -> iced::Result {
         .font(font::MONO_REGULAR_BYTES)
         .font(icons::PHOSPHOR_BYTES)
         .font(icons::PHOSPHOR_BOLD_BYTES)
-        .run_with(Dashboard::new)
+        .run()
 }

@@ -1,4 +1,4 @@
-use iced::widget::{canvas::Canvas, column, container, horizontal_rule, row, scrollable, text, Column, Space};
+use iced::widget::{button, canvas::Canvas, column, container, row, rule, scrollable, text, Column, Space};
 use iced::{Alignment, Color, Element, Length};
 
 use crate::font;
@@ -51,7 +51,7 @@ pub fn titled_card<'a>(
 ) -> Element<'a, Message> {
     card(column![
         section_heading(icon_char, title),
-        horizontal_rule(1),
+        rule::horizontal(1),
         content.into(),
     ].spacing(6))
 }
@@ -80,20 +80,81 @@ pub fn eyebrow<'a>(label: &str) -> Element<'a, Message> {
         .into()
 }
 
+/// Eyebrow with a leading Phosphor icon (v11.3).
+pub fn icon_eyebrow<'a>(icon_char: char, label: &str) -> Element<'a, Message> {
+    let gold = theme::palette().gold;
+    row![
+        text(icon_char.to_string()).font(icons::PHOSPHOR).size(theme::text_xs()).color(gold),
+        eyebrow(label),
+    ]
+    .spacing(4)
+    .align_y(Alignment::Center)
+    .into()
+}
+
 /// Section divider — horizontal rule with vertical breathing room.
 /// Use between major content sections (not inside cards).
 pub fn section_rule<'a>() -> Element<'a, Message> {
     column![
-        Space::with_height(Length::Fixed(theme::SPACE_SM)),
-        horizontal_rule(1),
-        Space::with_height(Length::Fixed(theme::SPACE_SM)),
+        Space::new().height(Length::Fixed(theme::SPACE_SM)),
+        rule::horizontal(1),
+        Space::new().height(Length::Fixed(theme::SPACE_SM)),
     ]
+    .into()
+}
+
+// ---------------------------------------------------------------------------
+// Clickable text link — gold text, transparent button, opens URL
+// ---------------------------------------------------------------------------
+
+/// Render a name as a clickable gold text link that opens a search URL.
+pub fn link_button<'a>(label: &str, url: String) -> Element<'a, Message> {
+    button(
+        text(label.to_string())
+            .size(theme::text_base())
+            .color(theme::palette().gold),
+    )
+    .on_press(Message::OpenUrl(url))
+    .padding(0)
+    .style(|_theme: &iced::Theme, status: button::Status| {
+        let p = theme::palette();
+        let text_color = match status {
+            button::Status::Hovered | button::Status::Pressed => {
+                Color { a: 1.0, ..p.gold }
+            }
+            _ => Color { a: 0.85, ..p.gold },
+        };
+        button::Style {
+            background: None,
+            text_color,
+            border: iced::Border::default(),
+            shadow: iced::Shadow::default(),
+            snap: false,
+        }
+    })
     .into()
 }
 
 // ---------------------------------------------------------------------------
 // v7.6 Gold scrollbar style — reusable for sub-scrollables
 // ---------------------------------------------------------------------------
+
+/// Scrollable with gold style + right-side gutter padding (v11.3).
+/// Wraps content in a container with 20px right padding so text never
+/// hides behind the scrollbar thumb.
+pub fn gutter_scroll<'a>(
+    content: impl Into<Element<'a, Message>>,
+    height: f32,
+) -> Element<'a, Message> {
+    scrollable(
+        container(content)
+            .width(Length::Fill)
+            .padding(iced::Padding { top: 0.0, right: 20.0, bottom: 0.0, left: 0.0 })
+    )
+    .height(Length::Fixed(height))
+    .style(gold_scrollbar_style)
+    .into()
+}
 
 /// Gold-themed scrollbar style matching the main page scrollbar.
 /// Apply via `.style(gold_scrollbar_style)` on any `scrollable()`.
@@ -105,7 +166,7 @@ pub fn gold_scrollbar_style(_theme: &iced::Theme, _status: scrollable::Status) -
             background: Some(iced::Background::Color(Color { a: 0.08, ..p.surface })),
             border: iced::Border::default(),
             scroller: scrollable::Scroller {
-                color: Color { a: 0.35, ..p.gold },
+                background: iced::Background::Color(Color { a: 0.35, ..p.gold }),
                 border: iced::Border { radius: 3.0.into(), ..Default::default() },
             },
         },
@@ -113,11 +174,17 @@ pub fn gold_scrollbar_style(_theme: &iced::Theme, _status: scrollable::Status) -
             background: None,
             border: iced::Border::default(),
             scroller: scrollable::Scroller {
-                color: Color { a: 0.25, ..p.gold },
+                background: iced::Background::Color(Color { a: 0.25, ..p.gold }),
                 border: iced::Border { radius: 3.0.into(), ..Default::default() },
             },
         },
         gap: None,
+        auto_scroll: scrollable::AutoScroll {
+            background: iced::Background::Color(Color::TRANSPARENT),
+            border: iced::Border::default(),
+            shadow: iced::Shadow::default(),
+            icon: Color::TRANSPARENT,
+        },
     }
 }
 

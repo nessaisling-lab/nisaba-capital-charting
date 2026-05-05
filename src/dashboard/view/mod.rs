@@ -1,4 +1,4 @@
-mod shared;
+pub(crate) mod shared;
 mod overview;
 mod astrology_tab;
 mod universe;
@@ -8,7 +8,7 @@ mod portfolio_tab;
 mod paper_trail;
 mod settings;
 
-use iced::widget::{button, column, container, horizontal_rule, mouse_area, row, scrollable, stack, text, text_input, Canvas, Column, Row, Shader, Space};
+use iced::widget::{button, column, container, mouse_area, row, rule, scrollable, stack, text, text_input, Canvas, Column, Row, Shader, Space};
 use iced::{Alignment, Color, Element, Length};
 
 use crate::ornaments::{BookSpine, Corner, PageBorderCorner, PageHeaderOrnament, TabSparkle};
@@ -22,18 +22,21 @@ use crate::theme;
 
 impl Dashboard {
     pub fn view(&self) -> Element<'_, Message> {
-        // ── Compact navigation row ─────────────────────────────
+        // ── v11.1: Redesigned navigation ──────────────────────────
+        // Row 1: [Search (wider)] [Ticker Name (center)] [Icon actions (right)]
+        // Row 2: [Ticker buttons + Recently viewed]
         let search_bar = row![
             text_input("Search any ticker…", &self.ticker_search_input)
                 .id(crate::update::SEARCH_INPUT_ID)
                 .on_input(Message::TickerSearchInput)
                 .on_submit(Message::TickerSearchSubmit)
-                .width(Length::Fixed(200.0))
+                .width(Length::Fixed(280.0))
                 .size(theme::text_base()),
-            button(text("Go").size(theme::text_base()))
-                .on_press(Message::TickerSearchSubmit),
+            button(
+                text(icons::SEARCH.to_string()).font(icons::PHOSPHOR).size(theme::text_sm())
+            ).on_press(Message::TickerSearchSubmit),
         ]
-        .spacing(6)
+        .spacing(4)
         .align_y(Alignment::Center);
 
         let autocomplete: Element<Message> = if self.autocomplete_suggestions.is_empty() {
@@ -52,20 +55,90 @@ impl Dashboard {
             iced::widget::column(items).spacing(2).into()
         };
 
-        // ── Ticker buttons ─────────────────────────────────────
-        let ticker_buttons: Row<Message> = self.tickers.iter().fold(row![].spacing(6), |r, ticker| {
-            let btn = button(text(ticker).size(theme::text_base())).on_press(Message::TickerSelected(ticker.clone()));
-            r.push(btn)
+        // Icon-only action buttons (v11.1: no text labels)
+        let refresh_btn = button(
+            if self.refreshing {
+                row![
+                    text(icons::ARROW_REPEAT.to_string()).font(icons::PHOSPHOR).size(theme::text_md()),
+                    text("\u{2026}").size(theme::text_xs()),
+                ].spacing(2).align_y(Alignment::Center)
+            } else {
+                row![
+                    text(icons::ARROW_REPEAT.to_string()).font(icons::PHOSPHOR).size(theme::text_md()),
+                ].spacing(0).align_y(Alignment::Center)
+            }
+        ).on_press(Message::RefreshNow);
+
+        let fetch_btn: Element<Message> = if self.fetching_ticker {
+            button(
+                row![
+                    text(icons::DOWNLOAD.to_string()).font(icons::PHOSPHOR).size(theme::text_md()),
+                    text("\u{2026}").size(theme::text_xs()),
+                ].spacing(2).align_y(Alignment::Center)
+            ).into()
+        } else {
+            button(
+                text(icons::DOWNLOAD.to_string()).font(icons::PHOSPHOR).size(theme::text_md()),
+            ).on_press(Message::FetchThisTicker).into()
+        };
+
+        let theme_btn = button(
+            text(icons::MOON_STARS.to_string()).font(icons::PHOSPHOR).size(theme::text_md()),
+        ).on_press(Message::ToggleTheme);
+
+        let action_icons = row![refresh_btn, fetch_btn, theme_btn]
+            .spacing(4)
+            .align_y(Alignment::Center);
+
+        // Ticker + price + day high/low (v11.3 — pulled from last PriceRow)
+        let p_hdr = theme::palette();
+        let ticker_block: Element<Message> = if let Some(last) = self.rows.last() {
+            let close: f64 = last.close.to_string().parse().unwrap_or(0.0);
+            let high:  f64 = last.high.to_string().parse().unwrap_or(0.0);
+            let low:   f64 = last.low.to_string().parse().unwrap_or(0.0);
+            row![
+                text(self.selected_ticker.as_str())
+                    .font(font::DISPLAY).size(theme::text_2xl()).color(p_hdr.gold),
+                text(format!("${close:.2}"))
+                    .font(font::DISPLAY).size(theme::text_lg()),
+                text(format!("H ${high:.2}"))
+                    .size(theme::text_xs()).color(p_hdr.ink_soft),
+                text(format!("L ${low:.2}"))
+                    .size(theme::text_xs()).color(p_hdr.ink_soft),
+            ]
+            .spacing(10)
+            .align_y(Alignment::Center)
+            .into()
+        } else {
+            text(self.selected_ticker.as_str())
+                .font(font::DISPLAY).size(theme::text_2xl()).color(p_hdr.gold).into()
+        };
+
+        // Row 1: search left, ticker+price center, actions right
+        let nav_row_1 = row![
+            search_bar,
+            Space::new().width(Length::Fill),
+            ticker_block,
+            Space::new().width(Length::Fill),
+            action_icons,
+        ]
+        .spacing(theme::SPACE_SM)
+        .align_y(Alignment::Center);
+
+        // Row 2: ticker DB buttons + recently viewed
+        let ticker_buttons: Row<Message> = self.tickers.iter().fold(row![].spacing(4), |r, ticker| {
+            r.push(
+                button(text(ticker).size(theme::text_xs()))
+                    .on_press(Message::TickerSelected(ticker.clone()))
+            )
         });
 
-        // ── Recently viewed ────────────────────────────────────
         let recently_viewed_row: Element<Message> = if self.recently_viewed.is_empty() {
             row![].into()
         } else {
-            let label = text("Recent:").size(theme::text_sm());
             let recent: Vec<_> = self.recently_viewed.iter().rev().take(6).collect();
             let r: Row<Message> = recent.iter().rev().fold(
-                row![label].spacing(6),
+                row![text("Recent:").size(theme::text_xs()).color(theme::palette().ink_soft)].spacing(4),
                 |r, t| r.push(
                     button(text(t.as_str()).size(theme::text_xs()))
                         .on_press(Message::TickerSelected((*t).clone()))
@@ -74,49 +147,12 @@ impl Dashboard {
             r.into()
         };
 
-        // ── Header: ticker name + actions ──────────────────────
-        // v11.0: Compact icon buttons (shorter labels)
-        let refresh_icon = text(icons::ARROW_REPEAT.to_string())
-            .font(icons::PHOSPHOR)
-            .size(theme::text_sm());
-        let refresh_btn = button(
-            if self.refreshing {
-                row![refresh_icon, text("\u{2026}").size(theme::text_xs())].spacing(3).align_y(Alignment::Center)
-            } else {
-                row![refresh_icon].spacing(3).align_y(Alignment::Center)
-            }
-        ).on_press(Message::RefreshNow);
+        let nav_row_2 = row![ticker_buttons, Space::new().width(Length::Fixed(16.0)), recently_viewed_row]
+            .spacing(4)
+            .align_y(Alignment::Center);
 
-        let fetch_btn: Element<Message> = if self.fetching_ticker {
-            button(
-                row![
-                    text(icons::DOWNLOAD.to_string()).font(icons::PHOSPHOR).size(theme::text_sm()),
-                    text("\u{2026}").size(theme::text_xs()),
-                ].spacing(3).align_y(Alignment::Center)
-            ).into()
-        } else {
-            button(
-                text(icons::DOWNLOAD.to_string()).font(icons::PHOSPHOR).size(theme::text_sm()),
-            ).on_press(Message::FetchThisTicker).into()
-        };
-
-        let theme_label = format!("{}", self.theme_mode.label());
-        let compact_nav = column![
-            row![
-                text(self.selected_ticker.as_str()).font(font::DISPLAY).size(theme::text_2xl()),
-                iced::widget::Space::with_width(Length::Fill),
-                search_bar,
-                ticker_buttons,
-                iced::widget::Space::with_width(Length::Fill),
-                refresh_btn,
-                fetch_btn,
-                button(text(theme_label).size(theme::text_xs())).on_press(Message::ToggleTheme),
-            ]
-            .spacing(theme::SPACE_SM)
-            .align_y(Alignment::Center),
-            recently_viewed_row,
-        ]
-        .spacing(theme::SPACE_XS);
+        let compact_nav = column![nav_row_1, nav_row_2]
+            .spacing(theme::SPACE_XS);
 
         // ── Fetch error banner (v7.5) ──────────────────────────
         let fetch_error_banner: Element<Message> = if let Some(err) = &self.fetch_ticker_error {
@@ -142,23 +178,37 @@ impl Dashboard {
             })
             .into()
         } else if self.fetching_ticker {
-            // v11.0: Pulsing gold loading bar (shimmer animation)
+            // v11.3: Determinate progress bar — time-based fill capped at 0.85
+            // until the FetchTickerComplete message arrives. Expected duration ~30s.
             let p_load = theme::palette();
-            let pulse_alpha = 0.4 + 0.4 * (self.shader_time * 2.5).sin().abs();
-            container(Space::with_height(Length::Fixed(0.0)))
-                .width(Length::Fill)
-                .height(Length::Fixed(3.0))
-                .style(move |_theme: &iced::Theme| {
-                    container::Style {
-                        background: Some(iced::Background::Color(
-                            Color { a: pulse_alpha, ..p_load.gold },
-                        )),
-                        ..Default::default()
-                    }
+            let progress: f32 = self.fetch_start_time
+                .map(|start| {
+                    let elapsed = start.elapsed().as_secs_f32();
+                    (elapsed / 30.0).min(0.85)
                 })
-                .into()
+                .unwrap_or(0.0);
+            // Outer track + inner fill via a row with FillPortion
+            let fill_pct = (progress * 100.0).round() as u16;
+            let rest_pct = 100u16.saturating_sub(fill_pct);
+            let fill_bar = container(Space::new())
+                .width(Length::FillPortion(fill_pct.max(1)))
+                .height(Length::Fixed(3.0))
+                .style(move |_theme: &iced::Theme| container::Style {
+                    background: Some(iced::Background::Color(p_load.gold)),
+                    ..Default::default()
+                });
+            let track_rest = container(Space::new())
+                .width(Length::FillPortion(rest_pct.max(1)))
+                .height(Length::Fixed(3.0))
+                .style(move |_theme: &iced::Theme| container::Style {
+                    background: Some(iced::Background::Color(
+                        Color { a: 0.15, ..p_load.gold },
+                    )),
+                    ..Default::default()
+                });
+            row![fill_bar, track_rest].width(Length::Fill).into()
         } else {
-            Space::with_height(Length::Fixed(0.0)).into()
+            Space::new().height(Length::Fixed(0.0)).into()
         };
 
         // ── Tab content dispatch ───────────────────────────────
@@ -188,14 +238,14 @@ impl Dashboard {
         let corner_top = row![
             Canvas::new(PageBorderCorner { corner: Corner::TopLeft })
                 .width(Length::Fixed(20.0)).height(Length::Fixed(20.0)),
-            Space::with_width(Length::Fill),
+            Space::new().width(Length::Fill),
             Canvas::new(PageBorderCorner { corner: Corner::TopRight })
                 .width(Length::Fixed(20.0)).height(Length::Fixed(20.0)),
         ];
         let corner_bottom = row![
             Canvas::new(PageBorderCorner { corner: Corner::BottomLeft })
                 .width(Length::Fixed(20.0)).height(Length::Fixed(20.0)),
-            Space::with_width(Length::Fill),
+            Space::new().width(Length::Fill),
             Canvas::new(PageBorderCorner { corner: Corner::BottomRight })
                 .width(Length::Fixed(20.0)).height(Length::Fixed(20.0)),
         ];
@@ -205,13 +255,13 @@ impl Dashboard {
 
         let page_content = column![
             corner_top,
-            Canvas::new(PageHeaderOrnament)
-                .width(Length::Fill).height(Length::Fixed(28.0)),
-            tab_bar,
             compact_nav,
             fetch_error_banner,
             autocomplete,
-            horizontal_rule(1),
+            Canvas::new(PageHeaderOrnament)
+                .width(Length::Fill).height(Length::Fixed(28.0)),
+            tab_bar,
+            rule::horizontal(1),
             tab_content,
             corner_bottom,
         ]
@@ -381,27 +431,28 @@ impl Dashboard {
                     icon_el.into()
                 };
 
-                // Gold glow background for active tab (v9.2), subtle highlight on hover
-                let tab_bg = if is_active {
-                    Color { a: 0.15, ..p.gold }  // warm gold glow behind active tab
+                // v11.1: Bookmark-tab shape — gold border (no bg fill), rounded top, square bottom
+                let (tab_bg, border_width, border_color) = if is_active {
+                    (Color::TRANSPARENT, 2.0, p.gold)
+                } else if progress > 0.1 {
+                    (Color::TRANSPARENT, 1.0, Color { a: eased * 0.3, ..p.gold })
                 } else {
-                    Color::TRANSPARENT
+                    (Color::TRANSPARENT, 0.0, Color::TRANSPARENT)
                 };
-                let border_bottom = if is_active { 3.0 } else { 0.0 };
-                let border_color = if is_active { p.gold }
-                    else if progress > 0.1 { Color { a: eased * 0.4, ..p.gold } }
-                    else { Color::TRANSPARENT };
 
                 let styled_tab: Element<Message> = container(tab_content)
-                    .padding([6, 12])
+                    .padding([6, 14])
                     .center_y(Length::Shrink)
                     .style(move |_theme: &iced::Theme| {
                         container::Style {
                             background: Some(iced::Background::Color(tab_bg)),
                             border: iced::Border {
                                 color: border_color,
-                                width: border_bottom,
-                                radius: 2.0.into(),
+                                width: border_width,
+                                radius: iced::border::Radius {
+                                    top_left: 5.0, top_right: 5.0,
+                                    bottom_right: 0.0, bottom_left: 0.0,
+                                }, // bookmark: rounded top, flat bottom
                             },
                             ..Default::default()
                         }

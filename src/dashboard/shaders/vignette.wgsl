@@ -63,13 +63,28 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let vignette = smoothstep(0.15, 0.95, dist) * u.vignette_strength;
     var color = mix(desk_center, desk_edge, vignette);
 
-    // 3. Static noise grain — position-based, no time dependency
+    // 3. Static noise grain + parchment fibers (v11.3 — Renaissance texture pass)
     //    Scale relative to brightness so grain doesn't overwhelm dark mode
     let lum = dot(u.bg_color.rgb, vec3<f32>(0.299, 0.587, 0.114));
     let grain_uv = floor(uv * u.resolution * 0.5);
-    let grain_strength = 0.01 + lum * 0.04;  // 0.01 in dark, 0.03 in light
+    let grain_strength = 0.01 + lum * 0.04;
     let grain = (hash21(grain_uv) - 0.5) * grain_strength;
     color += vec3<f32>(grain);
+
+    // 3b. Coarse parchment fiber strands — long horizontal streaks at low frequency
+    //     Hand-laid paper has visible chain lines; this approximates them subtly.
+    let fiber_uv = vec2<f32>(uv.x * 8.0, uv.y * 60.0);
+    let fiber = (hash21(floor(fiber_uv)) - 0.5) * (0.012 + lum * 0.024);
+    color += vec3<f32>(fiber * 1.05, fiber, fiber * 0.92);  // warm tint on highlights
+
+    // 3c. Aged blotches — large-scale stains that warm the highlights
+    let blot_uv = floor(uv * 5.0);
+    let blot = hash21(blot_uv);
+    if blot > 0.78 {
+        let blot_strength = (blot - 0.78) * (0.05 + lum * 0.10);
+        // sepia-leaning warm cast on aged spots
+        color += vec3<f32>(blot_strength, blot_strength * 0.75, blot_strength * 0.45);
+    }
 
     // 4. Dust motes — 12 procedural golden particles
     //    Positions drift with time; frozen when shader_time stops advancing

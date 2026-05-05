@@ -1,13 +1,43 @@
 use iced::widget::canvas::Canvas;
-use iced::widget::{button, column, container, horizontal_rule, row, text, text_input, Column, Shader};
+use iced::widget::{button, column, container, pick_list, pin, row, rule, stack, text, text_input, tooltip, Column, Shader};
 use iced::{Alignment, Element, Length};
+
+// v11.3 — natal wheel overlay constants (must match WGSL shader)
+const CAMERA_TILT: f32 = 0.32;
+const R_NATAL: f32 = 0.644;
+const R_TRANSIT: f32 = 0.810;
+const GLYPH_SIZE: f32 = 14.0;
+
+fn planet_glyph(name: &str) -> &'static str {
+    match name {
+        "Sun" => "\u{2609}", "Moon" => "\u{263D}", "Mercury" => "\u{263F}",
+        "Venus" => "\u{2640}", "Mars" => "\u{2642}", "Jupiter" => "\u{2643}",
+        "Saturn" => "\u{2644}", "Uranus" => "\u{2645}", "Neptune" => "\u{2646}",
+        "Pluto" => "\u{2647}", "North Node" => "\u{260A}", "South Node" => "\u{260B}",
+        "Chiron" => "\u{26B7}", _ => "\u{2022}",
+    }
+}
+
+/// Compute pixel position for a planet glyph. Returns (x, y) for `pin().x(x).y(y)`.
+/// Accounts for camera tilt (Y compression) and centers the glyph on its position.
+fn planet_pixel_pos(longitude: f64, radius: f32, chart_px: f32) -> (f32, f32) {
+    let angle = -(longitude as f32).to_radians();
+    let chart_x = radius * angle.cos();
+    let chart_y = radius * angle.sin();
+    let screen_y = chart_y * (1.0 - CAMERA_TILT);
+    let half = chart_px / 2.0;
+    let px = (chart_x + 1.0) * half - GLYPH_SIZE / 2.0;
+    let py = (screen_y + 1.0) * half - GLYPH_SIZE / 2.0;
+    (px, py)
+}
 
 use crate::astrology::{build_transits_section, build_wheel_legend};
 use crate::calendar::AstroCalendar;
 use crate::shaders::NatalWheel3DProgram;
 use crate::font;
-use crate::state::{Dashboard, Message};
-use super::shared::{eyebrow, section_rule};
+use crate::icons;
+use crate::state::{ChartSize, Dashboard, Message};
+use super::shared::{icon_eyebrow, section_rule};
 use crate::strategy::Condition;
 use crate::theme;
 
@@ -28,7 +58,7 @@ impl Dashboard {
         let astrology_section: Element<Message> = if self.natal_positions.is_empty() {
             column![
                 text(format!("{} Astrology", self.selected_ticker)).font(font::DISPLAY).size(theme::text_lg()),
-                horizontal_rule(1),
+                rule::horizontal(1),
                 text(format!("No birth chart yet for {}.", self.selected_ticker)).size(theme::text_base()),
                 text("The scraper enriches ~50 tickers per day via SEC EDGAR.").size(theme::text_sm()),
                 text("Once an IPO date is found, the natal chart is computed automatically.")
@@ -43,7 +73,7 @@ impl Dashboard {
                 .map(|sun| (sun.longitude as f32 / 30.0).floor().clamp(0.0, 11.0))
                 .unwrap_or(0.0);
 
-            let natal_wheel = Shader::new(NatalWheel3DProgram {
+            let shader_widget = Shader::new(NatalWheel3DProgram {
                 time: self.shader_time,
                 natal_positions: self.natal_positions.clone(),
                 transit_positions: self.daily_transits.clone(),
@@ -61,9 +91,79 @@ impl Dashboard {
                     theme::RETROGRADE_RED.b, theme::RETROGRADE_RED.a,
                 ],
                 active_sign,
+                show_natal: self.show_natal_planets,
+                show_transit: self.show_transit_planets,
+                show_aspects: self.show_aspects,
+                show_retrogrades: self.show_retrogrades,
             })
-            .width(Length::Fixed(400.0))
-            .height(Length::Fixed(400.0));
+            .width(Length::Fixed(self.chart_size.pixels()))
+            .height(Length::Fixed(self.chart_size.pixels()));
+            let chart_px = self.chart_size.pixels();
+
+            // v11.3 — overlay planet glyphs + hover tooltips (3e + 3f)
+            fn tip_style(_t: &iced::Theme) -> container::Style {
+                let p = theme::palette();
+                container::Style {
+                    background: Some(iced::Background::Color(p.surface)),
+                    border: iced::Border { color: p.gold, width: 1.0, radius: 3.0.into() },
+                    ..Default::default()
+                }
+            }
+            let mut layers: Vec<Element<Message>> = vec![shader_widget.into()];
+
+            if self.show_natal_planets {
+                for np in &self.natal_positions {
+                    let (px, py) = planet_pixel_pos(np.longitude, R_NATAL, chart_px);
+                    let glyph_color = theme::NATAL_GOLD;
+                    let info = format!(
+                        "{} in {} {:.1}°{}",
+                        np.planet, np.sign, np.degree,
+                        if np.retrograde { "  R" } else { "" }
+                    );
+                    let glyph = text(planet_glyph(&np.planet))
+                        .size(GLYPH_SIZE)
+                        .color(glyph_color);
+                    let hoverable = tooltip(
+                        glyph,
+                        container(text(info).size(theme::text_xs()))
+                            .padding([4, 8]).style(tip_style),
+                        tooltip::Position::Top,
+                    );
+                    layers.push(pin(hoverable).x(px).y(py).into());
+                }
+            }
+
+            if self.show_transit_planets {
+                for tp in &self.daily_transits {
+                    let (px, py) = planet_pixel_pos(tp.longitude, R_TRANSIT, chart_px);
+                    let is_retro = tp.retrograde && self.show_retrogrades;
+                    let glyph_color = if is_retro {
+                        theme::RETROGRADE_RED
+                    } else {
+                        theme::TRANSIT_BLUE
+                    };
+                    let info = format!(
+                        "{} transiting {}{}",
+                        tp.planet, tp.sign,
+                        if tp.retrograde { "  (Rx)" } else { "" }
+                    );
+                    let glyph = text(planet_glyph(&tp.planet))
+                        .size(GLYPH_SIZE)
+                        .color(glyph_color);
+                    let hoverable = tooltip(
+                        glyph,
+                        container(text(info).size(theme::text_xs()))
+                            .padding([4, 8]).style(tip_style),
+                        tooltip::Position::Top,
+                    );
+                    layers.push(pin(hoverable).x(px).y(py).into());
+                }
+            }
+
+            let natal_wheel: Element<Message> = stack(layers)
+                .width(Length::Fixed(chart_px))
+                .height(Length::Fixed(chart_px))
+                .into();
 
             // v11.0: Sun/Moon/Rising "Big Three" summary
             let big_three_row: Element<Message> = {
@@ -95,9 +195,49 @@ impl Dashboard {
                 .into()
             };
 
+            // v11.1: Layer visibility toggle buttons
+            let make_toggle = |label: &str, visible: bool, msg: Message| -> Element<Message> {
+                let ico = if visible { icons::EYE } else { icons::EYE_SLASH };
+                let alpha = if visible { 1.0 } else { 0.4 };
+                let clr = iced::Color { a: alpha, ..p.gold };
+                button(
+                    row![
+                        text(ico.to_string()).font(icons::PHOSPHOR).size(theme::text_xs()).color(clr),
+                        text(label.to_string()).size(theme::text_xs()).color(clr),
+                    ].spacing(3).align_y(Alignment::Center)
+                )
+                .on_press(msg)
+                .padding([2, 6])
+                .style(|_theme: &iced::Theme, _status| iced::widget::button::Style {
+                    background: None,
+                    border: iced::Border::default(),
+                    text_color: iced::Color::TRANSPARENT,
+                    ..Default::default()
+                })
+                .into()
+            };
+            let size_picker = pick_list(
+                ChartSize::all().to_vec(),
+                Some(self.chart_size),
+                Message::SetChartSize,
+            )
+            .text_size(theme::text_xs());
+
+            let layer_toggles = row![
+                make_toggle("Natal",   self.show_natal_planets,   Message::ToggleChartNatal),
+                make_toggle("Transit", self.show_transit_planets,  Message::ToggleChartTransit),
+                make_toggle("Aspects", self.show_aspects,          Message::ToggleChartAspects),
+                make_toggle("Retro",   self.show_retrogrades,      Message::ToggleChartRetrogrades),
+                iced::widget::Space::new().width(Length::Fixed(8.0)),
+                size_picker,
+            ]
+            .spacing(4)
+            .align_y(Alignment::Center);
+
             let wheel_col = column![
                 text(format!("{} Birth Chart", self.selected_ticker)).font(font::DISPLAY).size(theme::text_lg()),
                 big_three_row,
+                layer_toggles,
                 natal_wheel,
                 build_wheel_legend(),
             ]
@@ -113,73 +253,67 @@ impl Dashboard {
                 ),]
                 .width(Length::Fill);
 
-            // Horoscope reading
-            let horoscope_section: Element<Message> = if let Some(ref h) = self.horoscope {
-                let key_transit_items: Vec<Element<Message>> = h
-                    .key_transits
-                    .iter()
-                    .map(|t| {
-                        row![
-                            text(&t.transit_desc)
-                                .size(theme::text_sm())
-                                .width(Length::Fixed(180.0)),
-                            text(&t.strength)
-                                .size(theme::text_xs())
-                                .width(Length::Fixed(120.0)),
-                            text(&t.financial_implication)
-                                .size(theme::text_xs())
-                                .width(Length::Fill),
-                        ]
-                        .spacing(8)
-                        .into()
-                    })
-                    .collect();
-
-                let mercury_line: Element<Message> = if let Some(ref warn) = h.mercury_warning {
-                    text(format!("Mercury: {warn}"))
-                        .size(theme::text_sm())
-                        .color(theme::ZONE_UNFAVORABLE)
-                        .into()
-                } else {
-                    text("Mercury: Direct — clear communications")
-                        .size(theme::text_sm())
-                        .into()
-                };
-
-                column![
-                    horizontal_rule(1),
-                    text("Horoscope Reading").font(font::DISPLAY).size(theme::text_lg()),
-                    text(&h.overall_outlook).size(theme::text_base()),
-                    row![
-                        text(format!("Theme: {}", h.dominant_theme)).size(theme::text_sm()),
-                        text(format!("Confidence: {:.0}/100", h.confidence)).size(theme::text_sm()),
-                    ]
-                    .spacing(20),
-                    text("Key Transits:").size(theme::text_sm()),
-                    Column::with_children(key_transit_items).spacing(2),
-                    row![
-                        text(&h.moon_guidance).size(theme::text_sm()),
-                        mercury_line,
-                    ]
-                    .spacing(20),
-                    text(format!("Timing: {}", h.timing_window)).size(theme::text_sm()),
-                ]
-                .spacing(6)
+            row![wheel_col, transits_col]
+                .spacing(20)
+                .align_y(Alignment::Start)
                 .into()
+        };
+
+        // ── Horoscope Reading (v11.3: standalone narrative section) ──
+        let horoscope_section: Element<'_, Message> = if let Some(ref h) = self.horoscope {
+            let key_transit_items: Vec<Element<Message>> = h
+                .key_transits
+                .iter()
+                .map(|t| {
+                    row![
+                        text(&t.transit_desc)
+                            .size(theme::text_sm())
+                            .width(Length::Fixed(180.0)),
+                        text(&t.strength)
+                            .size(theme::text_xs())
+                            .width(Length::Fixed(120.0)),
+                        text(&t.financial_implication)
+                            .size(theme::text_xs())
+                            .width(Length::Fill),
+                    ]
+                    .spacing(8)
+                    .into()
+                })
+                .collect();
+
+            let mercury_line: Element<Message> = if let Some(ref warn) = h.mercury_warning {
+                text(format!("Mercury: {warn}"))
+                    .size(theme::text_xs())
+                    .color(theme::ZONE_UNFAVORABLE)
+                    .into()
             } else {
-                text("Horoscope reading not yet generated for today. Run the scraper to compute.")
-                    .size(theme::text_sm())
+                text("Mercury: Direct")
+                    .size(theme::text_xs())
                     .into()
             };
 
             column![
-                row![wheel_col, transits_col]
-                    .spacing(20)
-                    .align_y(Alignment::Start),
-                horoscope_section,
+                text(&h.overall_outlook).size(theme::text_base()),
+                row![
+                    text(format!("Theme: {}", h.dominant_theme)).size(theme::text_sm()),
+                    text(format!("Confidence: {:.0}/100", h.confidence)).size(theme::text_sm()),
+                ]
+                .spacing(20),
+                text("Key Transits:").size(theme::text_sm()),
+                Column::with_children(key_transit_items).spacing(2),
+                row![
+                    text(&h.moon_guidance).size(theme::text_xs()),
+                    mercury_line,
+                    text(format!("Timing: {}", h.timing_window)).size(theme::text_xs()),
+                ]
+                .spacing(12),
             ]
-            .spacing(12)
+            .spacing(6)
             .into()
+        } else {
+            text("Horoscope reading not yet generated for today. Run the scraper to compute.")
+                .size(theme::text_sm())
+                .into()
         };
 
         // ── Backtest Section ────────────────────────────────
@@ -209,7 +343,7 @@ impl Dashboard {
                         text("Astro Backtest").font(font::DISPLAY).size(theme::text_md()),
                         config_row,
                         clear_btn,
-                        horizontal_rule(1),
+                        rule::horizontal(1),
                         text(msg.as_str())
                             .size(theme::text_base())
                             .color(theme::ZONE_UNFAVORABLE),
@@ -297,9 +431,9 @@ impl Dashboard {
                         ))
                         .size(theme::text_md()),
                         row![config_row, clear_btn].spacing(8).align_y(Alignment::Center),
-                        horizontal_rule(1),
+                        rule::horizontal(1),
                         metrics,
-                        horizontal_rule(1),
+                        rule::horizontal(1),
                         text("Recent Trades (last 10)").size(theme::text_sm()),
                         Column::with_children(trade_rows).spacing(1),
                     ]
@@ -404,7 +538,7 @@ impl Dashboard {
             .spacing(6);
 
             if let Some(ref sr) = self.strategy_result {
-                strat_col = strat_col.push(horizontal_rule(1));
+                strat_col = strat_col.push(rule::horizontal(1));
                 if let Some(ref msg) = sr.insufficient_data {
                     strat_col = strat_col.push(
                         text(msg.as_str())
@@ -518,7 +652,7 @@ impl Dashboard {
             let mut col = column![
                 text(format!("90-Day Forecast: {}", self.selected_ticker))
                     .font(font::DISPLAY).size(theme::text_md()),
-                horizontal_rule(1),
+                rule::horizontal(1),
             ].spacing(4);
             if window_items.is_empty() {
                 col = col.push(text("  No strong signals in next 90 days.").size(theme::text_sm()));
@@ -533,17 +667,33 @@ impl Dashboard {
         };
 
         // ── Final assembly ─────────────────────────────────
+        // v11.3 layout: Natal → row![Calendar | Forecast] → Horoscope → Backtest → Strategy
+        let calendar_col = column![
+            icon_eyebrow(icons::CALENDAR, "ASTRO CALENDAR"),
+            container(calendar_section).padding([10, 14]),
+        ]
+        .spacing(theme::SPACE_XS)
+        .width(Length::FillPortion(1));
+
+        let forecast_col = column![
+            icon_eyebrow(icons::GRAPH_UP, "FORECAST"),
+            container(forecast_section).padding([10, 14]),
+        ]
+        .spacing(theme::SPACE_XS)
+        .width(Length::FillPortion(1));
+
         column![
-            eyebrow("NATAL CHART"),
+            icon_eyebrow(icons::GLOBE, "NATAL CHART"),
             astrology_section,
             section_rule(),
-            eyebrow("FORECAST"),
-            container(forecast_section).padding([10, 14]),
+            row![calendar_col, forecast_col]
+                .spacing(theme::SPACE_MD)
+                .align_y(Alignment::Start),
             section_rule(),
-            eyebrow("ASTRO CALENDAR"),
-            container(calendar_section).padding([10, 14]),
+            icon_eyebrow(icons::MOON_STARS, "HOROSCOPE READING"),
+            container(horoscope_section).padding([10, 14]),
             section_rule(),
-            eyebrow("BACKTEST"),
+            icon_eyebrow(icons::LIGHTNING, "BACKTEST"),
             container(backtest_section).padding([10, 14]),
             section_rule(),
             container(strategy_section).padding([10, 14]),

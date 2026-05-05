@@ -103,6 +103,32 @@ pub(crate) fn handle(state: &mut Dashboard, message: &Message) -> Option<Task<Me
             Some(state.refresh_calendar())
         }
 
+        // Chart layer toggles (v11.1)
+        Message::ToggleChartNatal => {
+            state.show_natal_planets = !state.show_natal_planets;
+            Some(Task::none())
+        }
+        Message::ToggleChartTransit => {
+            state.show_transit_planets = !state.show_transit_planets;
+            Some(Task::none())
+        }
+        Message::ToggleChartAspects => {
+            state.show_aspects = !state.show_aspects;
+            Some(Task::none())
+        }
+        Message::ToggleChartRetrogrades => {
+            state.show_retrogrades = !state.show_retrogrades;
+            Some(Task::none())
+        }
+        Message::SetChartSize(sz) => {
+            state.chart_size = *sz;
+            Some(Task::none())
+        }
+        Message::SetTooltipSize(sz) => {
+            state.tooltip_size = *sz;
+            Some(Task::none())
+        }
+
         _ => None,
     }
 }

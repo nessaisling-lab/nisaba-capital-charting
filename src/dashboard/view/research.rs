@@ -1,9 +1,9 @@
-use iced::widget::{button, column, row, scrollable, text, Column};
+use iced::widget::{button, column, row, text, Column};
 use iced::{Alignment, Element, Length};
 
 use crate::font;
 use crate::helpers::{describe_8k_items, format_market_value, format_shares};
-use super::shared::{eyebrow, gold_scrollbar_style, section_rule};
+use super::shared::{eyebrow, gutter_scroll, link_button, section_rule};
 use crate::state::{Dashboard, Message};
 use crate::theme;
 
@@ -46,9 +46,7 @@ impl Dashboard {
                 .collect();
             column![
                 text("Recent 8-K Filings").font(font::DISPLAY).size(theme::text_md()),
-                scrollable(Column::with_children(filing_rows).spacing(4))
-                    .height(Length::Fixed(100.0))
-                    .style(gold_scrollbar_style),
+                gutter_scroll(Column::with_children(filing_rows).spacing(4), 100.0),
             ]
             .spacing(4)
         };
@@ -120,9 +118,7 @@ impl Dashboard {
 
             column![
                 news_header,
-                scrollable(Column::with_children(news_items).spacing(4))
-                    .height(Length::Fixed(120.0))
-                    .style(gold_scrollbar_style),
+                gutter_scroll(Column::with_children(news_items).spacing(4), 120.0),
             ]
             .spacing(4)
         };
@@ -145,13 +141,20 @@ impl Dashboard {
                 text("Price").width(Length::FillPortion(2)),
             ]
             .spacing(8);
+            let ticker = &self.selected_ticker;
             let trade_rows: Vec<Element<Message>> = self
                 .insider_trades
                 .iter()
                 .map(|t| {
+                    let search_url = format!(
+                        "https://www.google.com/search?q={}+{}+insider+trading",
+                        t.insider_name.replace(' ', "+"),
+                        ticker,
+                    );
                     row![
                         text(t.transaction_date.to_string()).width(Length::FillPortion(2)),
-                        text(&t.insider_name).width(Length::FillPortion(4)),
+                        iced::widget::container(link_button(&t.insider_name, search_url))
+                            .width(Length::FillPortion(4)),
                         text(t.insider_title.as_deref().unwrap_or("—")).width(Length::FillPortion(3)),
                         text(if t.transaction_type == "A" { "Buy" } else { "Sell" })
                             .width(Length::FillPortion(1)),
@@ -165,9 +168,7 @@ impl Dashboard {
             column![
                 text("Recent Insider Trades").font(font::DISPLAY).size(theme::text_md()),
                 hdr,
-                scrollable(Column::with_children(trade_rows).spacing(4))
-                    .height(Length::Fixed(130.0))
-                    .style(gold_scrollbar_style),
+                gutter_scroll(Column::with_children(trade_rows).spacing(4), 130.0),
             ]
             .spacing(4)
         };
@@ -192,8 +193,13 @@ impl Dashboard {
                 .holdings
                 .iter()
                 .map(|h| {
+                    let search_url = format!(
+                        "https://www.google.com/search?q={}+institutional+investor",
+                        h.institution_name.replace(' ', "+"),
+                    );
                     row![
-                        text(&h.institution_name).width(Length::FillPortion(4)),
+                        iced::widget::container(link_button(&h.institution_name, search_url))
+                            .width(Length::FillPortion(4)),
                         text(format_shares(h.shares_held)).font(font::INTER).width(Length::FillPortion(3)),
                         text(format_market_value(&h.market_value)).font(font::INTER).width(Length::FillPortion(3)),
                         text(h.report_period.to_string()).width(Length::FillPortion(2)),
@@ -205,9 +211,7 @@ impl Dashboard {
             column![
                 text("Top Institutional Holders").font(font::DISPLAY).size(theme::text_md()),
                 hdr,
-                scrollable(Column::with_children(holding_rows).spacing(4))
-                    .height(Length::Fixed(120.0))
-                    .style(gold_scrollbar_style),
+                gutter_scroll(Column::with_children(holding_rows).spacing(4), 120.0),
             ]
             .spacing(4)
         };
@@ -267,9 +271,7 @@ impl Dashboard {
                 .collect();
             column![
                 text("Market News (RSS — 25 sources)").font(font::DISPLAY).size(theme::text_md()),
-                scrollable(Column::with_children(rss_items).spacing(4))
-                    .height(Length::Fixed(180.0))
-                    .style(gold_scrollbar_style),
+                gutter_scroll(Column::with_children(rss_items).spacing(4), 180.0),
             ]
             .spacing(4)
         };
@@ -329,9 +331,7 @@ impl Dashboard {
                 .collect();
             column![
                 text("Geopolitical Events (GDELT)").font(font::DISPLAY).size(theme::text_md()),
-                scrollable(Column::with_children(gdelt_items).spacing(4))
-                    .height(Length::Fixed(160.0))
-                    .style(gold_scrollbar_style),
+                gutter_scroll(Column::with_children(gdelt_items).spacing(4), 160.0),
             ]
             .spacing(4)
         };

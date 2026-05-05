@@ -337,6 +337,7 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
             }
 
             state.fetching_ticker = true;
+            state.fetch_start_time = Some(std::time::Instant::now());
             state.push_toast(format!("Fetching data for {}...", ticker));
             Some(Task::perform(
                 async move {
@@ -358,6 +359,7 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
         }
         Message::FetchTickerComplete(result) => {
             state.fetching_ticker = false;
+            state.fetch_start_time = None;
             match result {
                 Ok(()) => {
                     state.push_toast(format!("{} data fetched!", state.selected_ticker));

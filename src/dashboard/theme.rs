@@ -305,6 +305,7 @@ pub fn iced_theme(mode: ThemeMode, hour: u32) -> iced::Theme {
             primary:    p.accent,
             success:    p.bullish,
             danger:     p.bearish,
+            warning:    p.gold,
         },
     )
 }

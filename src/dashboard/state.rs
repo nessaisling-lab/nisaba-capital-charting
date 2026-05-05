@@ -25,6 +25,75 @@ pub struct ForecastDay {
     pub key_aspect: Option<String>,
 }
 
+/// Candlestick hover tooltip size preference (v11.3 — user setting).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TooltipSize {
+    Small,
+    Default,
+    Large,
+}
+
+impl TooltipSize {
+    pub fn all() -> &'static [TooltipSize] {
+        &[Self::Small, Self::Default, Self::Large]
+    }
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Small   => "Small",
+            Self::Default => "Default",
+            Self::Large   => "Large",
+        }
+    }
+    /// (font_px, box_width_px, box_height_px)
+    pub fn dims(self) -> (f32, f32, f32) {
+        match self {
+            Self::Small   => (9.0,  92.0, 56.0),
+            Self::Default => (10.0, 106.0, 64.0),
+            Self::Large   => (13.0, 138.0, 84.0),
+        }
+    }
+}
+
+impl std::fmt::Display for TooltipSize {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.label())
+    }
+}
+
+/// Natal wheel size preference (v11.3 — user setting).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChartSize {
+    Compact,
+    Default,
+    Large,
+}
+
+impl ChartSize {
+    pub fn all() -> &'static [ChartSize] {
+        &[Self::Compact, Self::Default, Self::Large]
+    }
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Compact => "Compact",
+            Self::Default => "Default",
+            Self::Large   => "Large",
+        }
+    }
+    pub fn pixels(self) -> f32 {
+        match self {
+            Self::Compact => 320.0,
+            Self::Default => 400.0,
+            Self::Large   => 520.0,
+        }
+    }
+}
+
+impl std::fmt::Display for ChartSize {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.label())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChartTimeframe {
     OneMonth,
@@ -222,6 +291,8 @@ pub struct Dashboard {
     pub calendar_month:           u32,
     // Fetch ticker
     pub fetching_ticker:          bool,
+    /// Wall-clock instant the current fetch began (v11.3) — drives progress bar fill.
+    pub fetch_start_time:         Option<std::time::Instant>,
     pub fetch_ticker_error:       Option<String>,
     // LLM agent mode
     pub agent_mode:               AgentMode,
@@ -256,6 +327,15 @@ pub struct Dashboard {
     pub shader_time:              f32,            // cumulative time for GPU vignette
     // Chart animation (v9.0)
     pub chart_draw_progress:      f32,            // 0.0→1.0 candlestick draw-in animation
+    // Chart layer visibility toggles (v11.1)
+    pub show_natal_planets:       bool,
+    pub show_transit_planets:     bool,
+    pub show_aspects:             bool,
+    pub show_retrogrades:         bool,
+    // Natal wheel size (v11.3)
+    pub chart_size:               ChartSize,
+    // Candlestick hover tooltip size (v11.3)
+    pub tooltip_size:             TooltipSize,
 }
 
 impl Default for Dashboard {
@@ -366,6 +446,7 @@ impl Default for Dashboard {
             calendar_year:            chrono::Local::now().year(),
             calendar_month:           chrono::Local::now().month(),
             fetching_ticker:          false,
+            fetch_start_time:         None,
             fetch_ticker_error:       None,
             agent_mode:               AgentMode::Template,
             agent_loading:            false,
@@ -396,6 +477,13 @@ impl Default for Dashboard {
             shader_time:              42.0,  // non-zero seed for initial dust mote positions
             // Chart animation (v9.0)
             chart_draw_progress:      1.0,   // starts complete (animates on ticker switch)
+            // Chart layer toggles (v11.1)
+            show_natal_planets:       true,
+            show_transit_planets:     true,
+            show_aspects:             true,
+            show_retrogrades:         true,
+            chart_size:               ChartSize::Default,
+            tooltip_size:             TooltipSize::Default,
         }
     }
 }
@@ -556,4 +644,13 @@ pub enum Message {
     PaperPositionsLoaded(Result<Vec<crate::db::paper::PaperPositionRow>, String>),
     PaperTradesLoaded(Result<Vec<PaperTrade>, String>),
     PaperValuesLoaded(Result<(Vec<f64>, Vec<f64>), String>),
+    // Chart layer toggles (v11.1)
+    ToggleChartNatal,
+    ToggleChartTransit,
+    ToggleChartAspects,
+    ToggleChartRetrogrades,
+    // Chart size (v11.3)
+    SetChartSize(ChartSize),
+    // Candlestick tooltip size (v11.3)
+    SetTooltipSize(TooltipSize),
 }

@@ -13,7 +13,7 @@ mod portfolio;
 mod universe;
 
 use chrono::Datelike;
-use iced::widget::text_input;
+use iced::widget::operation;
 use iced::{Subscription, Task, Theme};
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -244,7 +244,7 @@ impl Dashboard {
                 let _ = open::that_detached(&url);
                 Task::none()
             }
-            Message::FocusSearch => text_input::focus(SEARCH_INPUT_ID),
+            Message::FocusSearch => operation::focus(SEARCH_INPUT_ID),
             Message::EscapePressed => {
                 self.ticker_search_input = String::new();
                 self.autocomplete_suggestions = vec![];
@@ -478,7 +478,13 @@ impl Dashboard {
         };
         Subscription::batch([
             iced::time::every(tick_rate).map(|_| Message::Tick),
-            iced::keyboard::on_key_press(handle_key_press),
+            iced::keyboard::listen().filter_map(|event| {
+                if let iced::keyboard::Event::KeyPressed { key, modifiers, .. } = event {
+                    handle_key_press(key, modifiers)
+                } else {
+                    None
+                }
+            }),
             iced::window::resize_events().map(|(id, size)| Message::WindowResized(id, size)),
         ])
     }

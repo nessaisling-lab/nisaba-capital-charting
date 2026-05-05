@@ -38,8 +38,8 @@ impl canvas::Program<Message> for SectorHeatMap {
                 position: Point::new(bounds.width / 2.0, bounds.height / 2.0),
                 color: theme::fg_dim(iced_theme),
                 size: iced::Pixels(12.0),
-                horizontal_alignment: iced::alignment::Horizontal::Center,
-                vertical_alignment: iced::alignment::Vertical::Center,
+                align_x: iced::alignment::Horizontal::Center.into(),
+                align_y: iced::alignment::Vertical::Center,
                 ..Default::default()
             };
             frame.fill_text(label);
@@ -89,8 +89,8 @@ impl canvas::Program<Message> for SectorHeatMap {
                     position: Point::new(x + cell_width / 2.0, padding + cell_height * 0.3),
                     color: text_color,
                     size: iced::Pixels(10.0),
-                    horizontal_alignment: iced::alignment::Horizontal::Center,
-                    vertical_alignment: iced::alignment::Vertical::Center,
+                    align_x: iced::alignment::Horizontal::Center.into(),
+                    align_y: iced::alignment::Vertical::Center,
                     ..Default::default()
                 };
                 frame.fill_text(name_label);
@@ -100,8 +100,8 @@ impl canvas::Program<Message> for SectorHeatMap {
                     position: Point::new(x + cell_width / 2.0, padding + cell_height * 0.55),
                     color: text_color,
                     size: iced::Pixels(14.0),
-                    horizontal_alignment: iced::alignment::Horizontal::Center,
-                    vertical_alignment: iced::alignment::Vertical::Center,
+                    align_x: iced::alignment::Horizontal::Center.into(),
+                    align_y: iced::alignment::Vertical::Center,
                     ..Default::default()
                 };
                 frame.fill_text(score_label);
@@ -111,8 +111,8 @@ impl canvas::Program<Message> for SectorHeatMap {
                     position: Point::new(x + cell_width / 2.0, padding + cell_height * 0.78),
                     color: text_color,
                     size: iced::Pixels(9.0),
-                    horizontal_alignment: iced::alignment::Horizontal::Center,
-                    vertical_alignment: iced::alignment::Vertical::Center,
+                    align_x: iced::alignment::Horizontal::Center.into(),
+                    align_y: iced::alignment::Vertical::Center,
                     ..Default::default()
                 };
                 frame.fill_text(count_label);

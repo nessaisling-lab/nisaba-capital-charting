@@ -21,11 +21,12 @@ struct Uniforms {
     transit_count: f32,
     retro_r: f32,
     retro_g: f32,
-    // v9.0 additions (16 bytes padding to reach 512-byte alignment)
+    // v9.0
     active_sign: f32,   // 0-11, zodiac sign containing current Sun transit
-    _pad1: f32,
-    _pad2: f32,
-    _pad3: f32,
+    // v11.1: chart layer visibility (0.0 = hidden, 1.0 = visible)
+    show_natal: f32,
+    show_transit: f32,
+    show_aspects: f32,
 };
 
 @group(0) @binding(0)
@@ -61,7 +62,7 @@ const R_CENTER: f32  = 0.478;   // inner circle         (0.52 × 0.92)
 const RING_W: f32    = 0.005;   // ring stroke half-width
 const PLANET_R: f32  = 0.016;   // planet dot radius
 const HALO_R: f32    = 0.045;   // glow halo outer radius
-const ASPECT_W: f32  = 0.005;   // aspect line half-width (v9.3: was 0.003, thicker for visibility)
+const ASPECT_W: f32  = 0.003;   // aspect line half-width (v11.3: back to 0.003, finer per video review)
 
 // ── Sign color lookup (element-based — fire/earth/air/water) ──────
 
@@ -138,39 +139,39 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let r = length(pc);
     let pixel_w = 2.5 / min(u.resolution.x, u.resolution.y);
 
-    // Background — galaxy/constellation field (v9.2)
-    // Deep space gradient: dark center → purple edges with nebula swirl
-    let galaxy_center = vec3<f32>(0.02, 0.01, 0.04);   // near-black with purple hint
-    let galaxy_edge   = vec3<f32>(0.08, 0.03, 0.14);   // dark purple
+    // Background — galaxy/constellation field (v9.2, v11.3: muted)
+    // Subtle space gradient: near-black center, faint purple edges
+    let galaxy_center = vec3<f32>(0.02, 0.015, 0.03);  // near-black, slight warmth
+    let galaxy_edge   = vec3<f32>(0.05, 0.03, 0.08);   // muted dark purple
     let galaxy_mix    = smoothstep(0.0, 1.0, r * 0.9);
     var color = mix(galaxy_center, galaxy_edge, galaxy_mix);
 
-    // Nebula swirl: subtle colored clouds using layered noise
+    // Nebula swirl: very subtle colored clouds
     let nebula_angle = atan2(pc.y, pc.x);
     let nebula1 = sin(nebula_angle * 3.0 + r * 5.0) * 0.5 + 0.5;
     let nebula2 = sin(nebula_angle * 5.0 - r * 3.0 + 1.5) * 0.5 + 0.5;
     let nebula_color = mix(
-        vec3<f32>(0.12, 0.04, 0.18),  // deep purple
-        vec3<f32>(0.04, 0.06, 0.16),  // dark blue
+        vec3<f32>(0.07, 0.03, 0.10),  // desaturated purple
+        vec3<f32>(0.03, 0.04, 0.09),  // desaturated blue
         nebula1 * nebula2
     );
-    color = mix(color, nebula_color, 0.15 * (1.0 - smoothstep(0.3, 0.9, r)));
+    color = mix(color, nebula_color, 0.08 * (1.0 - smoothstep(0.3, 0.9, r)));
 
-    // Dense star field across entire chart (not just outside ring)
-    let star_grid = raw * 60.0;  // denser grid than outer-only stars
+    // Gentle star field across entire chart
+    let star_grid = raw * 60.0;
     let star_id = floor(star_grid);
     let star_frac = fract(star_grid) - 0.5;
     let star_val = hash(star_id.x * 173.7 + star_id.y * 259.3);
-    if star_val > 0.92 {
-        let star_bright = (star_val - 0.92) * 12.5;
+    if star_val > 0.93 {
+        let star_bright = (star_val - 0.93) * 14.3;
         let star_dist = length(star_frac);
-        let star_mask = 1.0 - smoothstep(0.0, 0.15, star_dist);
-        let star_twinkle = 0.4 + 0.6 * sin(u.time * 1.2 + star_val * TAU);
-        // Color variation: warm white, cool blue, pale gold
-        var star_tint = vec3<f32>(0.85, 0.85, 0.95);  // default cool white
-        if star_val > 0.97 { star_tint = vec3<f32>(0.95, 0.85, 0.65); }  // gold stars (rare)
-        else if star_val > 0.95 { star_tint = vec3<f32>(0.65, 0.75, 1.0); }  // blue stars
-        color += star_tint * star_mask * star_bright * star_twinkle * 0.18;
+        let star_mask = 1.0 - smoothstep(0.0, 0.12, star_dist);
+        let star_twinkle = 0.5 + 0.5 * sin(u.time * 0.8 + star_val * TAU);
+        // Subtle color variation: warm white, faint blue
+        var star_tint = vec3<f32>(0.80, 0.80, 0.85);  // muted cool white
+        if star_val > 0.97 { star_tint = vec3<f32>(0.85, 0.78, 0.60); }  // faint gold (rare)
+        else if star_val > 0.95 { star_tint = vec3<f32>(0.60, 0.68, 0.85); }  // faint blue
+        color += star_tint * star_mask * star_bright * star_twinkle * 0.10;
     }
 
     // ── 1. Zodiac ring segments (12 colored arcs) ─────────────────
@@ -228,6 +229,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let tc = u32(u.transit_count);
     let drift = u.time * 0.5 * PI / 180.0; // 0.5°/sec transit drift
 
+    if u.show_aspects > 0.5 {
     for (var i = 0u; i < nc; i = i + 1u) {
         let n_lon = u.natal_planets[i].x;
         let n_pos = ring_pos(lon_to_angle(n_lon), R_CENTER * 0.92);
@@ -297,7 +299,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
     }
 
+    } // end show_aspects
+
     // ── 5. Natal planets (gold dots with glow halos + breathing pulse) ─
+    if u.show_natal > 0.5 {
     for (var i = 0u; i < nc; i = i + 1u) {
         let lon = u.natal_planets[i].x;
         let pos = ring_pos(lon_to_angle(lon), R_NATAL);
@@ -322,9 +327,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         color = mix(color, vec3<f32>(1.0, 0.95, 0.75), core * 0.45);
     }
 
+    } // end show_natal
+
     // ── 6. Transit planets (blue/red, animated drift + orbital trails) ─
     let retro_rgb = vec3<f32>(u.retro_r, u.retro_g, 0.5);
 
+    if u.show_transit > 0.5 {
     for (var i = 0u; i < tc; i = i + 1u) {
         let lon = u.transit_planets[i].x;
         let is_retro = u.transit_planets[i].y;
@@ -354,6 +362,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let dot_a = 1.0 - smoothstep(-pixel_w, pixel_w, dd);
         color = mix(color, tc_rgb, dot_a * 0.90);
     }
+
+    } // end show_transit
 
     // ── 7. Directional lighting (top-bright, bottom-dark) ─────────
     let light_y = -raw.y;            // screen-space: top = positive

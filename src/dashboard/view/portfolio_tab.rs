@@ -1,4 +1,4 @@
-use iced::widget::{button, column, horizontal_rule, row, text, text_input, Column, Row};
+use iced::widget::{button, column, row, rule, text, text_input, Column, Row};
 use iced::{Alignment, Element, Length};
 
 use crate::font;
@@ -70,10 +70,10 @@ impl Dashboard {
             text("Watchlists").font(font::DISPLAY).size(theme::text_md()),
             wl_dropdown,
             wl_create_row,
-            horizontal_rule(1),
+            rule::horizontal(1),
             wl_tickers_section,
             wl_add_row,
-            horizontal_rule(1),
+            rule::horizontal(1),
             wl_actions,
         ].spacing(6);
 
@@ -115,7 +115,7 @@ impl Dashboard {
             column![
                 text("Transaction Log").font(font::DISPLAY).size(theme::text_md()),
                 input_row,
-                horizontal_rule(1),
+                rule::horizontal(1),
                 Column::with_children(tx_rows).spacing(1),
             ].spacing(6).into()
         };
@@ -189,10 +189,10 @@ impl Dashboard {
 
             column![
                 text("Portfolio").font(font::DISPLAY).size(theme::text_md()),
-                horizontal_rule(1),
+                rule::horizontal(1),
                 hdr,
                 Column::with_children(pos_rows).spacing(2),
-                horizontal_rule(1),
+                rule::horizontal(1),
                 row![
                     text(format!("Cost: ${}", helpers::format_compact(total_cost))).font(font::INTER).size(theme::text_sm()),
                     text(format!("Value: ${}", helpers::format_compact(total_value))).font(font::INTER).size(theme::text_sm()),
@@ -226,10 +226,10 @@ impl Dashboard {
             let total_basis: f32 = self.portfolio.iter().map(|p| p.shares * p.avg_cost).sum();
             column![
                 text("Portfolio").font(font::DISPLAY).size(theme::text_md()),
-                horizontal_rule(1),
+                rule::horizontal(1),
                 hdr,
                 Column::with_children(pos_rows).spacing(2),
-                horizontal_rule(1),
+                rule::horizontal(1),
                 text(format!("Total cost basis: ${total_basis:.0}")).size(theme::text_base()),
             ].spacing(4)
         }

@@ -77,6 +77,7 @@ pub const CLOCK: char          = '\u{e19a}';  // ph-clock
 pub const INFO_CIRCLE: char    = '\u{e2ce}';  // ph-info
 pub const EXCLAMATION_TRI: char = '\u{e4e0}';  // ph-warning
 pub const EYE: char            = '\u{e220}';  // ph-eye
+pub const EYE_SLASH: char      = '\u{e222}';  // ph-eye-slash
 pub const STAR: char           = '\u{e46a}';  // ph-star
 pub const MOON_STARS: char     = '\u{e58e}';  // ph-moon-stars
 pub const CALENDAR: char       = '\u{e108}';  // ph-calendar

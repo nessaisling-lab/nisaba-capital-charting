@@ -1,13 +1,20 @@
 # Financial Dashboard — Design Document
 
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
-**Stack:** Rust, Iced 0.13, SQLx, PostgreSQL
+**Stack:** Rust, Iced 0.14, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v9.3.0
+**Current version:** v11.3.0
 **Next milestones:**
-- v9.1 "The Polish" — P0 bug fixes (backtest crash, broken icons, tooltip contrast, disable rotation) + demo prep polish
-- v10.0 "The Signal" — Data quality (Lagrange score sparsity fix, RSS tone sentiment, fetch-this-ticker, richer template agent)
-- v11.0 "The Intelligence" — Astro symbols/houses on chart, Sun/Moon/Rising summary, backtest→history correlation, calculator defaults, loading progress bar, nav redesign
+- v11.4 "The Reliability + Depth" (Wave 6) — Paired data + astro expansion. **Track A (financial)**: multi-source price fallback (AV→Tiingo→Finnhub→Yahoo→Stooq with provenance), multi-source fundamentals fallback (FMP→Finnhub→AV), earnings calendar + analyst price targets, data freshness UI badges. **Track B (astro engine)**: aspect pattern recognition (Grand Trine, T-Square, Yod, Stellium etc.), aspect strength model upgrade (orb tightness + applying/separating + essential dignity + mutual reception), fixed stars (Regulus/Algol/Spica/Antares + 4 more) + Arabic Parts (Fortune/Spirit/Commerce), eclipse cycles + Saros series. ~900 lines, 4 sub-waves.
+- v12.0 "The Vision" — Full natal chart interactivity (zoom, click-to-inspect, animated transitions). Iced 0.14 prerequisite met.
+
+**Completed milestones:**
+- v11.3 "The Refinement" — All 22 video-review items shipped across 5 waves: aspect tuning, section icons, layout restructure (header price/H-L, search above ornament, astrology two-column), UX fixes (sector dropdown, column tooltips, Rising sign backfill, per-ticker fetch scope), planet symbol overlay (Iced 0.14 pin/stack), hover tooltips, council template diversification (6 headlines/persona, fundamental injection), chart size + tooltip size enums, fetch progress bar (time-based fill), gauge compass-rose redesign (sundial ticks + 8-pt star cap), parchment fiber background texture, scraper retry helper.
+- v11.2 "The Foundation" — Iced 0.13→0.14 framework upgrade (13 files, 19 breaking API changes: Pipeline trait, wgpu 27, canvas Action, widget renames, application boot). Unblocked pin/float/animation/cosmic-text features.
+- v11.1 "The Craft" — Clickable entity links, tab glow rework (gold border bookmark), chart layer toggles, nav layout redesign
+- v11.0 "The Intelligence" — 90-day forecast, Big Three summary, smart calculator defaults, zodiac legend, loading shimmer
+- v10.0 "The Signal" — RSS sentiment, Lagrange adaptive weighting, richer agent verdicts
+- v9.1-9.3 — P0 bug fixes, aspect line overhaul, column widths, scrollbar gutter
 
 ---
 
@@ -2583,7 +2590,7 @@ Tiingo API          ──┤
 Wikidata SPARQL     ──┤
 alternative.me      ──┘
 
-PostgreSQL  ──►  dashboard binary (SQLx async)  ──►  Iced 0.13 UI
+PostgreSQL  ──►  dashboard binary (SQLx async)  ──►  Iced 0.14 UI
 ```
 
 ### Lagrange Score formula (v2.0.5)

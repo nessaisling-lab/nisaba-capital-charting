@@ -7,12 +7,13 @@
 use std::f32::consts::PI;
 
 use iced::widget::canvas::{self};
-use iced::widget::{column, row, scrollable, text, Column};
+use iced::widget::{column, row, text, Column};
 use iced::{Alignment, Color, Element, Length, Point, Rectangle};
 use iced::mouse;
 
 use pursuit_week4_automation::models::{DailyTransit, NatalPosition};
 use crate::state::Message;
+use crate::view::shared::gutter_scroll;
 use crate::theme;
 
 // ---------------------------------------------------------------------------
@@ -158,8 +159,8 @@ impl canvas::Program<Message> for NatalWheel {
                 position: Point::new(cx + label_r * mid_angle.cos(), cy + label_r * mid_angle.sin()),
                 color: sign_col,
                 size: iced::Pixels(9.0),
-                horizontal_alignment: iced::alignment::Horizontal::Center,
-                vertical_alignment: iced::alignment::Vertical::Center,
+                align_x: iced::alignment::Horizontal::Center.into(),
+                align_y: iced::alignment::Vertical::Center,
                 ..canvas::Text::default()
             });
         }
@@ -238,8 +239,8 @@ impl canvas::Program<Message> for NatalWheel {
                 position: Point::new(px, py - 10.0),
                 color: theme::NATAL_GOLD_DIM,
                 size: iced::Pixels(10.0),
-                horizontal_alignment: iced::alignment::Horizontal::Center,
-                vertical_alignment: iced::alignment::Vertical::Center,
+                align_x: iced::alignment::Horizontal::Center.into(),
+                align_y: iced::alignment::Vertical::Center,
                 ..canvas::Text::default()
             });
         }
@@ -271,8 +272,8 @@ impl canvas::Program<Message> for NatalWheel {
                 position: Point::new(px, py - 9.0),
                 color: transit_color,
                 size: iced::Pixels(10.0),
-                horizontal_alignment: iced::alignment::Horizontal::Center,
-                vertical_alignment: iced::alignment::Vertical::Center,
+                align_x: iced::alignment::Horizontal::Center.into(),
+                align_y: iced::alignment::Vertical::Center,
                 ..canvas::Text::default()
             });
         }
@@ -283,7 +284,7 @@ impl canvas::Program<Message> for NatalWheel {
             position: Point::new(cx, cy + 8.0),
             color: theme::NATAL_GOLD_LABEL,
             size: iced::Pixels(10.0),
-            horizontal_alignment: iced::alignment::Horizontal::Center,
+            align_x: iced::alignment::Horizontal::Center.into(),
             ..canvas::Text::default()
         });
         frame.fill_text(canvas::Text {
@@ -291,7 +292,7 @@ impl canvas::Program<Message> for NatalWheel {
             position: Point::new(cx, cy - 5.0),
             color: theme::TRANSIT_BLUE_LABEL,
             size: iced::Pixels(10.0),
-            horizontal_alignment: iced::alignment::Horizontal::Center,
+            align_x: iced::alignment::Horizontal::Center.into(),
             ..canvas::Text::default()
         });
 
@@ -391,9 +392,7 @@ pub fn build_transits_section<'a>(
         header,
         moon_line,
         col_hdr,
-        scrollable(
-            Column::with_children(rows).spacing(2)
-        ).height(Length::Fixed(160.0)),
+        gutter_scroll(Column::with_children(rows).spacing(2), 160.0),
     ].spacing(4).into()
 }
 

@@ -10,6 +10,9 @@ use iced::Rectangle;
 use pursuit_week4_automation::models::{DailyTransit, NatalPosition};
 use crate::state::Message;
 
+// Re-export wgpu from iced (moved from shader::wgpu to iced::wgpu in 0.14)
+use iced::wgpu;
+
 // ── Uniform buffer (64 bytes, 16-byte aligned) ──────────────────
 
 /// GPU uniform data passed to the vignette fragment shader each frame.
@@ -27,33 +30,33 @@ pub struct VignetteUniforms {
     pub mouse_pos: [f32; 2],  // v9.0: cursor UV position [0,1]
 }
 
-// ── Pipeline (stored in shader::Storage) ────────────────────────
+// ── Pipeline (Iced 0.14: implements shader::Pipeline trait) ─────
 
 /// Holds the wgpu render pipeline and uniform buffer.
-/// Created once on first `prepare()`, reused thereafter.
-struct VignettePipeline {
-    pipeline: shader::wgpu::RenderPipeline,
-    uniform_buffer: shader::wgpu::Buffer,
-    bind_group: shader::wgpu::BindGroup,
+/// Created once on first frame via Pipeline::new(), reused thereafter.
+pub struct VignettePipeline {
+    pipeline: wgpu::RenderPipeline,
+    uniform_buffer: wgpu::Buffer,
+    bind_group: wgpu::BindGroup,
 }
 
-impl VignettePipeline {
-    fn new(device: &shader::wgpu::Device, format: shader::wgpu::TextureFormat) -> Self {
-        let shader_module = device.create_shader_module(shader::wgpu::ShaderModuleDescriptor {
+impl shader::Pipeline for VignettePipeline {
+    fn new(device: &wgpu::Device, _queue: &wgpu::Queue, format: wgpu::TextureFormat) -> Self {
+        let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("grimoire_vignette"),
-            source: shader::wgpu::ShaderSource::Wgsl(
+            source: wgpu::ShaderSource::Wgsl(
                 std::borrow::Cow::Borrowed(include_str!("vignette.wgsl")),
             ),
         });
 
         let bind_group_layout =
-            device.create_bind_group_layout(&shader::wgpu::BindGroupLayoutDescriptor {
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("vignette_bind_group_layout"),
-                entries: &[shader::wgpu::BindGroupLayoutEntry {
+                entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: shader::wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: shader::wgpu::BindingType::Buffer {
-                        ty: shader::wgpu::BufferBindingType::Uniform,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },
@@ -62,50 +65,53 @@ impl VignettePipeline {
             });
 
         let pipeline_layout =
-            device.create_pipeline_layout(&shader::wgpu::PipelineLayoutDescriptor {
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("vignette_pipeline_layout"),
                 bind_group_layouts: &[&bind_group_layout],
                 push_constant_ranges: &[],
             });
 
         let pipeline =
-            device.create_render_pipeline(&shader::wgpu::RenderPipelineDescriptor {
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some("vignette_pipeline"),
                 layout: Some(&pipeline_layout),
-                vertex: shader::wgpu::VertexState {
+                vertex: wgpu::VertexState {
                     module: &shader_module,
-                    entry_point: "vs_main",
+                    entry_point: Some("vs_main"),
+                    compilation_options: Default::default(),
                     buffers: &[],
                 },
-                primitive: shader::wgpu::PrimitiveState {
-                    topology: shader::wgpu::PrimitiveTopology::TriangleList,
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
                     ..Default::default()
                 },
                 depth_stencil: None,
-                multisample: shader::wgpu::MultisampleState::default(),
-                fragment: Some(shader::wgpu::FragmentState {
+                multisample: wgpu::MultisampleState::default(),
+                fragment: Some(wgpu::FragmentState {
                     module: &shader_module,
-                    entry_point: "fs_main",
-                    targets: &[Some(shader::wgpu::ColorTargetState {
+                    entry_point: Some("fs_main"),
+                    compilation_options: Default::default(),
+                    targets: &[Some(wgpu::ColorTargetState {
                         format,
-                        blend: Some(shader::wgpu::BlendState::REPLACE),
-                        write_mask: shader::wgpu::ColorWrites::ALL,
+                        blend: Some(wgpu::BlendState::REPLACE),
+                        write_mask: wgpu::ColorWrites::ALL,
                     })],
                 }),
                 multiview: None,
+                cache: None,
             });
 
-        let uniform_buffer = device.create_buffer(&shader::wgpu::BufferDescriptor {
+        let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("vignette_uniforms"),
             size: std::mem::size_of::<VignetteUniforms>() as u64,
-            usage: shader::wgpu::BufferUsages::UNIFORM | shader::wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
-        let bind_group = device.create_bind_group(&shader::wgpu::BindGroupDescriptor {
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("vignette_bind_group"),
             layout: &bind_group_layout,
-            entries: &[shader::wgpu::BindGroupEntry {
+            entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: uniform_buffer.as_entire_binding(),
             }],
@@ -121,29 +127,23 @@ impl VignettePipeline {
 
 // ── Primitive (implements wgpu Primitive trait) ──────────────────
 
-/// The per-frame data sent to the GPU. Iced calls `prepare` then `render`.
+/// The per-frame data sent to the GPU. Iced calls `prepare` then `draw`/`render`.
 #[derive(Debug)]
 pub struct VignettePrimitive {
     uniforms: VignetteUniforms,
 }
 
 impl shader::Primitive for VignettePrimitive {
+    type Pipeline = VignettePipeline;
+
     fn prepare(
         &self,
-        device: &shader::wgpu::Device,
-        queue: &shader::wgpu::Queue,
-        format: shader::wgpu::TextureFormat,
-        storage: &mut shader::Storage,
+        pipeline: &mut VignettePipeline,
+        _device: &wgpu::Device,
+        queue: &wgpu::Queue,
         _bounds: &Rectangle,
         _viewport: &shader::Viewport,
     ) {
-        // Create pipeline on first frame
-        if !storage.has::<VignettePipeline>() {
-            storage.store(VignettePipeline::new(device, format));
-        }
-
-        // Upload uniforms
-        let pipeline = storage.get_mut::<VignettePipeline>().unwrap();
         queue.write_buffer(
             &pipeline.uniform_buffer,
             0,
@@ -153,21 +153,20 @@ impl shader::Primitive for VignettePrimitive {
 
     fn render(
         &self,
-        encoder: &mut shader::wgpu::CommandEncoder,
-        storage: &shader::Storage,
-        target: &shader::wgpu::TextureView,
+        pipeline: &VignettePipeline,
+        encoder: &mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
         clip_bounds: &Rectangle<u32>,
     ) {
-        let pipeline = storage.get::<VignettePipeline>().unwrap();
-
-        let mut pass = encoder.begin_render_pass(&shader::wgpu::RenderPassDescriptor {
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("vignette_pass"),
-            color_attachments: &[Some(shader::wgpu::RenderPassColorAttachment {
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: target,
                 resolve_target: None,
-                ops: shader::wgpu::Operations {
-                    load: shader::wgpu::LoadOp::Load,
-                    store: shader::wgpu::StoreOp::Store,
+                depth_slice: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
                 },
             })],
             depth_stencil_attachment: None,
@@ -230,15 +229,6 @@ impl shader::Program<Message> for VignetteProgram {
             },
         }
     }
-
-    fn mouse_interaction(
-        &self,
-        _state: &Self::State,
-        _bounds: Rectangle,
-        _cursor: mouse::Cursor,
-    ) -> mouse::Interaction {
-        mouse::Interaction::default()
-    }
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -264,38 +254,39 @@ pub struct NatalWheel3DUniforms {
     pub transit_count: f32,
     pub retro_r: f32,
     pub retro_g: f32,
-    // v9.0: active zodiac sign (0-11) + padding to 512 bytes
+    // v9.0: active zodiac sign (0-11)
     pub active_sign: f32,
-    pub _pad1: f32,
-    pub _pad2: f32,
-    pub _pad3: f32,
+    // v11.1: chart layer visibility toggles (0.0 = hidden, 1.0 = visible)
+    pub show_natal: f32,
+    pub show_transit: f32,
+    pub show_aspects: f32,
 }
 
 // ── Pipeline ───────────────────────────────────────────────────────
 
-struct NatalWheel3DPipeline {
-    pipeline: shader::wgpu::RenderPipeline,
-    uniform_buffer: shader::wgpu::Buffer,
-    bind_group: shader::wgpu::BindGroup,
+pub struct NatalWheel3DPipeline {
+    pipeline: wgpu::RenderPipeline,
+    uniform_buffer: wgpu::Buffer,
+    bind_group: wgpu::BindGroup,
 }
 
-impl NatalWheel3DPipeline {
-    fn new(device: &shader::wgpu::Device, format: shader::wgpu::TextureFormat) -> Self {
-        let shader_module = device.create_shader_module(shader::wgpu::ShaderModuleDescriptor {
+impl shader::Pipeline for NatalWheel3DPipeline {
+    fn new(device: &wgpu::Device, _queue: &wgpu::Queue, format: wgpu::TextureFormat) -> Self {
+        let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("natal_wheel_3d"),
-            source: shader::wgpu::ShaderSource::Wgsl(
+            source: wgpu::ShaderSource::Wgsl(
                 std::borrow::Cow::Borrowed(include_str!("natal_wheel_3d.wgsl")),
             ),
         });
 
         let bind_group_layout =
-            device.create_bind_group_layout(&shader::wgpu::BindGroupLayoutDescriptor {
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("natal_wheel_3d_bind_group_layout"),
-                entries: &[shader::wgpu::BindGroupLayoutEntry {
+                entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: shader::wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: shader::wgpu::BindingType::Buffer {
-                        ty: shader::wgpu::BufferBindingType::Uniform,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },
@@ -304,50 +295,53 @@ impl NatalWheel3DPipeline {
             });
 
         let pipeline_layout =
-            device.create_pipeline_layout(&shader::wgpu::PipelineLayoutDescriptor {
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("natal_wheel_3d_pipeline_layout"),
                 bind_group_layouts: &[&bind_group_layout],
                 push_constant_ranges: &[],
             });
 
         let pipeline =
-            device.create_render_pipeline(&shader::wgpu::RenderPipelineDescriptor {
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some("natal_wheel_3d_pipeline"),
                 layout: Some(&pipeline_layout),
-                vertex: shader::wgpu::VertexState {
+                vertex: wgpu::VertexState {
                     module: &shader_module,
-                    entry_point: "vs_main",
+                    entry_point: Some("vs_main"),
+                    compilation_options: Default::default(),
                     buffers: &[],
                 },
-                primitive: shader::wgpu::PrimitiveState {
-                    topology: shader::wgpu::PrimitiveTopology::TriangleList,
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
                     ..Default::default()
                 },
                 depth_stencil: None,
-                multisample: shader::wgpu::MultisampleState::default(),
-                fragment: Some(shader::wgpu::FragmentState {
+                multisample: wgpu::MultisampleState::default(),
+                fragment: Some(wgpu::FragmentState {
                     module: &shader_module,
-                    entry_point: "fs_main",
-                    targets: &[Some(shader::wgpu::ColorTargetState {
+                    entry_point: Some("fs_main"),
+                    compilation_options: Default::default(),
+                    targets: &[Some(wgpu::ColorTargetState {
                         format,
-                        blend: Some(shader::wgpu::BlendState::REPLACE),
-                        write_mask: shader::wgpu::ColorWrites::ALL,
+                        blend: Some(wgpu::BlendState::REPLACE),
+                        write_mask: wgpu::ColorWrites::ALL,
                     })],
                 }),
                 multiview: None,
+                cache: None,
             });
 
-        let uniform_buffer = device.create_buffer(&shader::wgpu::BufferDescriptor {
+        let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("natal_wheel_3d_uniforms"),
             size: std::mem::size_of::<NatalWheel3DUniforms>() as u64,
-            usage: shader::wgpu::BufferUsages::UNIFORM | shader::wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
-        let bind_group = device.create_bind_group(&shader::wgpu::BindGroupDescriptor {
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("natal_wheel_3d_bind_group"),
             layout: &bind_group_layout,
-            entries: &[shader::wgpu::BindGroupEntry {
+            entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: uniform_buffer.as_entire_binding(),
             }],
@@ -369,19 +363,16 @@ pub struct NatalWheel3DPrimitive {
 }
 
 impl shader::Primitive for NatalWheel3DPrimitive {
+    type Pipeline = NatalWheel3DPipeline;
+
     fn prepare(
         &self,
-        device: &shader::wgpu::Device,
-        queue: &shader::wgpu::Queue,
-        format: shader::wgpu::TextureFormat,
-        storage: &mut shader::Storage,
+        pipeline: &mut NatalWheel3DPipeline,
+        _device: &wgpu::Device,
+        queue: &wgpu::Queue,
         _bounds: &Rectangle,
         _viewport: &shader::Viewport,
     ) {
-        if !storage.has::<NatalWheel3DPipeline>() {
-            storage.store(NatalWheel3DPipeline::new(device, format));
-        }
-        let pipeline = storage.get_mut::<NatalWheel3DPipeline>().unwrap();
         queue.write_buffer(
             &pipeline.uniform_buffer,
             0,
@@ -391,21 +382,20 @@ impl shader::Primitive for NatalWheel3DPrimitive {
 
     fn render(
         &self,
-        encoder: &mut shader::wgpu::CommandEncoder,
-        storage: &shader::Storage,
-        target: &shader::wgpu::TextureView,
+        pipeline: &NatalWheel3DPipeline,
+        encoder: &mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
         clip_bounds: &Rectangle<u32>,
     ) {
-        let pipeline = storage.get::<NatalWheel3DPipeline>().unwrap();
-
-        let mut pass = encoder.begin_render_pass(&shader::wgpu::RenderPassDescriptor {
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("natal_wheel_3d_pass"),
-            color_attachments: &[Some(shader::wgpu::RenderPassColorAttachment {
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: target,
                 resolve_target: None,
-                ops: shader::wgpu::Operations {
-                    load: shader::wgpu::LoadOp::Load,
-                    store: shader::wgpu::StoreOp::Store,
+                depth_slice: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
                 },
             })],
             depth_stencil_attachment: None,
@@ -441,6 +431,11 @@ pub struct NatalWheel3DProgram {
     pub transit_color: [f32; 4],
     pub retro_color: [f32; 4],
     pub active_sign: f32,  // v9.0: 0-11, zodiac sign with current Sun transit
+    // v11.1: chart layer visibility
+    pub show_natal: bool,
+    pub show_transit: bool,
+    pub show_aspects: bool,
+    pub show_retrogrades: bool,
 }
 
 impl shader::Program<Message> for NatalWheel3DProgram {
@@ -464,12 +459,12 @@ impl shader::Program<Message> for NatalWheel3DProgram {
             ];
         }
 
-        // Pack transit planets
+        // Pack transit planets (v11.1: clear retrograde flag when toggle is off)
         let mut transit_planets = [[0.0f32; 4]; 13];
         for (i, pos) in self.transit_positions.iter().take(13).enumerate() {
             transit_planets[i] = [
                 pos.longitude as f32,
-                if pos.retrograde { 1.0 } else { 0.0 },
+                if pos.retrograde && self.show_retrogrades { 1.0 } else { 0.0 },
                 i as f32,
                 0.0,
             ];
@@ -490,19 +485,10 @@ impl shader::Program<Message> for NatalWheel3DProgram {
                 retro_r: self.retro_color[0],
                 retro_g: self.retro_color[1],
                 active_sign: self.active_sign,
-                _pad1: 0.0,
-                _pad2: 0.0,
-                _pad3: 0.0,
+                show_natal: if self.show_natal { 1.0 } else { 0.0 },
+                show_transit: if self.show_transit { 1.0 } else { 0.0 },
+                show_aspects: if self.show_aspects { 1.0 } else { 0.0 },
             },
         }
-    }
-
-    fn mouse_interaction(
-        &self,
-        _state: &Self::State,
-        _bounds: Rectangle,
-        _cursor: mouse::Cursor,
-    ) -> mouse::Interaction {
-        mouse::Interaction::default()
     }
 }

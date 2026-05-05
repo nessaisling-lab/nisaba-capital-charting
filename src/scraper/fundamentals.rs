@@ -142,30 +142,38 @@ pub(crate) async fn fetch_and_store(
     client: &reqwest::Client,
     api_key: &str,
 ) -> Result<bool> {
-    // Fetch key-metrics TTM
+    // Fetch key-metrics TTM (v11.3 — wrapped in retry helper)
     let km_url = format!(
         "https://financialmodelingprep.com/api/v3/key-metrics-ttm/{ticker}?apikey={api_key}"
     );
-    let km_resp = client.get(&km_url).send().await
-        .context("FMP key-metrics request failed")?;
-    if !km_resp.status().is_success() {
-        anyhow::bail!("FMP key-metrics HTTP {}", km_resp.status());
-    }
-    let km_list: Vec<FmpKeyMetrics> = km_resp.json().await.unwrap_or_default();
+    let km_label = format!("FMP key-metrics {ticker}");
+    let km_list: Vec<FmpKeyMetrics> = crate::retry::with_retry(&km_label, || async {
+        let r = client.get(&km_url).send().await
+            .context("FMP key-metrics request failed")?;
+        if !r.status().is_success() {
+            anyhow::bail!("FMP key-metrics HTTP {}", r.status());
+        }
+        r.json::<Vec<FmpKeyMetrics>>().await
+            .context("FMP key-metrics JSON parse")
+    }).await?;
     let km = km_list.into_iter().next().unwrap_or_default();
 
     crate::log_fetch(pool, "fmp", Some(ticker), "key-metrics-ttm", "ok", None).await;
 
-    // Fetch ratios TTM
+    // Fetch ratios TTM (v11.3 — wrapped in retry helper)
     let rat_url = format!(
         "https://financialmodelingprep.com/api/v3/ratios-ttm/{ticker}?apikey={api_key}"
     );
-    let rat_resp = client.get(&rat_url).send().await
-        .context("FMP ratios request failed")?;
-    if !rat_resp.status().is_success() {
-        anyhow::bail!("FMP ratios HTTP {}", rat_resp.status());
-    }
-    let rat_list: Vec<FmpRatios> = rat_resp.json().await.unwrap_or_default();
+    let rat_label = format!("FMP ratios {ticker}");
+    let rat_list: Vec<FmpRatios> = crate::retry::with_retry(&rat_label, || async {
+        let r = client.get(&rat_url).send().await
+            .context("FMP ratios request failed")?;
+        if !r.status().is_success() {
+            anyhow::bail!("FMP ratios HTTP {}", r.status());
+        }
+        r.json::<Vec<FmpRatios>>().await
+            .context("FMP ratios JSON parse")
+    }).await?;
     let rat = rat_list.into_iter().next().unwrap_or_default();
 
     crate::log_fetch(pool, "fmp", Some(ticker), "ratios-ttm", "ok", None).await;

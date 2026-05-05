@@ -1,11 +1,11 @@
 use iced::widget::canvas::Canvas;
-use iced::widget::{button, column, container, horizontal_rule, row, scrollable, text, text_input, Column, Row};
+use iced::widget::{button, column, container, pick_list, row, rule, text, text_input, tooltip, Column, Row};
 use iced::{Alignment, Element, Length};
 
 use crate::font;
 use crate::heatmap::SectorHeatMap;
 use crate::state::{Dashboard, Message, UniverseSortCol};
-use super::shared::{eyebrow, gold_scrollbar_style, section_rule};
+use super::shared::{eyebrow, gutter_scroll, section_rule};
 use crate::theme;
 
 impl Dashboard {
@@ -50,37 +50,26 @@ impl Dashboard {
             },
         );
 
-        // Sector filter
-        let sector_bar: Row<Message> = {
-            let mut r = row![text("Sector:").size(theme::text_sm())]
-                .spacing(4)
-                .align_y(Alignment::Center);
-            let is_all = self.universe_filter_sector.is_none();
-            let all_label = if is_all {
-                "[All]".to_string()
-            } else {
-                "All".to_string()
-            };
-            r = r.push(
-                button(text(all_label).size(theme::text_xs()))
-                    .on_press(Message::UniverseFilterSector(None)),
-            );
-            for sector in &self.universe_sectors {
-                let is_active =
-                    self.universe_filter_sector.as_deref() == Some(sector.as_str());
-                let label = if is_active {
-                    format!("[{sector}]")
-                } else {
-                    sector.clone()
-                };
-                let val = Some(sector.clone());
-                r = r.push(
-                    button(text(label).size(theme::text_xs()))
-                        .on_press(Message::UniverseFilterSector(val)),
-                );
-            }
-            r
-        };
+        // Sector filter — v11.3: pick_list dropdown ("All" sentinel maps to None)
+        let mut sector_options: Vec<String> = vec!["All".to_string()];
+        sector_options.extend(self.universe_sectors.iter().cloned());
+        let sector_selected = self.universe_filter_sector.clone()
+            .unwrap_or_else(|| "All".to_string());
+        let sector_picker = pick_list(
+            sector_options,
+            Some(sector_selected),
+            |s: String| {
+                Message::UniverseFilterSector(if s == "All" { None } else { Some(s) })
+            },
+        )
+        .text_size(theme::text_sm());
+
+        let sector_bar: Row<Message> = row![
+            text("Sector:").size(theme::text_sm()),
+            sector_picker,
+        ]
+        .spacing(8)
+        .align_y(Alignment::Center);
 
         // Pagination
         let pagination = row![
@@ -109,6 +98,15 @@ impl Dashboard {
                     .width(width)
                     .into()
             };
+            // v11.3: explanatory tooltip style for cryptic column abbreviations
+            fn tip_style(_t: &iced::Theme) -> container::Style {
+                let p = theme::palette();
+                container::Style {
+                    background: Some(iced::Background::Color(p.surface)),
+                    border: iced::Border { color: p.gold, width: 1.0, radius: 3.0.into() },
+                    ..Default::default()
+                }
+            }
             let hdr = row![
                 text("#").size(theme::text_sm()).width(Length::Fixed(30.0)),
                 sort_hdr("Ticker", UniverseSortCol::Ticker, Length::Fixed(64.0)),
@@ -123,12 +121,30 @@ impl Dashboard {
                 text("Zone")
                     .size(theme::text_sm())
                     .width(Length::Fixed(90.0)),
-                sort_hdr("Fin", UniverseSortCol::Fin, Length::Fixed(52.0)),
-                sort_hdr("Mac", UniverseSortCol::Macro, Length::Fixed(52.0)),
-                sort_hdr("Sht", UniverseSortCol::Short, Length::Fixed(52.0)),
-                text("Conc")
-                    .size(theme::text_sm())
-                    .width(Length::Fixed(100.0)),
+                tooltip(
+                    sort_hdr("Fin", UniverseSortCol::Fin, Length::Fixed(52.0)),
+                    container(text("Financial Score (P/E, FCF, growth)").size(theme::text_xs()))
+                        .padding([4, 8]).style(tip_style),
+                    tooltip::Position::Bottom,
+                ),
+                tooltip(
+                    sort_hdr("Mac", UniverseSortCol::Macro, Length::Fixed(52.0)),
+                    container(text("Macro Alignment (sector + market regime)").size(theme::text_xs()))
+                        .padding([4, 8]).style(tip_style),
+                    tooltip::Position::Bottom,
+                ),
+                tooltip(
+                    sort_hdr("Sht", UniverseSortCol::Short, Length::Fixed(52.0)),
+                    container(text("Short Interest %").size(theme::text_xs()))
+                        .padding([4, 8]).style(tip_style),
+                    tooltip::Position::Bottom,
+                ),
+                tooltip(
+                    text("Conc").size(theme::text_sm()).width(Length::Fixed(100.0)),
+                    container(text("Concordance — agreement between astro + financial signals").size(theme::text_xs()))
+                        .padding([4, 8]).style(tip_style),
+                    tooltip::Position::Bottom,
+                ),
             ]
             .spacing(6);
 
@@ -215,10 +231,8 @@ impl Dashboard {
 
             column![
                 hdr,
-                horizontal_rule(1),
-                scrollable(Column::with_children(rows).spacing(3))
-                    .height(Length::Fixed(400.0))
-                    .style(gold_scrollbar_style),
+                rule::horizontal(1),
+                gutter_scroll(Column::with_children(rows).spacing(3), 400.0),
             ]
             .spacing(4)
             .into()
@@ -256,11 +270,7 @@ impl Dashboard {
             sector_heatmap,
             section_rule(),
             search_bar,
-            scrollable(sector_bar)
-                .direction(scrollable::Direction::Horizontal(
-                    scrollable::Scrollbar::default()
-                ))
-                .style(gold_scrollbar_style),
+            sector_bar,
             zone_bar,
             pagination,
             universe_table,
@@ -377,12 +387,10 @@ impl Dashboard {
                     text(heading).font(font::DISPLAY).size(theme::text_lg()),
                     action_bar,
                 ].spacing(12).align_y(Alignment::Center),
-                horizontal_rule(1),
+                rule::horizontal(1),
                 hdr,
-                horizontal_rule(1),
-                scrollable(Column::with_children(alert_rows).spacing(4))
-                    .height(Length::Fixed(160.0))
-                    .style(gold_scrollbar_style),
+                rule::horizontal(1),
+                gutter_scroll(Column::with_children(alert_rows).spacing(4), 160.0),
             ]
             .spacing(4)
         }

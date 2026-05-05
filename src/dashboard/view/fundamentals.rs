@@ -1,4 +1,4 @@
-use iced::widget::{button, column, container, horizontal_rule, row, scrollable, text, text_input, Column, Row};
+use iced::widget::{button, column, container, row, rule, text, text_input, Column, Row};
 use iced::{Alignment, Element, Length};
 
 use crate::agents::{AgentMode, AgentPersona, AgentVerdict};
@@ -7,7 +7,7 @@ use crate::helpers::{format_market_value_i64, format_shares};
 
 use crate::state::{Dashboard, Message};
 use crate::theme;
-use super::shared::{eyebrow, gold_scrollbar_style, section_rule};
+use super::shared::{eyebrow, gutter_scroll, section_rule};
 
 impl Dashboard {
     pub(crate) fn view_fundamentals(&self) -> Element<'_, Message> {
@@ -297,13 +297,13 @@ impl Dashboard {
             }).collect();
             let mut content = column![
                 text(format!("{}{} — {}", analysis.persona.name(), mode_badge, analysis.persona.philosophy())).size(theme::text_sm()),
-                horizontal_rule(1),
+                rule::horizontal(1),
                 text(analysis.headline.clone()).size(theme::text_base()),
                 text(format!("Verdict: {}", analysis.verdict.label())).size(theme::text_md()).color(verdict_color),
                 text(analysis.analysis.clone()).size(theme::text_sm()),
-                horizontal_rule(1),
+                rule::horizontal(1),
                 Column::with_children(metrics_rows).spacing(3),
-                horizontal_rule(1),
+                rule::horizontal(1),
                 text(format!("On the stars: {}", analysis.astro_take)).size(theme::text_xs()),
             ].spacing(6);
             if let Some(ref err) = self.agent_llm_error {
@@ -385,7 +385,7 @@ impl Dashboard {
 
                 column![
                     hdr,
-                    horizontal_rule(1),
+                    rule::horizontal(1),
                     metric_row("P/E",         &|d| fr(d.pe_ratio)),
                     metric_row("P/B",         &|d| fr(d.pb_ratio)),
                     metric_row("P/S",         &|d| fr(d.ps_ratio)),
@@ -427,9 +427,7 @@ impl Dashboard {
                 column![
                     price_toggle,
                     price_header,
-                    scrollable(data_rows)
-                        .height(Length::Fixed(300.0))
-                        .style(gold_scrollbar_style),
+                    gutter_scroll(data_rows, 300.0),
                 ]
                 .spacing(4),
             )
@@ -500,9 +498,7 @@ impl Dashboard {
             column![
                 text("Earnings Calendar").font(font::DISPLAY).size(theme::text_md()),
                 hdr,
-                scrollable(Column::with_children(items).spacing(4))
-                    .height(Length::Fixed(130.0))
-                    .style(gold_scrollbar_style),
+                gutter_scroll(Column::with_children(items).spacing(4), 130.0),
             ].spacing(4)
         }
     }

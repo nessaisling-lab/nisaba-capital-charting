@@ -1,0 +1,261 @@
+Video Review Transcript — v11.1 (2026-04-30)
+Source: Screen Recording 2026-04-30 165000.mp4
+Duration: 15:23 (923 seconds)
+Resolution: 2560x1540 @ 30fps
+Transcribed by: faster-whisper (base model, CPU)
+
+---
+
+[00:00-00:10] I like what I'm seeing, like the icon, it turns to auto, dark, and parchment.
+[00:10-00:14] Definitely needs a little bit of rust thickness. This was not supposed to be left.
+[00:14-00:23] It was supposed to be the search ticker bar was supposed to be here.
+[00:23-00:28] As you can see where I'm pointing at, that's where I wanted.
+[00:28-00:34] I wanted this to be more up here, but the borders, yeah, this is perfect.
+[00:34-00:37] Exactly how I like it.
+[00:37-00:44] This is exactly how I want it much better, but I want to just move it above this border.
+[00:44-00:56] Like all of this move up here, so the icon, it's almost like a menu, right?
+[00:56-01:01] I would say that I like the way it's built.
+[01:01-01:06] I'd rather it be icons here.
+[01:06-01:15] And I want to know why there's no rising sign. There should be a rising.
+[01:15-01:21] The chart, we need to rethink the chart.
+[01:21-01:24] I think it's very visible.
+[01:24-01:28] Is it actually rendering the real birth chart of the company?
+[01:28-01:32] Like if I go to the video, oh, it does. Okay, so it does.
+[01:32-01:35] It does. Okay, this is good.
+[01:35-01:41] I'm going to say I just wanted to, is if there's a way for it to be interactable, that'd be great.
+[01:41-01:44] The icons here are just access.
+[01:45-01:53] So I'm not going to be, what I would like to do is like a hover up pop up tool, like the way we do it at the overview.
+[01:53-01:56] I like something like this.
+[01:56-01:58] Little bit bigger.
+[01:58-02:03] Maybe you could zoom in and out with like a pinch, like a.
+[02:03-02:04] I don't know.
+[02:04-02:07] All I know is that this needs to be on the bigger side.
+[02:07-02:11] Maybe there should be a setting to make the pop up.
+[02:11-02:16] Bigger, which should this hover many this hover.
+[02:16-02:24] Info more visible like make it larger, smaller and that should be a user setting.
+[02:24-02:28] Let's go back to astrology.
+[02:28-02:32] There's no icons. So.
+[02:32-02:35] I want icons.
+[02:35-02:37] Simple as that.
+[02:37-02:42] Chart, we had the calendar forecasting.
+[02:42-02:45] As you can see, we have like forecasting.
+[02:45-02:51] I want this to be actually included in the chart calendar.
+[02:51-02:55] This should be part of the calendar. If anything.
+[02:55-02:59] I think the calendar should be here.
+[02:59-03:01] That's like.
+[03:01-03:04] And the forecast should be here.
+[03:04-03:07] Over here should be.
+[03:07-03:14] The horoscope reading like as though like it's doing a real reading of a person.
+[03:14-03:18] Yeah, that seems about right.
+[03:18-03:22] This is supposed to be one line.
+[03:22-03:26] I want this to be one line in one one.
+[03:26-03:27] One space.
+[03:27-03:33] I have no idea if we should stay with the gauge or if we should like try to imagine it.
+[03:33-03:36] Reimagined into something more.
+[03:36-03:46] I don't know the word whimsical wondering like still like still very like legible readable clearly meant to be using a professional way.
+[03:46-03:51] Or a mass way that a professional finance person would use it.
+[03:51-03:58] But I definitely wanted to have be on theme with our project here.
+[03:58-04:03] But you know, it's working. I see that it's working. That's good.
+[04:03-04:08] The universe. I love how much more legible this has become.
+[04:08-04:12] And yeah, I'm both both white both ways.
+[04:12-04:15] Issue.
+[04:15-04:20] And I think you can see it better when I turn the dark.
+[04:20-04:23] I want this scroll bar to be more further down.
+[04:23-04:27] I don't know why it's like that.
+[04:27-04:35] And I don't even know if it was a good idea to have it.
+[04:35-04:41] I think the sector should be here and as a drop down menu.
+[04:41-04:52] Instead of like this huge scroll bar because we have tried over and over again to get the scroll bar to have its own gutter as one may call it.
+[04:52-04:58] I think it's going to be 3D or it could be a drop down menu, which is what I prefer.
+[04:58-05:03] So because I feel like as though that, you know, that's not very legible.
+[05:03-05:05] It doesn't read well.
+[05:05-05:08] So I'm not a fan.
+[05:08-05:10] Astro scores. I like that.
+[05:10-05:15] I like that the optimal scores there.
+[05:15-05:19] That's perfect. And it's in the Lagrange zone.
+[05:19-05:24] Yeah, I would like a picture or a icon.
+[05:24-05:27] Well, Lagrange is a big word.
+[05:27-05:31] So I know why it's not there, but the Lagrange score is good.
+[05:31-05:34] Finn.
+[05:34-05:39] I don't know what that stands for.
+[05:39-05:42] I don't know what any of these icons stand for.
+[05:42-05:57] Either make them a full let word or a hover a pop up that shows the full word explains what it means and a definition for it.
+[05:57-06:10] And the definitions portion of that pop up menu could be disabled for people who don't who didn't ready know it, but there should be an option that where anytime you hover over something, there should be a pop up that goes.
+[06:10-06:18] And that's what it does for you or what it means in context of what it does.
+[06:18-06:21] We have all of this. This is good.
+[06:21-06:26] I can see that we have a working.
+[06:26-06:28] Let's see the Buffett.
+[06:28-06:32] He doesn't like it.
+[06:32-06:40] I can't say if it's a verdict is hold, which is what Mr. Buffett would say.
+[06:40-06:43] This is correct.
+[06:43-06:45] Price history.
+[06:45-06:46] I like that.
+[06:46-06:49] Yeah, that's another thing that I've been kind of harping about.
+[06:49-06:52] There needs to be price history here.
+[06:52-06:55] Like this should be all.
+[06:55-06:56] You know, this.
+[06:56-07:01] This. There should be some kind of like price history, either here or here.
+[07:01-07:04] The price history.
+[07:04-07:11] Should actually be.
+[07:11-07:14] First of all, this is supposed to be moved up.
+[07:14-07:18] This ticker is supposed to be here with the high and low.
+[07:18-07:19] High and low.
+[07:19-07:23] Right.
+[07:23-07:27] I think that's that that would be appropriate.
+[07:27-07:34] And there should be some find up indicator of like what's its highs and low.
+[07:34-07:37] So yeah, like the high here.
+[07:37-07:41] And the low here of the day.
+[07:41-07:44] And over here.
+[07:44-07:46] We'll show the ticker.
+[07:46-07:56] The current price and then on the side low, low and the menu should be here.
+[07:56-08:00] So we're going to go to one of the.
+[08:00-08:03] Companies that have a very favorable score.
+[08:03-08:04] Crown reserves.
+[08:04-08:06] Never heard of them.
+[08:06-08:07] So.
+[08:07-08:08] Or.
+[08:08-08:10] I never heard of bonk.
+[08:10-08:11] That's a new one.
+[08:11-08:12] Let me try that.
+[08:12-08:15] Go go to bonk.
+[08:15-08:20] You see like my, my, my, my, like instinctively want to go here.
+[08:20-08:22] So it should be like.
+[08:22-08:24] Like more here or something.
+[08:24-08:25] I don't know.
+[08:25-08:27] Let's, let's move forward.
+[08:27-08:32] Right now it's favorable.
+[08:32-08:35] Very favorable.
+[08:35-08:39] Looks good.
+[08:39-08:41] So that's great.
+[08:41-08:44] Looks like it would not be favorable in the eighth for some reason.
+[08:44-08:47] Ooh, something serious.
+[08:47-08:48] Right.
+[08:48-08:50] The chart is little crazy looking.
+[08:50-08:52] I'm going to say it like this.
+[08:52-08:53] I love the 3D renders.
+[08:53-08:56] The lines need to be much more finer.
+[08:56-08:57] Like.
+[08:57-09:00] It just looks like lines spitting at each other.
+[09:00-09:01] This.
+[09:01-09:03] The chart is.
+[09:03-09:10] Probably to.
+[09:10-09:11] It's too.
+[09:11-09:15] It's just this was supposed to be a little galaxy background.
+[09:15-09:18] I'm not feeling that.
+[09:18-09:23] But I don't see it disabling the aspects retrograde.
+[09:23-09:25] There's the transits.
+[09:25-09:27] The needle.
+[09:27-09:30] So we could look at the.
+[09:30-09:31] The needle.
+[09:31-09:34] We need to find a way to have icons.
+[09:34-09:38] Or something to tell the horoscope from within sight.
+[09:38-09:39] Right.
+[09:39-09:42] The legend is cute, but like.
+[09:42-09:47] That should be for the legend should be just for horoscopes.
+[09:47-09:50] Right.
+[09:50-09:51] All right.
+[09:51-09:53] So now we're going to fetch clearly.
+[09:53-09:55] We don't have any data on it.
+[09:55-09:57] So we're going to fetch.
+[09:57-09:58] This should be here.
+[09:58-10:02] A loading bar and the loading bar should load into completion.
+[10:02-10:05] Right.
+[10:05-10:07] Or.
+[10:07-10:09] Better yet.
+[10:09-10:12] There's the loading bar would be here.
+[10:12-10:16] And it will fill out the bar till the end.
+[10:16-10:19] So we got to find something for that.
+[10:19-10:26] That will like actually expand outward till it finishes of its fetching.
+[10:26-10:34] I will say that we also need to have stronger data collection protocols or technologies
+[10:34-10:42] or something of the sort to make this much more reliably pool.
+[10:42-10:44] We can move on for that to fundamentals.
+[10:44-10:46] Let's see the changes.
+[10:46-10:47] Uh oh.
+[10:47-10:52] It's the same.
+[10:52-10:54] He keeps on saying the same template.
+[10:54-10:55] And this is like a.
+[10:55-10:58] And he doesn't and since we don't have any data,
+[10:58-11:02] we got to like go to a company that actually does have like a good favorability.
+[11:02-11:03] So let's.
+[11:03-11:05] We're baffling or really.
+[11:05-11:06] Good.
+[11:06-11:07] Not good.
+[11:07-11:10] Let's go with CEO.
+[11:10-11:13] Let's see if this fetches.
+[11:13-11:16] And it's loading.
+[11:16-11:18] So I guess it won't.
+[11:18-11:23] The fetch icon should only be per ticker.
+[11:23-11:25] And it fetched.
+[11:25-11:30] And I think it's only going to have the research.
+[11:30-11:34] We see.
+[11:34-11:39] Yeah, I have something.
+[11:39-11:48] There should be always a gutter for all the scroll bars.
+[11:48-11:52] But it's not picking up the.
+[11:52-11:55] Because it's just probably not no data for that.
+[11:55-11:59] We got to really find a way to resolve that.
+[11:59-12:00] Okay.
+[12:00-12:03] Let me find.
+[12:03-12:04] Maybe Bentley.
+[12:04-12:07] Let's try Bentley.
+[12:07-12:15] Yeah.
+[12:15-12:17] And it's not pulling.
+[12:17-12:18] So.
+[12:18-12:21] Alright, we got to like find.
+[12:21-12:25] Aster card.
+[12:25-12:30] Right.
+[12:30-12:42] So.
+[12:42-12:53] You say so.
+[12:53-12:55] Yeah, same, same responses.
+[12:55-12:59] But I'm just happy that the transits are showing.
+[12:59-13:02] So.
+[13:02-13:04] I'm not seeing anything for retro.
+[13:04-13:06] So I'm just going to let it be.
+[13:06-13:10] I.
+[13:10-13:13] We got to find a much better solution for this.
+[13:13-13:17] I do want it to be 3D animated.
+[13:17-13:21] But there got to be like something that actually is not really legible.
+[13:21-13:23] But like it's.
+[13:23-13:27] It's easier to see where the lines are going.
+[13:27-13:30] I don't.
+[13:30-13:31] We have to find some.
+[13:31-13:34] If you have to download assets and put them in,
+[13:34-13:37] I'm more than willing to do that.
+[13:37-13:41] And it's not pulling.
+[13:41-13:46] So yeah, like, I've just got to like go to a company that's good.
+[13:46-13:47] Right.
+[13:47-13:48] Microsoft.
+[13:48-13:49] It's okay.
+[13:49-13:51] So let's see what.
+[13:51-13:56] The fundamentals are saying he says is a bike.
+[13:56-13:57] The same.
+[13:57-13:59] For some reason, the same.
+[13:59-14:04] When it comes to the template, they say basically.
+[14:04-14:07] Like, it seems the same thing too.
+[14:07-14:10] It doesn't really say market safety.
+[14:10-14:13] So.
+[14:13-14:17] At least this, but it does show.
+[14:17-14:18] How it.
+[14:18-14:20] It does show pretty well.
+[14:20-14:21] And that aspect.
+[14:21-14:24] I have to say that.
+[14:24-14:26] It's a paper trail.
+[14:26-14:29] We spend a bunch of money.
+[14:29-14:32] So we'll see how it plays out.
+[14:32-14:35] If it tracks.
+[14:35-14:39] Settings trying to make sure that nothing broke again.
+[14:39-14:41] Yeah, this is good.
+[14:41-14:45] This seems to be in order.
+[14:45-14:48] I think it's going to work.
+[14:48-14:49] It's going to work.
+[14:49-14:51] The parchment is proper.
+[14:51-14:54] Yeah, I like that.
+[14:54-14:57] All right.
+[14:57-14:58] We are done.
+[14:58-15:02] And I am happy with what I see so far.
+[15:02-15:07] And I hope that you will take this feedback and.
+[15:07-15:09] We will find solutions.
+[15:09-15:10] Most things are good.
+[15:10-15:11] Definitely.
+[15:11-15:13] We need to reimagine some stuff.
+[15:13-15:16] We need to make this just too much open space.
+[15:16-15:19] So let's work towards.
+[15:19-15:23] Making that different.

@@ -75,7 +75,7 @@ impl canvas::Program<Message> for AstroCalendar {
                 position: Point::new(i as f32 * cell_w + cell_w / 2.0, 4.0),
                 color: theme::fg_muted(_theme),
                 size: iced::Pixels(9.0),
-                horizontal_alignment: iced::alignment::Horizontal::Center,
+                align_x: iced::alignment::Horizontal::Center.into(),
                 ..canvas::Text::default()
             });
         }
@@ -128,8 +128,8 @@ impl canvas::Program<Message> for AstroCalendar {
                     position: Point::new(x + cell_w - 4.0, y + cell_h - 4.0),
                     color: Color::WHITE,
                     size: iced::Pixels(8.0),
-                    horizontal_alignment: iced::alignment::Horizontal::Right,
-                    vertical_alignment: iced::alignment::Vertical::Bottom,
+                    align_x: iced::alignment::Horizontal::Right.into(),
+                    align_y: iced::alignment::Vertical::Bottom,
                     ..canvas::Text::default()
                 });
             }
@@ -156,8 +156,8 @@ impl canvas::Program<Message> for AstroCalendar {
             position: Point::new(bounds.width / 2.0, bounds.height - 2.0),
             color: theme::fg_muted(_theme),
             size: iced::Pixels(10.0),
-            horizontal_alignment: iced::alignment::Horizontal::Center,
-            vertical_alignment: iced::alignment::Vertical::Bottom,
+            align_x: iced::alignment::Horizontal::Center.into(),
+            align_y: iced::alignment::Vertical::Bottom,
             ..canvas::Text::default()
         });
 
