@@ -462,21 +462,31 @@ pub(crate) async fn export_universe_csv(rows: Vec<UniverseRow>) -> Result<(), St
     Ok(())
 }
 
-/// Fire desktop notification toast for new alerts.
+/// Fire desktop notification toast for new alerts. v11.5.D3 — sharper
+/// summary leads with strongest alert; urgency=Critical when any
+/// Optimal-zone alert is present so OS surfaces it prominently.
 pub(crate) async fn fire_toast(alerts: Vec<LagrangeAlert>) {
-    let entries: Vec<String> = alerts.iter().take(3)
-        .map(|a| format!("{} → {}", a.ticker, a.label))
+    if alerts.is_empty() { return; }
+    let any_optimal = alerts.iter().any(|a| a.label.eq_ignore_ascii_case("Optimal"));
+    let lead = &alerts[0];
+    let summary = if alerts.len() == 1 {
+        format!("{} → {}", lead.ticker, lead.label)
+    } else {
+        format!("{} → {} (+{} more)", lead.ticker, lead.label, alerts.len() - 1)
+    };
+    let entries: Vec<String> = alerts.iter().take(4)
+        .map(|a| format!("{}: {}", a.ticker, a.label))
         .collect();
-    let mut body = entries.join(", ");
-    if alerts.len() > 3 {
-        body = format!("{} (+{} more)", body, alerts.len() - 3);
+    let mut body = entries.join("\n");
+    if alerts.len() > 4 {
+        body = format!("{}\n…and {} more", body, alerts.len() - 4);
     }
-    let summary = format!("Lagrange: {} alert{}", alerts.len(), if alerts.len() == 1 { "" } else { "s" });
-    notify_rust::Notification::new()
-        .summary(&summary)
-        .body(&body)
-        .show()
-        .ok();
+    let mut n = notify_rust::Notification::new();
+    n.summary(&summary).body(&body).appname("Pursuit Astro");
+    if any_optimal {
+        n.urgency(notify_rust::Urgency::Critical);
+    }
+    n.show().ok();
 }
 
 /// Global keyboard shortcut handler.
@@ -496,7 +506,8 @@ pub(crate) fn handle_key_press(key: Key, modifiers: Modifiers) -> Option<Message
                 "5" => Some(Message::TabSelected(Tab::Research)),
                 "6" => Some(Message::TabSelected(Tab::Portfolio)),
                 "7" => Some(Message::TabSelected(Tab::PaperTrail)),
-                "8" => Some(Message::TabSelected(Tab::Settings)),
+                "8" => Some(Message::TabSelected(Tab::Encyclopedia)),
+                "9" | "," => Some(Message::OpenSettingsModal),
                 "t" | "T" => Some(Message::FocusSearch),
                 "r" | "R" => Some(Message::RefreshNow),
                 _ => None,

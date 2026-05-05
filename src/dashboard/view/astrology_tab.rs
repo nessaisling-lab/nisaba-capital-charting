@@ -1,5 +1,5 @@
 use iced::widget::canvas::Canvas;
-use iced::widget::{button, column, container, pick_list, pin, row, rule, stack, text, text_input, tooltip, Column, Shader};
+use iced::widget::{button, column, container, mouse_area, pick_list, pin, row, rule, stack, text, text_input, tooltip, Column, Shader};
 use iced::{Alignment, Element, Length};
 
 // v11.3 — natal wheel overlay constants (must match WGSL shader)
@@ -96,9 +96,10 @@ impl Dashboard {
                 show_aspects: self.show_aspects,
                 show_retrogrades: self.show_retrogrades,
             })
-            .width(Length::Fixed(self.chart_size.pixels()))
-            .height(Length::Fixed(self.chart_size.pixels()));
-            let chart_px = self.chart_size.pixels();
+            // v11.5.D2 — mouse-wheel zoom: chart_size base * runtime zoom factor
+            .width(Length::Fixed(self.chart_size.pixels() * self.natal_zoom))
+            .height(Length::Fixed(self.chart_size.pixels() * self.natal_zoom));
+            let chart_px = self.chart_size.pixels() * self.natal_zoom;
 
             // v11.3 — overlay planet glyphs + hover tooltips (3e + 3f)
             fn tip_style(_t: &iced::Theme) -> container::Style {
@@ -160,9 +161,89 @@ impl Dashboard {
                 }
             }
 
-            let natal_wheel: Element<Message> = stack(layers)
+            // ── v11.5.D1 — aspect line hover hit zones (Approach A) ──
+            // Place an invisible 26×26 mouse_area at each aspect line midpoint
+            // and at 30% from each end so single-click coverage spans the line.
+            // Tooltip shows full aspect detail without obscuring the chart.
+            if self.show_aspects {
+                const HIT_PX: f32 = 26.0;
+                const HIT_OFFSET: f32 = HIT_PX / 2.0;
+                let aspect_tip_style = |_t: &iced::Theme| {
+                    let p = theme::palette();
+                    container::Style {
+                        background: Some(iced::Background::Color(p.surface)),
+                        border: iced::Border { color: p.gold, width: 1.0, radius: 3.0.into() },
+                        ..Default::default()
+                    }
+                };
+                for obj in &self.astro_aspects {
+                    let Some(transit_planet) = obj["transit_planet"].as_str() else { continue };
+                    let Some(natal_planet)   = obj["natal_planet"].as_str()   else { continue };
+                    let Some(aspect_name)    = obj["aspect"].as_str()         else { continue };
+                    let symbol     = obj["aspect_symbol"].as_str().unwrap_or("");
+                    let orb        = obj["orb"].as_f64().unwrap_or(0.0);
+                    let applying   = obj["applying"].as_bool().unwrap_or(true);
+                    let dignity    = obj["dignity"].as_str().unwrap_or("");
+                    let effect     = obj["effect"].as_str().unwrap_or("—");
+                    let delta      = obj["score_delta"].as_f64().unwrap_or(0.0);
+
+                    let Some(np) = self.natal_positions.iter().find(|p| p.planet == natal_planet) else { continue };
+                    let Some(tp) = self.daily_transits.iter().find(|p| p.planet == transit_planet) else { continue };
+
+                    let (nx, ny) = planet_pixel_pos(np.longitude, R_NATAL, chart_px);
+                    let (tx, ty) = planet_pixel_pos(tp.longitude, R_TRANSIT, chart_px);
+
+                    let info = format!(
+                        "{} {} {} {} {} (orb {:.1}°, {}{}{})\n→ {} ({:+.1})",
+                        transit_planet, symbol, natal_planet,
+                        aspect_name,
+                        if applying { "applying" } else { "separating" },
+                        orb,
+                        if dignity.is_empty() { "" } else { dignity },
+                        if dignity.is_empty() { "" } else { ", " },
+                        if applying { "tightening" } else { "loosening" },
+                        effect, delta,
+                    );
+
+                    // Three sample points: 30% from transit, midpoint, 30% from natal
+                    let samples = [0.30_f32, 0.50, 0.70];
+                    for t in samples {
+                        let mx = tx + (nx - tx) * t;
+                        let my = ty + (ny - ty) * t;
+                        let info_clone = info.clone();
+                        let hit = mouse_area(
+                            container(iced::widget::Space::new())
+                                .width(Length::Fixed(HIT_PX))
+                                .height(Length::Fixed(HIT_PX)),
+                        );
+                        let tip = tooltip(
+                            hit,
+                            container(text(info_clone).size(theme::text_xs()))
+                                .padding([4, 8]).style(aspect_tip_style),
+                            tooltip::Position::Top,
+                        );
+                        layers.push(
+                            pin(tip)
+                                .x(mx + GLYPH_SIZE / 2.0 - HIT_OFFSET)
+                                .y(my + GLYPH_SIZE / 2.0 - HIT_OFFSET)
+                                .into(),
+                        );
+                    }
+                }
+            }
+
+            // v11.5.D2 — mouse_area captures wheel scroll for runtime zoom
+            let wheel_stack = stack(layers)
                 .width(Length::Fixed(chart_px))
-                .height(Length::Fixed(chart_px))
+                .height(Length::Fixed(chart_px));
+            let natal_wheel: Element<Message> = mouse_area(wheel_stack)
+                .on_scroll(|delta| {
+                    let dy = match delta {
+                        iced::mouse::ScrollDelta::Lines { y, .. } => y * 0.10,
+                        iced::mouse::ScrollDelta::Pixels { y, .. } => y * 0.005,
+                    };
+                    Message::NatalWheelZoom(dy)
+                })
                 .into();
 
             // v11.0: Sun/Moon/Rising "Big Three" summary
@@ -223,6 +304,17 @@ impl Dashboard {
             )
             .text_size(theme::text_xs());
 
+            // v11.5.D2 — zoom readout + reset button
+            let zoom_pct = (self.natal_zoom * 100.0).round() as i32;
+            let zoom_btn = button(
+                row![
+                    text(format!("{}%", zoom_pct)).size(theme::text_xs()),
+                ]
+                .spacing(2),
+            )
+            .on_press(Message::NatalWheelZoomReset)
+            .padding([2, 6]);
+
             let layer_toggles = row![
                 make_toggle("Natal",   self.show_natal_planets,   Message::ToggleChartNatal),
                 make_toggle("Transit", self.show_transit_planets,  Message::ToggleChartTransit),
@@ -230,16 +322,19 @@ impl Dashboard {
                 make_toggle("Retro",   self.show_retrogrades,      Message::ToggleChartRetrogrades),
                 iced::widget::Space::new().width(Length::Fixed(8.0)),
                 size_picker,
+                iced::widget::Space::new().width(Length::Fixed(8.0)),
+                zoom_btn,
             ]
             .spacing(4)
             .align_y(Alignment::Center);
 
+            // v11.5.B3 — zodiac legend relocated ABOVE natal wheel
             let wheel_col = column![
                 text(format!("{} Birth Chart", self.selected_ticker)).font(font::DISPLAY).size(theme::text_lg()),
                 big_three_row,
                 layer_toggles,
-                natal_wheel,
                 build_wheel_legend(),
+                natal_wheel,
             ]
             .spacing(4)
             .align_x(Alignment::Center);
@@ -317,14 +412,21 @@ impl Dashboard {
         };
 
         // ── Backtest Section ────────────────────────────────
+        // v11.5.C6 — explanatory tooltips on threshold inputs
         let backtest_section: Element<'_, Message> = {
             let config_row = row![
-                text("Buy when astro >").size(theme::text_sm()),
+                super::shared::explain(
+                    text("Buy when astro >").size(theme::text_sm()),
+                    "Astrology Score threshold above which a long position is opened. 65 = favorable; 75 = optimal-only; 50 = aggressive.",
+                ),
                 text_input("65", &self.backtest_buy_input)
                     .on_input(Message::BacktestBuyInput)
                     .width(Length::Fixed(50.0))
                     .size(theme::text_sm()),
-                text("Sell when astro <").size(theme::text_sm()),
+                super::shared::explain(
+                    text("Sell when astro <").size(theme::text_sm()),
+                    "Astrology Score threshold below which the position is closed. 35 = wait for clear weakness; 45 = quicker exit; 25 = hold through neutral.",
+                ),
                 text_input("35", &self.backtest_sell_input)
                     .on_input(Message::BacktestSellInput)
                     .width(Length::Fixed(50.0))

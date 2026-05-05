@@ -3,8 +3,9 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.14, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v11.4.0 (Wave 6 complete, validated 2026-05-05)
+**Current version:** v11.6.A (header redo shipped 2026-05-05; v11.5 complete, validated)
 **Next milestones:**
+- **v11.6 "The Persistence"** (in-progress) — post-v11.5 video review feedback. **6.A "Header redo"** shipped 2026-05-05 after 4 mockup iterations: tab strip relocated to very top, hero ticker sandwich layout (★ ticker price H/L ⓘ), right column with search + actions + favorites/recent dropdowns, demo-favorites seed on every boot. Encyclopedia tab dropped from strip — reachable only via info icon on ticker hero. Backlog: 6.B (council de-astro + Munger diversification), 6.C (natal sphere), 6.D (3-month calendar), 6.F (Lagrange polish), 6.G (sparkle upgrade), 6.H (score clarity), 6.J (fetch stuck), 6.K (Iced 0.14 perf).
 - **v11.5 "The Explanations"** (~10 days, planned) — 22 items from 2026-05-05 video review across 6 sub-waves. Sequenced by dependency + risk: foundation (tooltip helper) → layout (header reshuffle, gauges side-by-side, Settings modal) → content (12 tooltips applied) → interactivity (aspect line hover, mouse-wheel zoom, OS notifications) → encyclopedia (new Wikipedia tab) → polish (candle labels, loading %, strategy defaults).
 - **Wave 7 "The Library"** (deferred until after v11.5) — 10 native Rust providers for OpenBB-tier data depth (World Bank, IMF, ECB, CFTC COT, BLS, EIA, OFR, Treasury Direct, CoinGecko + buffer). ~8-10 days.
 - **Wave 8 "The Showcase"** (conditional) — Rust axum sidecar mimicking OpenBB Workspace contract for cloud dashboards. ~7 days.
@@ -22,6 +23,51 @@
 - v11.0 "The Intelligence" — 90-day forecast, Big Three summary, smart calculator defaults, zodiac legend, loading shimmer
 - v10.0 "The Signal" — RSS sentiment, Lagrange adaptive weighting, richer agent verdicts
 - v9.1-9.3 — P0 bug fixes, aspect line overhaul, column widths, scrollbar gutter
+
+---
+
+## Patterns
+
+### Explanation tooltips (v11.5.A)
+
+Game-tutorial UX from 2026-05-05 video review. Cryptic abbreviations,
+gauges, and metric labels surface a hover popup explaining what they
+mean. Three helpers in `src/dashboard/view/shared.rs`:
+
+- `explain(content, "...")` — wraps any element with a gold-bordered
+  tooltip, position Bottom. Use for column headers (Universe `Fin`/`Mac`/`Sht`/`Conc`/`Data`),
+  inline glyphs, gauge readouts.
+- `explain_at(content, "...", Position::Top)` — same but caller-positioned.
+  Use Top when the element sits at card-bottom and Bottom would clip.
+- `label_with_explanation("Fed Funds", "...")` — text label + Phosphor
+  info-circle suffix that triggers the tooltip. Use for FRED indicators,
+  gauge titles, anywhere a quiet "more info" hint reads better than a
+  bare hover.
+
+**Style:** all three share `tip_style` — gold border on warm surface,
+3px radius, 4×8 padding, `text_xs` body. Do not invent a different
+tooltip skin — visual consistency is the brand-personality contract.
+
+**When to use a tooltip vs full text:** if the term is essential to
+understanding the screen, write it out. Tooltips are for the cryptic
+shorthand a power-user expects + a curious-tier user needs decoded.
+
+### Right-click context menus (v11.5.A)
+
+Primitive only — `right_click(content, Message::ShowContextMenu(kind))`
+wraps content in a `mouse_area` with `on_right_press`. The popup
+overlay itself is rendered by the consumer's view code from
+state-tracked `Option<ContextMenu>` so it floats above other widgets.
+
+When first consumed (planned: v11.5.C universe columns), thread:
+1. `ContextMenu { kind: MenuKind, anchor: Point }` in `Dashboard`
+2. `Message::ShowContextMenu(MenuKind, Point)` + `Message::CloseContextMenu`
+3. Render via `stack![main_view, pin(menu).x(anchor.x).y(anchor.y)]`
+
+Menu kinds should map to a noun the user right-clicked on (column,
+gauge, aspect-line) and items should bias toward "learn more" links
+that open the relevant Wikipedia or docs page (gateway → graduation,
+per the brand ladder).
 
 ---
 

@@ -118,6 +118,52 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
         }
         Message::RecentlyViewedLoaded(Err(_)) => Some(Task::none()),
 
+        Message::FavoritesLoaded(Ok(tickers)) => {
+            state.favorites = tickers;
+            Some(Task::none())
+        }
+        Message::FavoritesLoaded(Err(_)) => Some(Task::none()),
+
+        Message::ToggleFavorite(ticker) => {
+            if let Some(pool) = &state.pool {
+                Some(Task::perform(
+                    crate::db::toggle_favorite(Arc::clone(pool), ticker),
+                    Message::FavoritesLoaded,
+                ))
+            } else {
+                Some(Task::none())
+            }
+        }
+
+        Message::WikiSummaryLoaded(Ok(maybe)) => {
+            state.wiki_thumbnail_bytes = None;
+            let task = match &maybe {
+                Some(s) => match s.thumbnail_url.as_deref() {
+                    Some(url) if !url.is_empty() => Task::perform(
+                        crate::db::fetch_wiki_thumbnail(url.to_string()),
+                        Message::WikiThumbnailLoaded,
+                    ),
+                    _ => Task::none(),
+                },
+                None => Task::none(),
+            };
+            state.wiki_summary = maybe;
+            Some(task)
+        }
+        Message::WikiSummaryLoaded(Err(_)) => {
+            state.wiki_summary = None;
+            state.wiki_thumbnail_bytes = None;
+            Some(Task::none())
+        }
+        Message::WikiThumbnailLoaded(Ok(bytes)) => {
+            state.wiki_thumbnail_bytes = Some(bytes);
+            Some(Task::none())
+        }
+        Message::WikiThumbnailLoaded(Err(_)) => {
+            state.wiki_thumbnail_bytes = None;
+            Some(Task::none())
+        }
+
         Message::DataLoaded(Ok(rows)) => {
             state.refreshing = false;
             state.status = if rows.is_empty() {
@@ -194,7 +240,25 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
         }
         Message::FundamentalsLoaded(Err(_)) => Some(Task::none()),
 
-        Message::LagrangeHistoryLoaded(Ok(h)) => { state.lagrange_history = h; Some(Task::none()) }
+        Message::LagrangeHistoryLoaded(Ok(h)) => {
+            // v11.5.F7 — pre-fill backtest threshold inputs from this
+            // ticker's actual astro distribution. Buy = µ + 0.7σ (top
+            // ~25% of the ticker's days), Sell = µ − 0.7σ (bottom ~25%).
+            // Falls back to 65/35 when the sample is too thin.
+            let astros: Vec<f32> = h.iter().filter_map(|r| r.astro_score).collect();
+            if astros.len() >= 14 {
+                let n = astros.len() as f32;
+                let mean = astros.iter().sum::<f32>() / n;
+                let var = astros.iter().map(|x| (x - mean).powi(2)).sum::<f32>() / n;
+                let sd = var.sqrt();
+                let buy  = (mean + 0.7 * sd).clamp(50.0, 90.0).round() as i32;
+                let sell = (mean - 0.7 * sd).clamp(10.0, 50.0).round() as i32;
+                state.backtest_buy_input  = buy.to_string();
+                state.backtest_sell_input = sell.to_string();
+            }
+            state.lagrange_history = h;
+            Some(Task::none())
+        }
         Message::LagrangeHistoryLoaded(Err(_)) => Some(Task::none()),
 
         Message::SectorPeersLoaded(Ok(peers)) => { state.sector_peers = peers; Some(Task::none()) }

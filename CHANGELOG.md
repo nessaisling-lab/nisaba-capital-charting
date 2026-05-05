@@ -6,6 +6,38 @@
 
 ---
 
+## v11.6 Plan — "The Persistence" (in-progress, 2026-05-05)
+
+Triggered by post-v11.5 18-min video review (transcript: `docs/video-review-v11.5-transcript.txt`). User confirmed ~10 v11.5 features working in production but flagged 12 fresh issues + 3 persistent ones — most loudly the header layout (re-spec'd three different ways across the review).
+
+### v11.6.A — "Header redo" (shipped 2026-05-05)
+
+Resolved through 4 mockup iterations totaling ~22 minutes of video review feedback (vs estimated 6+ hours of code-then-rework cycles). Final approved layout:
+
+- **Tab strip moved to very top of page** (above ornament rule, full-width across border)
+- **Hero ticker block left-anchored**: `★ AAPL $278.78 H/L-stacked ⓘ` — star and info-icon SANDWICH the price block (favorites toggle on left, Encyclopedia jump on right)
+- **Right column** (fixed 420px): search row with magnifier + 4 action icons inline → Favorites + Recent dropdowns side-by-side beneath
+- **Hardcoded ticker buttons dropped** — 10 demo tickers (AAPL/AMZN/GOOGL/JPM/META/MSFT/NVDA/TSLA/UNH/V) seeded into `favorites` table on every boot via `seed_default_favorites_if_empty` (idempotent ON CONFLICT DO NOTHING)
+- **Encyclopedia tab dropped from strip** — variant retained, reachable only via the info-circle icon on the ticker hero
+- **Tab::all() now 7 entries** (was 8); fixed accompanying `0..8` hardcoded loop in `update::mod` that panicked on first frame after the change
+
+Mockup artifact: `docs/v11.6.a-header-mockup.html` (parchment/gold theme, Fraunces+Inter, annotation panel).
+
+### v11.6 backlog (post-A, 10 items, ~6 days)
+
+| Sub-wave | Theme | Items | Source |
+|----------|-------|-------|--------|
+| **6.B** | Council de-astro + Munger diversification | persona templates strip astrology mentions; Munger gets 6 headline variants | v11.5 review [02:55, 03:35] |
+| **6.C** | Natal chart sphere | reduce CAMERA_TILT 0.32→0.10 in WGSL — chart reads as sphere not oval | v11.5 review [00:22] |
+| **6.D** | Calendar 3-month forward | Astro Calendar steps += 3 instead of += 1 | v11.5 review [01:10] |
+| **6.F** | Lagrange chart polish | better gridlines/legend on sparkline | v11.5 review [05:20] |
+| **6.G** | Sparkle animation upgrade | larger particles, brighter alpha, more visible on loading bar | v11.5 review [14:34] |
+| **6.H** | Score gauge label clarity | clarify which score is "the" score (gauge/Astro/Lagrange disambiguation) | v11.5 review [15:33] |
+| **6.J** | Fetch stuck root cause | log + add timeout when fetch hangs mid-session | v11.5 review [01:35] |
+| **6.K** | Iced 0.14 chart hover perf | investigate redraw cost; possibly add `Cache` widget | v11.5 review [10:25] |
+
+---
+
 ## v11.5 Plan — "The Explanations" (planning, 2026-05-05)
 
 Triggered by 27-min video review on 2026-05-05 — first end-to-end test of full Wave 6 stack on 2028-ticker universe. Transcript saved at `docs/video-review-v11.4-transcript.txt` (331 lines).

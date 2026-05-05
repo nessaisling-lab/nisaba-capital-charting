@@ -1,4 +1,4 @@
-use iced::widget::{button, canvas::Canvas, column, container, row, rule, scrollable, text, Column, Space};
+use iced::widget::{button, canvas::Canvas, column, container, mouse_area, row, rule, scrollable, text, tooltip, Column, Space};
 use iced::{Alignment, Color, Element, Length};
 
 use crate::font;
@@ -101,6 +101,91 @@ pub fn section_rule<'a>() -> Element<'a, Message> {
         Space::new().height(Length::Fixed(theme::SPACE_SM)),
     ]
     .into()
+}
+
+// ---------------------------------------------------------------------------
+// v11.5.A — Foundation: explanation tooltips + right-click primitive
+// ---------------------------------------------------------------------------
+
+/// Gold-bordered surface used as the tooltip body. Reused everywhere a
+/// hover-explanation appears so the visual language is consistent.
+#[allow(dead_code)]
+pub fn tip_style(_t: &iced::Theme) -> container::Style {
+    let p = theme::palette();
+    container::Style {
+        background: Some(iced::Background::Color(p.surface)),
+        border: iced::Border { color: p.gold, width: 1.0, radius: 3.0.into() },
+        ..Default::default()
+    }
+}
+
+/// Wrap any element in a hover-explanation tooltip. Gold-bordered card
+/// with body text. Position defaults to Bottom (most-readable for column
+/// headers + inline glyphs).
+#[allow(dead_code)]
+pub fn explain<'a>(
+    content: impl Into<Element<'a, Message>>,
+    explanation: &str,
+) -> Element<'a, Message> {
+    explain_at(content, explanation, tooltip::Position::Bottom)
+}
+
+/// Same as `explain` but lets the caller pick tooltip position. Use Top
+/// when the element sits at the bottom of a card and the popup would
+/// otherwise spill off-screen.
+#[allow(dead_code)]
+pub fn explain_at<'a>(
+    content: impl Into<Element<'a, Message>>,
+    explanation: &str,
+    position: tooltip::Position,
+) -> Element<'a, Message> {
+    tooltip(
+        content,
+        container(text(explanation.to_string()).size(theme::text_xs()))
+            .padding([4, 8])
+            .style(tip_style),
+        position,
+    )
+    .into()
+}
+
+/// Inline label with a trailing Phosphor info-circle that triggers a
+/// hover tooltip. Use for gauge titles, FRED indicator labels, or any
+/// place a column header would feel cramped — the icon is a quiet hint
+/// that the term has more depth.
+#[allow(dead_code)]
+pub fn label_with_explanation<'a>(label: &str, explanation: &str) -> Element<'a, Message> {
+    let p = theme::palette();
+    let icon = text(icons::INFO_CIRCLE.to_string())
+        .font(icons::PHOSPHOR)
+        .size(theme::text_xs())
+        .color(Color { a: 0.7, ..p.gold });
+    explain(
+        row![
+            text(label.to_string()).size(theme::text_sm()),
+            icon,
+        ]
+        .spacing(4)
+        .align_y(Alignment::Center),
+        explanation,
+    )
+}
+
+/// Right-click primitive — wrap any element so that secondary-clicking it
+/// emits a Message. The caller owns the popup state; this helper only
+/// provides the hit-testing surface. Pair with a state-managed overlay
+/// (e.g. `Dashboard.context_menu: Option<ContextMenu>`) when consumed.
+///
+/// Example:
+/// ```ignore
+/// right_click(score_cell, Message::ShowContextMenu(MenuKind::AstroScore))
+/// ```
+#[allow(dead_code)]
+pub fn right_click<'a>(
+    content: impl Into<Element<'a, Message>>,
+    on_right_click: Message,
+) -> Element<'a, Message> {
+    mouse_area(content).on_right_press(on_right_click).into()
 }
 
 // ---------------------------------------------------------------------------
@@ -229,8 +314,8 @@ pub fn make_gauge<'a>(
         Some((score, label)) => column![
             text(title).size(theme::text_sm()),
             Canvas::new(FearGreedGauge { score, label })
-                .width(Length::Fixed(148.0))
-                .height(Length::Fixed(82.0)),
+                .width(Length::Fixed(theme::sw(148.0)))
+                .height(Length::Fixed(theme::sw(82.0))),
         ]
         .align_x(Alignment::Center)
         .spacing(2)
@@ -267,15 +352,40 @@ impl Dashboard {
                 .and_then(|m| m.value.as_ref())
                 .is_some()
         };
+        // v11.5.C4 — explain() on each FRED indicator
         let macro_strip_us = row![
-            text(macro_fmt("Fed Funds", "FEDFUNDS", "%", "")).font(font::INTER).size(theme::text_base()),
-            text(macro_fmt("CPI YoY", "CPIAUCSL_YOY", "%", "")).font(font::INTER).size(theme::text_base()),
-            text(macro_fmt("Unemploy", "UNRATE", "%", "")).font(font::INTER).size(theme::text_base()),
-            text(macro_fmt("10Y", "GS10", "%", "")).font(font::INTER).size(theme::text_base()),
-            text(macro_fmt("2Y", "GS2", "%", "")).font(font::INTER).size(theme::text_base()),
-            text(macro_fmt("Spread", "T10Y2Y", "%", "")).font(font::INTER).size(theme::text_base()),
-            text(macro_fmt("VIX", "VIXCLS", "", "")).font(font::INTER).size(theme::text_base()),
-            text(macro_fmt("WTI Oil", "DCOILWTICO", "", "$")).font(font::INTER).size(theme::text_base()),
+            explain(
+                text(macro_fmt("Fed Funds", "FEDFUNDS", "%", "")).font(font::INTER).size(theme::text_base()),
+                "Federal Funds Rate — overnight lending rate set by the Fed. The single most important number in finance. Higher = tighter credit, lower asset prices.",
+            ),
+            explain(
+                text(macro_fmt("CPI YoY", "CPIAUCSL_YOY", "%", "")).font(font::INTER).size(theme::text_base()),
+                "Consumer Price Index, year-over-year — headline inflation. Fed targets ~2%. Above = rate-hike pressure; below = rate-cut room.",
+            ),
+            explain(
+                text(macro_fmt("Unemploy", "UNRATE", "%", "")).font(font::INTER).size(theme::text_base()),
+                "Unemployment rate (U-3) — labor market slack. Below 4% = tight labor; above 5% = recession signal.",
+            ),
+            explain(
+                text(macro_fmt("10Y", "GS10", "%", "")).font(font::INTER).size(theme::text_base()),
+                "10-Year Treasury yield — the world's risk-free benchmark. Drives mortgage rates, equity discount rates, dollar strength.",
+            ),
+            explain(
+                text(macro_fmt("2Y", "GS2", "%", "")).font(font::INTER).size(theme::text_base()),
+                "2-Year Treasury yield — tracks Fed rate expectations 24 months out. Faster-moving than 10Y, more sensitive to policy.",
+            ),
+            explain(
+                text(macro_fmt("Spread", "T10Y2Y", "%", "")).font(font::INTER).size(theme::text_base()),
+                "10Y-2Y yield spread. Negative = inverted curve = recession signal (precedes every US recession since 1955).",
+            ),
+            explain(
+                text(macro_fmt("VIX", "VIXCLS", "", "")).font(font::INTER).size(theme::text_base()),
+                "CBOE Volatility Index — implied vol on S&P options, 30-day. Below 15 = calm; above 30 = fear; above 40 = panic.",
+            ),
+            explain(
+                text(macro_fmt("WTI Oil", "DCOILWTICO", "", "$")).font(font::INTER).size(theme::text_base()),
+                "West Texas Intermediate crude price. Inflation pressure, geopolitical proxy, energy-sector earnings driver.",
+            ),
         ]
         .spacing(20);
 
@@ -291,11 +401,26 @@ impl Dashboard {
 
         if has_any_intl {
             let macro_strip_intl = row![
-                text(macro_fmt("Euribor 3M", intl_ids[0], "%", "")).font(font::INTER).size(theme::text_base()),
-                text(macro_fmt("PBoC", intl_ids[1], "%", "")).font(font::INTER).size(theme::text_base()),
-                text(macro_fmt("EU CPI", intl_ids[2], "%", "")).font(font::INTER).size(theme::text_base()),
-                text(macro_fmt("OECD CLI", intl_ids[3], "", "")).font(font::INTER).size(theme::text_base()),
-                text(macro_fmt("Credit/GDP", intl_ids[4], "%", "")).font(font::INTER).size(theme::text_base()),
+                explain(
+                    text(macro_fmt("Euribor 3M", intl_ids[0], "%", "")).font(font::INTER).size(theme::text_base()),
+                    "Euro Interbank 3-month rate — Eurozone's funding cost benchmark, ECB-policy proxy.",
+                ),
+                explain(
+                    text(macro_fmt("PBoC", intl_ids[1], "%", "")).font(font::INTER).size(theme::text_base()),
+                    "People's Bank of China policy rate — drives Chinese credit conditions, commodity demand, EM risk appetite.",
+                ),
+                explain(
+                    text(macro_fmt("EU CPI", intl_ids[2], "%", "")).font(font::INTER).size(theme::text_base()),
+                    "Eurozone Harmonised CPI year-over-year. ECB's 2% target. Diverges from US in regime shifts.",
+                ),
+                explain(
+                    text(macro_fmt("OECD CLI", intl_ids[3], "", "")).font(font::INTER).size(theme::text_base()),
+                    "OECD Composite Leading Indicator (US) — turning-point predictor for the business cycle. 100 = trend, above = expansion.",
+                ),
+                explain(
+                    text(macro_fmt("Credit/GDP", intl_ids[4], "%", "")).font(font::INTER).size(theme::text_base()),
+                    "Total credit to non-financial corporations as % of GDP. BIS gap measure flags credit booms before crashes.",
+                ),
             ]
             .spacing(20);
             column![macro_strip_us, macro_strip_intl].spacing(4)

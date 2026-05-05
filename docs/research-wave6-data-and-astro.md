@@ -261,9 +261,13 @@ After each sub-wave: `cargo build`, run scraper for one ticker, verify new table
 
 ---
 
+## Resolved Questions
+
+1. **Paid API keys?** — **Decision 2026-05-04: free tier only.** Polygon/EODHD/Quandl/Marketstack moved to TODOS.md "API Keys Backlog." Wave 6.A1 cascade is AV → Tiingo → Finnhub (existing keys) → Yahoo → Stooq (no key, scraping). Wave 6.A2 cascade is FMP → Finnhub `metric/all` → AV `OVERVIEW`.
+
 ## Open Questions
 
-1. Do we have Polygon.io / EODHD API keys? Wave 6 plan currently relies only on free tiers + Yahoo/Stooq scraping.
-2. Backtest harness: does it support comparing astro_score variants (v11.3 baseline vs Wave 6.B2 dignity-weighted)? If not, build that first.
-3. Vedic-style harmonics (H4/H5/H7/H9) deferred from Wave 6 — too speculative for first cut. Revisit after B1+B2 produce measurably different scores.
-4. Sidereal vs Tropical concordance also deferred — depends on B2 strength model first.
+1. Backtest harness: does it support comparing astro_score variants (v11.3 baseline vs Wave 6.B2 dignity-weighted)? If not, build that first.
+2. Vedic-style harmonics (H4/H5/H7/H9) deferred from Wave 6 — too speculative for first cut. Revisit after B1+B2 produce measurably different scores.
+3. Sidereal vs Tropical concordance also deferred — depends on B2 strength model first.
+4. Yahoo Finance scraping fragility — they change response shape periodically. Mitigation: keep AV/Tiingo/Finnhub primary, scraping last resort. Add explicit "Yahoo response format changed" detection + alert log when parse fails.

@@ -365,6 +365,11 @@ pub fn text_md()   -> f32 { s(18.0) }  // secondary section headings
 pub fn text_lg()   -> f32 { s(21.0) }  // primary section headings
 pub fn text_2xl()  -> f32 { s(28.0) }  // page title
 
+/// v11.5.B6 — scaled-width helper. Wrap any base pixel width that holds
+/// text so that fixed columns and cells grow with the font scale and
+/// viewport, preventing clipping at Large/XL settings.
+pub fn sw(base: f32) -> f32 { base * font_scale() * viewport_scale() }
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Spacing rhythm — derived from BH redesign spatial language
 // Base: 8px, progression: 4 / 8 / 16 / 24 / 40

@@ -7,8 +7,9 @@ mod research;
 mod portfolio_tab;
 mod paper_trail;
 mod settings;
+mod encyclopedia;
 
-use iced::widget::{button, column, container, mouse_area, row, rule, scrollable, stack, text, text_input, Canvas, Column, Row, Shader, Space};
+use iced::widget::{button, column, container, mouse_area, pick_list, row, rule, scrollable, stack, text, text_input, Canvas, Column, Row, Shader, Space};
 use iced::{Alignment, Color, Element, Length};
 
 use crate::ornaments::{BookSpine, Corner, PageBorderCorner, PageHeaderOrnament, TabSparkle};
@@ -30,7 +31,7 @@ impl Dashboard {
                 .id(crate::update::SEARCH_INPUT_ID)
                 .on_input(Message::TickerSearchInput)
                 .on_submit(Message::TickerSearchSubmit)
-                .width(Length::Fixed(280.0))
+                .width(Length::Fixed(theme::sw(280.0)))
                 .size(theme::text_base()),
             button(
                 text(icons::SEARCH.to_string()).font(icons::PHOSPHOR).size(theme::text_sm())
@@ -69,12 +70,11 @@ impl Dashboard {
             }
         ).on_press(Message::RefreshNow);
 
+        // v11.5.F6 — drop "…" suffix on fetch_btn while fetching; the
+        // progress bar below the nav row already conveys activity.
         let fetch_btn: Element<Message> = if self.fetching_ticker {
             button(
-                row![
-                    text(icons::DOWNLOAD.to_string()).font(icons::PHOSPHOR).size(theme::text_md()),
-                    text("\u{2026}").size(theme::text_xs()),
-                ].spacing(2).align_y(Alignment::Center)
+                text(icons::DOWNLOAD.to_string()).font(icons::PHOSPHOR).size(theme::text_md()),
             ).into()
         } else {
             button(
@@ -86,72 +86,165 @@ impl Dashboard {
             text(icons::MOON_STARS.to_string()).font(icons::PHOSPHOR).size(theme::text_md()),
         ).on_press(Message::ToggleTheme);
 
-        let action_icons = row![refresh_btn, fetch_btn, theme_btn]
+        // v11.5.B5 — gear button opens settings modal
+        let settings_btn = button(
+            text(icons::GEAR.to_string()).font(icons::PHOSPHOR).size(theme::text_md()),
+        ).on_press(Message::OpenSettingsModal);
+
+        let action_icons = row![refresh_btn, fetch_btn, theme_btn, settings_btn]
             .spacing(4)
             .align_y(Alignment::Center);
 
-        // Ticker + price + day high/low (v11.3 — pulled from last PriceRow)
+        // ── v11.6.A v2 — Hero ticker block ───────────────────────
+        // STAR (favorites toggle) + INFO (encyclopedia jump) sit side-by-side
+        // before ticker name. Star is filled gold when current ticker is a
+        // favorite. Info opens the encyclopedia view for this ticker.
         let p_hdr = theme::palette();
+        let is_fav = self.favorites.iter().any(|t| t == &self.selected_ticker);
+        let star_color = if is_fav { p_hdr.gold } else { Color { a: 0.4, ..p_hdr.gold } };
+        let transparent_btn_style = |_t: &iced::Theme, _s| button::Style {
+            background: None,
+            text_color: Color::TRANSPARENT,
+            border: iced::Border::default(),
+            shadow: iced::Shadow::default(),
+            snap: false,
+        };
+        let star_btn = button(
+            text(icons::STAR.to_string())
+                .font(if is_fav { icons::PHOSPHOR_BOLD } else { icons::PHOSPHOR })
+                .size(theme::text_md())
+                .color(star_color),
+        )
+        .on_press(Message::ToggleFavorite(self.selected_ticker.clone()))
+        .padding(0)
+        .style(transparent_btn_style);
+        let info_btn = button(
+            text(icons::INFO_CIRCLE.to_string())
+                .font(icons::PHOSPHOR)
+                .size(theme::text_md())
+                .color(p_hdr.gold),
+        )
+        .on_press(Message::TabSelected(crate::tabs::Tab::Encyclopedia))
+        .padding(0)
+        .style(transparent_btn_style);
+        let hl_stack: Element<Message> = if let Some(last) = self.rows.last() {
+            let high: f64 = last.high.to_string().parse().unwrap_or(0.0);
+            let low:  f64 = last.low.to_string().parse().unwrap_or(0.0);
+            column![
+                row![
+                    text("H ").size(theme::text_xs()).color(p_hdr.ink_soft),
+                    text(format!("${high:.2}")).size(theme::text_xs()).color(p_hdr.ink_soft),
+                ],
+                row![
+                    text("L ").size(theme::text_xs()).color(p_hdr.ink_soft),
+                    text(format!("${low:.2}")).size(theme::text_xs()).color(p_hdr.ink_soft),
+                ],
+            ]
+            .spacing(2)
+            .into()
+        } else {
+            Space::new().into()
+        };
+        // v11.6.A v3 — sandwich: star LEFT, info RIGHT of the price block
         let ticker_block: Element<Message> = if let Some(last) = self.rows.last() {
             let close: f64 = last.close.to_string().parse().unwrap_or(0.0);
-            let high:  f64 = last.high.to_string().parse().unwrap_or(0.0);
-            let low:   f64 = last.low.to_string().parse().unwrap_or(0.0);
             row![
+                star_btn,
                 text(self.selected_ticker.as_str())
                     .font(font::DISPLAY).size(theme::text_2xl()).color(p_hdr.gold),
                 text(format!("${close:.2}"))
                     .font(font::DISPLAY).size(theme::text_lg()),
-                text(format!("H ${high:.2}"))
-                    .size(theme::text_xs()).color(p_hdr.ink_soft),
-                text(format!("L ${low:.2}"))
-                    .size(theme::text_xs()).color(p_hdr.ink_soft),
+                hl_stack,
+                info_btn,
             ]
             .spacing(10)
             .align_y(Alignment::Center)
             .into()
         } else {
-            text(self.selected_ticker.as_str())
-                .font(font::DISPLAY).size(theme::text_2xl()).color(p_hdr.gold).into()
+            row![
+                star_btn,
+                text(self.selected_ticker.as_str())
+                    .font(font::DISPLAY).size(theme::text_2xl()).color(p_hdr.gold),
+                info_btn,
+            ]
+            .spacing(10)
+            .align_y(Alignment::Center)
+            .into()
         };
 
-        // Row 1: search left, ticker+price center, actions right
-        let nav_row_1 = row![
+        // v11.6.A — Favorites + Recent dropdowns (side-by-side under search)
+        let favorites_dd: Element<Message> = if self.favorites.is_empty() {
+            container(
+                text("\u{2606} no favorites").size(theme::text_xs())
+                    .color(theme::palette().ink_soft),
+            )
+            .padding([5, 10])
+            .width(Length::Fill)
+            .into()
+        } else {
+            pick_list(
+                self.favorites.clone(),
+                None::<String>,
+                Message::TickerSelected,
+            )
+            .placeholder("\u{2605} Favorites")
+            .text_size(theme::text_xs())
+            .width(Length::Fill)
+            .into()
+        };
+
+        let recent_dd: Element<Message> = if self.recently_viewed.is_empty() {
+            container(
+                text("\u{21BA} no recent").size(theme::text_xs())
+                    .color(theme::palette().ink_soft),
+            )
+            .padding([5, 10])
+            .width(Length::Fill)
+            .into()
+        } else {
+            pick_list(
+                self.recently_viewed.clone(),
+                None::<String>,
+                Message::TickerSelected,
+            )
+            .placeholder("\u{21BA} Recent")
+            .text_size(theme::text_xs())
+            .width(Length::Fill)
+            .into()
+        };
+
+        // v11.6.A — right column: search+actions row, then fav+recent row.
+        let search_action_row = row![
             search_bar,
-            Space::new().width(Length::Fill),
-            ticker_block,
-            Space::new().width(Length::Fill),
             action_icons,
         ]
-        .spacing(theme::SPACE_SM)
+        .spacing(6)
         .align_y(Alignment::Center);
 
-        // Row 2: ticker DB buttons + recently viewed
-        let ticker_buttons: Row<Message> = self.tickers.iter().fold(row![].spacing(4), |r, ticker| {
-            r.push(
-                button(text(ticker).size(theme::text_xs()))
-                    .on_press(Message::TickerSelected(ticker.clone()))
-            )
-        });
+        let fav_recent_row = row![
+            favorites_dd,
+            recent_dd,
+        ]
+        .spacing(6);
 
-        let recently_viewed_row: Element<Message> = if self.recently_viewed.is_empty() {
-            row![].into()
-        } else {
-            let recent: Vec<_> = self.recently_viewed.iter().rev().take(6).collect();
-            let r: Row<Message> = recent.iter().rev().fold(
-                row![text("Recent:").size(theme::text_xs()).color(theme::palette().ink_soft)].spacing(4),
-                |r, t| r.push(
-                    button(text(t.as_str()).size(theme::text_xs()))
-                        .on_press(Message::TickerSelected((*t).clone()))
-                ),
-            );
-            r.into()
-        };
+        let right_column = column![
+            search_action_row,
+            fav_recent_row,
+        ]
+        .spacing(6)
+        .width(Length::Fixed(theme::sw(420.0)));
 
-        let nav_row_2 = row![ticker_buttons, Space::new().width(Length::Fixed(16.0)), recently_viewed_row]
-            .spacing(4)
-            .align_y(Alignment::Center);
+        // v11.6.A — body row: hero ticker (fills) + right_column (fixed)
+        let header_body = row![
+            container(ticker_block)
+                .padding([theme::SPACE_SM as u16, theme::SPACE_SM as u16])
+                .width(Length::Fill),
+            right_column,
+        ]
+        .spacing(theme::SPACE_MD)
+        .align_y(Alignment::Center);
 
-        let compact_nav = column![nav_row_1, nav_row_2]
+        let compact_nav = column![header_body]
             .spacing(theme::SPACE_XS);
 
         // ── Fetch error banner (v7.5) ──────────────────────────
@@ -178,16 +271,26 @@ impl Dashboard {
             })
             .into()
         } else if self.fetching_ticker {
-            // v11.3: Determinate progress bar — time-based fill capped at 0.85
-            // until the FetchTickerComplete message arrives. Expected duration ~30s.
+            // v11.3 → v11.5.F3+F4+F5: determinate progress bar + numeric %
+            // + sparkle overlay + 85%→92% recovery once primary phase ends.
             let p_load = theme::palette();
-            let progress: f32 = self.fetch_start_time
-                .map(|start| {
-                    let elapsed = start.elapsed().as_secs_f32();
-                    (elapsed / 30.0).min(0.85)
-                })
+            let elapsed = self.fetch_start_time
+                .map(|s| s.elapsed().as_secs_f32())
                 .unwrap_or(0.0);
-            // Outer track + inner fill via a row with FillPortion
+            // Phase A: 0..30s → 0..0.85 linear.
+            // Phase B: 30..50s → 0.85..0.92 logarithmic (advances to bust the
+            // illusion of a stuck bar without overpromising completion).
+            let progress: f32 = if elapsed <= 30.0 {
+                (elapsed / 30.0) * 0.85
+            } else {
+                let extra = (elapsed - 30.0).min(20.0) / 20.0;
+                0.85 + 0.07 * extra
+            };
+            let phase_label = if elapsed <= 30.0 {
+                "Fetching..."
+            } else {
+                "Finalizing..."
+            };
             let fill_pct = (progress * 100.0).round() as u16;
             let rest_pct = 100u16.saturating_sub(fill_pct);
             let fill_bar = container(Space::new())
@@ -206,7 +309,22 @@ impl Dashboard {
                     )),
                     ..Default::default()
                 });
-            row![fill_bar, track_rest].width(Length::Fill).into()
+            let bar_row = row![fill_bar, track_rest].width(Length::Fill);
+            // F4 — ambient sparkle layer over the whole bar (low alpha so
+            // it reads as motion without obscuring fill state).
+            let sparkle_overlay = Canvas::new(TabSparkle {
+                alpha: 0.45,
+                seed: 7,
+            })
+            .width(Length::Fill)
+            .height(Length::Fixed(8.0));
+            let bar_with_sparkle = stack![bar_row, sparkle_overlay];
+            let percent_text = text(format!("{phase_label}  {}%", fill_pct))
+                .size(theme::text_xs())
+                .color(Color { a: 0.85, ..p_load.gold });
+            column![bar_with_sparkle, percent_text]
+                .spacing(2)
+                .into()
         } else {
             Space::new().height(Length::Fixed(0.0)).into()
         };
@@ -220,7 +338,7 @@ impl Dashboard {
             Tab::Research     => self.view_research(),
             Tab::Portfolio    => self.view_portfolio(),
             Tab::PaperTrail   => self.view_paper_trail(),
-            Tab::Settings     => self.view_settings(),
+            Tab::Encyclopedia => self.view_encyclopedia(),
         };
 
         // ── Page transition: layered stagger (v9.0) ────────────
@@ -253,15 +371,16 @@ impl Dashboard {
         // ── Horizontal tab bar (v7.4.1) ──────────────────────
         let tab_bar = self.build_tab_bar();
 
+        // v11.6.A — Tab strip moves to very top, then ornament, then header
         let page_content = column![
             corner_top,
+            tab_bar,
+            rule::horizontal(1),
             compact_nav,
             fetch_error_banner,
             autocomplete,
             Canvas::new(PageHeaderOrnament)
-                .width(Length::Fill).height(Length::Fixed(28.0)),
-            tab_bar,
-            rule::horizontal(1),
+                .width(Length::Fill).height(Length::Fixed(20.0)),
             tab_content,
             corner_bottom,
         ]
@@ -321,10 +440,70 @@ impl Dashboard {
             .height(Length::Fill)
             .padding(theme::SPACE_SM as u16);
 
-        let main_view: Element<'_, Message> = stack![vignette, padded_book]
+        let base_view: Element<'_, Message> = stack![vignette, padded_book]
             .width(Length::Fill)
             .height(Length::Fill)
             .into();
+
+        // ── v11.5.B5 — Settings modal overlay ─────────────────
+        let main_view: Element<'_, Message> = if self.show_settings_modal {
+            let settings_panel = self.view_settings();
+            let header = row![
+                text("Settings").font(font::DISPLAY).size(theme::text_lg()),
+                Space::new().width(Length::Fill),
+                button(
+                    text(icons::X_LG.to_string()).font(icons::PHOSPHOR).size(theme::text_md()),
+                )
+                .on_press(Message::CloseSettingsModal)
+                .padding(2),
+            ]
+            .align_y(Alignment::Center);
+            let modal_body = container(
+                column![header, rule::horizontal(1), settings_panel].spacing(8),
+            )
+            .padding(theme::SPACE_MD as u16)
+            .max_width(720.0)
+            .style(|_t: &iced::Theme| {
+                let p = theme::palette();
+                container::Style {
+                    background: Some(iced::Background::Color(p.surface)),
+                    border: iced::Border {
+                        color: p.gold,
+                        width: 1.5,
+                        radius: 4.0.into(),
+                    },
+                    shadow: iced::Shadow {
+                        color: Color { a: 0.45, ..Color::BLACK },
+                        offset: iced::Vector::new(0.0, 4.0),
+                        blur_radius: 18.0,
+                    },
+                    ..Default::default()
+                }
+            });
+            // Scrim — click outside to dismiss
+            let scrim = mouse_area(
+                container(Space::new())
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .style(|_t: &iced::Theme| container::Style {
+                        background: Some(iced::Background::Color(Color { a: 0.55, ..Color::BLACK })),
+                        ..Default::default()
+                    }),
+            )
+            .on_press(Message::CloseSettingsModal);
+            let centered_panel = container(modal_body)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .center_x(Length::Fill)
+                .center_y(Length::Fill)
+                .padding(theme::SPACE_LG as u16);
+            stack![base_view, scrim, centered_panel]
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into()
+        } else {
+            base_view
+        };
 
         // ── Toast overlay ──────────────────────────────────────
         if self.toasts.is_empty() {

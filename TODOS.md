@@ -1,6 +1,93 @@
 # TODOS
 
-## Open — v11.5 "The Explanations" (~10 days, video review 2026-05-05)
+## Active — v11.6 "The Persistence" (~6 days remaining, video review 2026-05-05)
+
+**Source:** 18-min post-v11.5 video review (`docs/video-review-v11.5-transcript.txt`) + iterative mockup loop (4 short videos totaling ~22min). Header layout was the loudest unresolved theme — re-spec'd three different ways before convergence.
+
+### v11.6.A — "Header redo" — SHIPPED 2026-05-05
+
+Resolved across 4 mockup iterations. Final layout:
+- [x] Tab strip relocated to very top of page (full-width, above ornament rule)
+- [x] Hero ticker block: `★ AAPL $278.78 H/L-stacked ⓘ` — star + info SANDWICH the price block
+- [x] Right column (420px): search row with magnifier + 4 action icons → Favorites + Recent dropdowns side-by-side
+- [x] Hardcoded ticker buttons dropped — 10 demo tickers seeded into `favorites` table on every boot
+- [x] Encyclopedia tab dropped from strip — reachable via info-icon only
+- [x] Tab::all() resized 8→7; fixed `0..8` hardcoded loop in update::mod (panic on first frame)
+- [x] HTML mockup artifact preserved at `docs/v11.6.a-header-mockup.html`
+
+### v11.6.B — "Council de-astro + Munger diversification" (~0.5 day, next)
+
+Per v11.5 review [02:55, 03:35]: *"None of these people would talk about astrology... they wouldn't bring up astrology score to make evaluation"* + *"Munger seems to constantly stay at the same place."*
+
+- [ ] **B1** Buffett `astro_take` — rewrite to pure financial reasoning, drop "stars suggest" / "astrological alignment" prose (`agents.rs:245-262`)
+- [ ] **B2** Graham `astro_take` — rewrite to drop "astrological score" / "horoscope" mentions (`agents.rs:396-404`)
+- [ ] **B3** Lynch `astro_take` — rewrite to drop "astro reading" / "stars align" mentions (`agents.rs:514-528`)
+- [ ] **B4** Munger `astro_take` — rewrite + diversify (currently 3 variants, needs 6 like other personas) (`agents.rs:649-662`)
+- [ ] **B5** Strip astrology refs from LLM system prompts (`agents.rs:856, 863, 867, 872`)
+- [ ] **B6** `fallback_no_fundamentals` — rewrite per-persona text to drop astrology mentions (`agents.rs:829-832`)
+- [ ] **B7** Rename `analysis.astro_take` field display label in `fundamentals.rs` view from "On the stars:" to "Final note:" or remove entirely
+- [ ] **B8** Keep astro score visible in metric rows (line 794) — that's data, not persona prose
+
+### v11.6.C — "Natal chart sphere" (~0.5 day)
+
+User: *"I don't know why it keeps on being oval"* [v11.5 review 00:22]
+
+- [ ] **C1** Reduce CAMERA_TILT in `natal_wheel_3d.wgsl` from 0.32 to 0.10 (chart reads as sphere not oval)
+- [ ] **C2** Update `R_NATAL` / `R_TRANSIT` overlay constants in `view/astrology_tab.rs` to match new tilt
+- [ ] **C3** Verify aspect line hit zones still align after tilt change
+
+### v11.6.D — "Calendar 3-month forward" (~0.5 day)
+
+User: *"It should do at least three months ahead, instead of just one month"* [01:10]
+
+- [ ] **D1** Astro Calendar `< Prev` / `Next >` buttons step ±3 months instead of ±1
+- [ ] **D2** Render 3 month-grids stacked vertically OR show wider date range in single grid
+- [ ] **D3** Forecast date colors continue across the 3-month window
+
+### v11.6.F — "Lagrange chart polish" (~1 day)
+
+User: *"This chart needs a lot of work, could look nicer. We'll work on that. We will soon have to move towards working that eventually."* [05:20]
+
+- [ ] **F1** Add gridlines + zone bands (Optimal/Favorable/Neutral/Unfavorable/Misaligned) on Lagrange sparkline
+- [ ] **F2** Date axis labels every ~15 days
+- [ ] **F3** Hover crosshair + value tooltip
+- [ ] **F4** Score zone color coding (line color matches current zone)
+
+### v11.6.G — "Sparkle animation upgrade" (~0.5 day)
+
+User: *"Make it like a little star or sparkly animation so you can see it more visibly"* [14:34]
+
+- [ ] **G1** Increase TabSparkle alpha from 0.45 → 0.75 in loading bar overlay
+- [ ] **G2** More particles (currently ~3, push to 8+) with bigger radius
+- [ ] **G3** Color burst (gold + soft white particles, not single hue)
+
+### v11.6.H — "Score gauge clarity" (~0.5 day)
+
+User: *"Saying 50, but over here it's saying 90... why is it this number?"* [15:33, 16:54]
+
+- [ ] **H1** Disambiguate Crypto F&G / Equities F&G / Ticker Score / Astro / Lagrange — improve gauge titles to make clear which is the headline score
+- [ ] **H2** Add "what's THE score" tooltip explaining the 5 different gauge meanings
+- [ ] **H3** Possibly bold/highlight the Lagrange (composite) gauge as "primary"
+
+### v11.6.J — "Fetch stuck root cause" (~0.5 day)
+
+User: *"When I fetched, this ended up being stuck like this. So that needs to be resolved."* [01:35]
+
+- [ ] **J1** Add 90-second timeout to fetch task; fall back to "fetch timed out, try again" toast
+- [ ] **J2** Log every Phase 1/2/3/4 step duration to identify which step hangs
+- [ ] **J3** Investigate Iced 0.14 task scheduling — possibly Task::perform getting stuck on a future that never resolves
+
+### v11.6.K — "Iced 0.14 chart hover perf" (~1 day)
+
+User: *"It lags any time I have to go like this... not nearly as responsive as these [gauges]"* [10:25]
+
+- [ ] **K1** Profile chart hover redraw cost — likely full Canvas re-render per mouse move
+- [ ] **K2** Add `iced::widget::canvas::Cache` to PriceChart so static layers (axes, gridlines) don't redraw
+- [ ] **K3** Verify hover overlay re-render only touches the crosshair + tooltip layer
+
+---
+
+## Closed — v11.5 "The Explanations" (~10 days, video review 2026-05-05) — COMPLETED 2026-05-05
 
 **Source:** 27-min video review on 2026-05-05 produced ~22 distinct feedback items. Transcript at `docs/video-review-v11.4-transcript.txt`. Dominant theme: pop-up explanations EVERYWHERE (mentioned 15+ times). User wants game-tutorial-style hover + right-click expand for every cryptic abbreviation, gauge, and chart element.
 

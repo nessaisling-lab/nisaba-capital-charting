@@ -265,3 +265,117 @@ pub async fn upsert_recently_viewed(pool: Arc<PgPool>, ticker: String) {
     .execute(pool.as_ref())
     .await;
 }
+
+// ---------------------------------------------------------------------------
+// Wikipedia summary — v11.5.E
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Debug)]
+pub struct WikiSummary {
+    #[allow(dead_code)]
+    pub ticker: String,
+    pub title: String,
+    pub extract: Option<String>,
+    pub thumbnail_url: Option<String>,
+    pub wikipedia_url: Option<String>,
+    pub fetched_at: chrono::DateTime<chrono::Utc>,
+}
+
+pub async fn fetch_wiki_thumbnail(url: String) -> Result<Vec<u8>, String> {
+    let client = reqwest::Client::builder()
+        .user_agent("PursuitAstro/0.1 (educational)")
+        .build()
+        .map_err(|e| e.to_string())?;
+    let resp = client.get(&url).send().await.map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
+    Ok(bytes.to_vec())
+}
+
+pub async fn fetch_wiki_summary(
+    pool: Arc<PgPool>,
+    ticker: String,
+) -> Result<Option<WikiSummary>, String> {
+    let row: Option<(String, String, Option<String>, Option<String>, Option<String>, chrono::DateTime<chrono::Utc>)> =
+        sqlx::query_as(
+            "SELECT ticker, title, extract, thumbnail_url, wikipedia_url, fetched_at
+             FROM wiki_summary WHERE ticker = $1",
+        )
+        .bind(&ticker)
+        .fetch_optional(pool.as_ref())
+        .await
+        .ctx("fetch_wiki_summary")?;
+    Ok(row.map(|(ticker, title, extract, thumbnail_url, wikipedia_url, fetched_at)| {
+        WikiSummary { ticker, title, extract, thumbnail_url, wikipedia_url, fetched_at }
+    }))
+}
+
+// ---------------------------------------------------------------------------
+// Favorites — v11.5.B2 persistent starred tickers
+// ---------------------------------------------------------------------------
+
+pub async fn fetch_favorites(pool: Arc<PgPool>) -> Result<Vec<String>, String> {
+    sqlx::query_scalar::<_, String>(
+        "SELECT ticker FROM favorites ORDER BY starred_at DESC",
+    )
+    .fetch_all(pool.as_ref())
+    .await
+    .ctx("fetch_favorites")
+}
+
+/// v11.6.A — demo-favorites seed. Always ensures the 10 demo tickers are
+/// present in the favorites table on every boot (per video review request:
+/// "I want the tickers that were originally hardcoded to always be in the
+/// favorites menu. Like always."). User-added favorites are preserved —
+/// this only INSERTs missing rows via ON CONFLICT DO NOTHING. Safe to
+/// call on every dashboard launch.
+pub async fn seed_default_favorites_if_empty(
+    pool: Arc<PgPool>,
+) -> Result<Vec<String>, String> {
+    const DEMO_FAVORITES: &[&str] = &[
+        "AAPL", "AMZN", "GOOGL", "JPM", "META",
+        "MSFT", "NVDA", "TSLA", "UNH", "V",
+    ];
+    for t in DEMO_FAVORITES {
+        sqlx::query(
+            "INSERT INTO favorites (ticker, starred_at)
+             VALUES ($1, NOW())
+             ON CONFLICT (ticker) DO NOTHING",
+        )
+        .bind(*t)
+        .execute(pool.as_ref())
+        .await
+        .ctx("seed demo favorite")?;
+    }
+    fetch_favorites(pool).await
+}
+
+/// Toggles star state. Returns the new fav list after the change.
+pub async fn toggle_favorite(pool: Arc<PgPool>, ticker: String) -> Result<Vec<String>, String> {
+    let exists: Option<String> = sqlx::query_scalar(
+        "SELECT ticker FROM favorites WHERE ticker = $1",
+    )
+    .bind(&ticker)
+    .fetch_optional(pool.as_ref())
+    .await
+    .ctx("toggle_favorite check")?;
+
+    if exists.is_some() {
+        sqlx::query("DELETE FROM favorites WHERE ticker = $1")
+            .bind(&ticker)
+            .execute(pool.as_ref())
+            .await
+            .ctx("toggle_favorite delete")?;
+    } else {
+        sqlx::query(
+            "INSERT INTO favorites (ticker, starred_at) VALUES ($1, NOW())",
+        )
+        .bind(&ticker)
+        .execute(pool.as_ref())
+        .await
+        .ctx("toggle_favorite insert")?;
+    }
+    fetch_favorites(pool).await
+}

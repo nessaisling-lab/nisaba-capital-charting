@@ -130,12 +130,20 @@ impl Dashboard {
         ].spacing(4));
 
         // ── Alerts card ─────────────────────────────────────
+        // v11.5.D3 — OS notification toggle
+        let os_toggle_label = if self.os_notifications { "On" } else { "Off" };
+        let os_toggle_btn = button(
+            text(format!("OS Notifications: {os_toggle_label}")).size(theme::text_sm()),
+        )
+        .on_press(Message::ToggleOsNotifications(!self.os_notifications));
         let alerts_card = card(column![
             section_heading(icons::BELL, "Alert Thresholds"),
             rule::horizontal(1),
             text("Alerts fire when a ticker transitions into an extreme Lagrange zone:").size(theme::text_sm()),
             text("  Optimal (score >= 70) or Misaligned (score < 30)").size(theme::text_sm()),
             text(format!("Active alerts: {}  |  Unread: {}", self.alerts.len(), self.unread_alert_count)).size(theme::text_sm()),
+            os_toggle_btn,
+            text("Toggle desktop toast notifications when new alerts fire. Optimal-zone alerts use Critical urgency.").size(theme::text_xs()),
         ].spacing(4));
 
         // ── Info card ───────────────────────────────────────

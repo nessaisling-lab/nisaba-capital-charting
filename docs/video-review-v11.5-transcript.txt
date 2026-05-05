@@ -1,0 +1,221 @@
+[00:00] Okay, currently reviewing, I believe, wave six.
+[00:05] This is the most recent recording
+[00:09] and review of my astrology app.
+[00:12] So I'm seeing, I like the fact that you could pinch it.
+[00:17] So that's kind of cool.
+[00:18] Actually, that's great.
+[00:22] I will say I want it to be rounder.
+[00:26] Like I don't know why it keeps on being oval,
+[00:29] but that needs to be resolved.
+[00:33] So this is better.
+[00:35] Oh yeah, way better, perfect.
+[00:41] So yeah, this is great.
+[00:49] Really happy with this.
+[00:56] Really like this.
+[01:00] Yeah, this is great.
+[01:06] I like the astral calendar.
+[01:10] It should do at least three months ahead,
+[01:14] instead of just one month.
+[01:17] If you like, that's a little too safe.
+[01:26] Yeah, it does look good though.
+[01:31] Yep, so that's working correctly.
+[01:35] So when I fetched, this ended up being stuck like this.
+[01:40] So that needs to be resolved.
+[01:44] Liking how that is, good, this is good.
+[01:58] This is good, this is great.
+[02:05] There should be a pop-up explaining RSI.
+[02:10] Like just something to like a pop-up explaining all of this.
+[02:17] So people like if they don't know, they go ask,
+[02:20] this is great.
+[02:21] Oh, this is great.
+[02:22] I love this.
+[02:25] Really happy with this.
+[02:29] All right.
+[02:32] But it's a, do the fundamentals first
+[02:36] and see what the council says.
+[02:42] That's better.
+[02:49] You know, I will say,
+[02:51] none of these people would talk about astrology.
+[02:55] I just want them to give their take as they are.
+[03:01] They will be given these tickers to review
+[03:04] based on their astrology.
+[03:08] But that being said, that would be,
+[03:12] they wouldn't bring up astrology score to make evaluation.
+[03:16] So I think that could be how I put this.
+[03:21] I think that could be, I think that could go.
+[03:26] I hope that's, I don't, if it's a big job, then don't do it.
+[03:29] But for the time being, I'm liking what I'm saying.
+[03:35] Munger's seems to constantly stay at the same place.
+[03:42] Oh, this is great.
+[03:43] Explaining why, that's great.
+[03:48] So far so good.
+[03:51] Applehammers.com petitioned as good.
+[03:55] Vintrex.
+[03:57] Oh, international news.
+[04:00] Super fascinating.
+[04:04] Very able to lick and see.
+[04:13] Yeah, I like that.
+[04:19] It's good.
+[04:22] Not relevant to the review, but.
+[04:29] So far so good.
+[04:46] This is good.
+[04:53] So far good.
+[04:55] Yeah, I don't know what's that all about.
+[05:11] But favorites, she'll's favorites.
+[05:13] So the favorites are working.
+[05:16] And you got a favorite.
+[05:20] This chart needs a lot of work.
+[05:27] It could look nicer.
+[05:29] We'll work on that.
+[05:30] We will soon have to move towards working that eventually.
+[05:33] I like the scroll wheel idea.
+[05:38] That's perfect.
+[05:40] Okay.
+[05:44] I'm seeing that this hasn't changed.
+[05:47] The search ticker should be under here.
+[05:53] These tabs should be up here.
+[06:01] And this should be under the search tab.
+[06:13] The search box.
+[06:15] Or next to it on this side.
+[06:24] And I will say with.
+[06:28] This.
+[06:30] Since it's hard coded, I understand and needs to stay there.
+[06:33] So I just wanted to be a don't drop down menu.
+[06:39] And maybe it should be.
+[06:42] I just know it should be not consider.
+[06:51] Maybe they should be in the favorites.
+[06:54] By default.
+[06:55] Just put them in the favorites drop down.
+[07:00] Yeah, that will be for the best.
+[07:03] That will absolutely be for the best.
+[07:07] Now that I think about it, I want the search bar here.
+[07:11] With icon and in the bottom will be recents here and favorites here.
+[07:17] On the road.
+[07:18] This is good.
+[07:19] You see where this astrology tab is.
+[07:24] It should be right around this corner.
+[07:28] That's where they should be.
+[07:30] Without question.
+[07:32] And where the ticker is.
+[07:35] Should be.
+[07:36] The ticker.
+[07:37] That's where the ticker should be right here.
+[07:42] With the high and low.
+[07:44] Next to them.
+[07:46] On top of each other.
+[07:49] Like one, two.
+[07:51] Big ticker.
+[07:53] Number.
+[07:55] And high and low.
+[07:57] Yeah, this.
+[08:00] I don't know what, you know, close, but also.
+[08:04] Don't know why that keeps on being an issue.
+[08:07] All right, trying to start out the.
+[08:10] The universe stuff.
+[08:13] Let's find a company that's in the.
+[08:17] Optimal zone.
+[08:22] All right, let's just take a their holdings and see what they have.
+[08:45] All right.
+[08:46] We're going to fetch.
+[08:50] I want a loading bar.
+[08:52] This needs to go.
+[08:53] It's ugly when it pops up.
+[08:54] If you can't have a loading bar, make it a pop up.
+[08:59] Somewhere.
+[09:01] I don't know.
+[09:03] Like a, like the way when we touch this and there's a pop up right there.
+[09:07] Make it like a pop up here saying loading.
+[09:10] Instead of pulling down all this, uh, the whole you wanted for fetching.
+[09:16] And it didn't pull. Unfortunately.
+[09:21] That's a damn shame.
+[09:23] Mm hmm.
+[09:25] So that then it will pull that something to review or.
+[09:35] You find out what's going on there on the mentors.
+[09:42] He says to hold.
+[09:44] Hold.
+[09:45] I mean, there's not enough data. So.
+[09:49] Oh, good. This is better. I like the loading part here.
+[09:54] Yeah.
+[09:56] Good. That's better.
+[09:57] That that's a perfect place to put it because the ticker will be here.
+[10:02] That it's priced will be here and the high and low will be there.
+[10:06] So that's that's that's good.
+[10:08] I don't know if that is a good icon for a psychopedias.
+[10:14] So we should find something else.
+[10:17] If possible.
+[10:19] All right.
+[10:20] Now it's working.
+[10:22] Good. Good. Good.
+[10:25] Again, I don't know if this is because we updated to ice 14, but, uh, it lags any time.
+[10:33] I have to go like this to see the live update. It used to be doing real time.
+[10:39] And actually it's not nearly as responsive as these.
+[10:43] So this needs to be looked into.
+[10:47] I want that to be as responsive as this and pop up explaining the technical indicators are important.
+[10:58] Double up bullish consensus. Okay. This is good.
+[11:04] This is really good. Now let's see what the.
+[11:10] What Buffett would say.
+[11:16] Oh, he does Graham does not like it.
+[11:34] Over here it should just explain the bring up knowledge.
+[11:38] And it's not just bring up the reasoning.
+[11:40] And like I love that my margin say thing, Alice, it depends,
+[11:44] it doesn't depend upon the positions that probably could be.
+[11:49] It's cute, but not necessary at the end of the day to stock us worth the present value of future class for regardless of.
+[11:56] What it is doing? I'll stick to the numbers. So like making more within their logic, that particular saying.
+[12:03] Well, yeah, starting to see things happen.
+[12:10] Compute.
+[12:11] Yeah, get better recommended numbers.
+[12:16] Recommendation numbers with what's more realistic.
+[12:20] Choir FC data to run scrapers.
+[12:27] So we got to find a way to make this portion work as well.
+[12:38] I'm assuming they were no AK filings for this.
+[12:42] There should be recent news for that.
+[12:46] So no, so fine.
+[12:48] I want to look into if that's just.
+[12:51] True or that if that's the if these lack of filings are true or just happens to be a.
+[12:59] Just how things are, which is totally understandable.
+[13:06] We're seeing some stuff happen here.
+[13:09] So I like to do one more.
+[13:17] You think.
+[13:21] Never heard this company.
+[13:32] So let's see what they have to offer.
+[13:37] Not a fan of this, but I love this.
+[13:41] This is perfect right here fetching.
+[13:44] That's good.
+[13:45] This doesn't need to be showing here.
+[13:48] This should be the indicator right here.
+[14:29] Well, we both really.
+[14:34] Yeah, that bar, loady.
+[14:36] The only thing I will ask is like make it like a little star or like a sparkly animation.
+[14:43] So you can see it more visibly, but this is this is this is on point. I love it.
+[14:48] That's beginning numbers. It's in it. Oh, this company has a sincere money.
+[15:06] You know, great.
+[15:09] Interesting.
+[15:14] Double double bottom near 90 support at 90.
+[15:23] And right now.
+[15:33] And he's not correct because it's saying 50, but over here it's saying 90.
+[15:47] No wonder that's correct.
+[15:50] We do one month.
+[15:54] I don't know.
+[15:55] Let's do the fundamentals here.
+[16:07] Yeah, I was.
+[16:10] Graham says to sell.
+[16:12] Yeah, I agree.
+[16:27] Interesting.
+[16:32] Yeah, I see this is stuff I love to see the P.
+[16:36] Right show.
+[16:38] Like, explaining this.
+[16:40] The council was a great has been in a consistently great.
+[16:46] So I'm seeing here.
+[16:49] The opening and high and lows are good.
+[16:54] Why is it this number? Why is it say 50 in this?
+[16:58] So that's a little shocking.
+[17:01] Yeah, and we should get a few of this.
+[17:09] Yeah, anytime I fetch, it needs to do something for this.
+[17:18] Every time I fetch has to update this cycle.
+[17:23] And if anything, I feel like.
+[17:35] That should be a icon next to the ticker.
+[17:38] Like info, like an info icon. Click.
+[17:42] The ticker.
+[17:44] Letter like C or C.
+[17:47] Price next to it and high and low.
+[17:50] Okay, so overall, we're done with this round of review.

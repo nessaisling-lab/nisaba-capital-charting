@@ -79,7 +79,8 @@ impl Dashboard {
             Task::perform(fetch_short_interest(Arc::clone(pool), ticker.clone()), Message::ShortInterestLoaded),
             Task::perform(fetch_rss_tone(Arc::clone(pool), ticker.clone()), Message::RssToneLoaded),
             Task::perform(fetch_fundamentals(Arc::clone(pool), ticker.clone()), Message::FundamentalsLoaded),
-            Task::perform(fetch_ticker_earnings(Arc::clone(pool), ticker), Message::EarningsLoaded),
+            Task::perform(fetch_ticker_earnings(Arc::clone(pool), ticker.clone()), Message::EarningsLoaded),
+            Task::perform(fetch_wiki_summary(Arc::clone(pool), ticker), Message::WikiSummaryLoaded),
         ])
     }
 
@@ -131,6 +132,7 @@ impl Dashboard {
                         Task::perform(fetch_lagrange_history(Arc::clone(pool), self.selected_ticker.clone()), Message::LagrangeHistoryLoaded),
                         Task::perform(fetch_portfolio(Arc::clone(pool)), Message::PortfolioLoaded),
                         Task::perform(fetch_recently_viewed(Arc::clone(pool)), Message::RecentlyViewedLoaded),
+                        Task::perform(crate::db::seed_default_favorites_if_empty(Arc::clone(pool)), Message::FavoritesLoaded),
                         Task::perform(fetch_alerts(Arc::clone(pool)), Message::AlertsLoaded),
                         Task::perform(fetch_universe_page(Arc::clone(pool), None, None, None, 0, 50, crate::state::UniverseSortCol::default().sql_expr(), false), Message::UniverseLoaded),
                         Task::perform(fetch_universe_count(Arc::clone(pool), None, None, None), Message::UniverseCountLoaded),
@@ -244,8 +246,32 @@ impl Dashboard {
                 let _ = open::that_detached(&url);
                 Task::none()
             }
+            Message::OpenSettingsModal => {
+                self.show_settings_modal = true;
+                Task::none()
+            }
+            Message::CloseSettingsModal => {
+                self.show_settings_modal = false;
+                Task::none()
+            }
+            Message::ToggleOsNotifications(enabled) => {
+                self.os_notifications = enabled;
+                Task::none()
+            }
+            Message::NatalWheelZoom(delta) => {
+                let next = (self.natal_zoom + delta).clamp(0.6, 2.4);
+                self.natal_zoom = next;
+                Task::none()
+            }
+            Message::NatalWheelZoomReset => {
+                self.natal_zoom = 1.0;
+                Task::none()
+            }
             Message::FocusSearch => operation::focus(SEARCH_INPUT_ID),
             Message::EscapePressed => {
+                if self.show_settings_modal {
+                    self.show_settings_modal = false;
+                }
                 self.ticker_search_input = String::new();
                 self.autocomplete_suggestions = vec![];
                 self.autocomplete_dismissed = true;
@@ -304,7 +330,7 @@ impl Dashboard {
                         still_animating |= self.tab_indicator_progress < 1.0;
                     }
                     // Per-tab hover expand/collapse (v7.3 Grimoire)
-                    for idx in 0..8 {
+                    for idx in 0..Tab::all().len() {
                         let tab = Tab::all()[idx];
                         let target = if self.hovered_tab == Some(tab) { 1.0_f32 } else { 0.0 };
                         if (self.tab_hover_progress[idx] - target).abs() > 0.001 {

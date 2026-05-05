@@ -12,7 +12,7 @@ use crate::signals::generate_signal_bullets;
 use crate::state::{Dashboard, Message};
 use crate::theme;
 
-use super::shared::{card, eyebrow, make_gauge, section_rule};
+use super::shared::{card, explain, eyebrow, make_gauge, section_rule};
 
 impl Dashboard {
     pub(crate) fn view_overview(&self) -> Element<'_, Message> {
@@ -128,9 +128,12 @@ impl Dashboard {
             .into()
         };
 
-        // Sparkline
+        // Sparkline — v11.5.C5 explanation tooltip
         let sparkline_strip = column![
-            text("Lagrange Score — 90-day history").size(theme::text_base()),
+            explain(
+                text("Lagrange Score — 90-day history").size(theme::text_base()),
+                "90-day rolling Lagrange composite. Spot regime shifts: rising line = Astro+Financial signals converging bullish; falling = bearish concordance.",
+            ),
             Canvas::new(LagrangeSparkline {
                 history: self.lagrange_history.clone()
             })
@@ -367,12 +370,31 @@ impl Dashboard {
             ),
         };
 
-        // Gauges in 3+2 grid layout (v7.5 — no horizontal scroll)
-        let gauges_row = column![
-            row![crypto_gauge, equities_gauge, ticker_gauge].spacing(16),
-            row![astro_gauge, lagrange_gauge].spacing(16),
+        // v11.5.B4 — all 5 gauges side-by-side in a single row
+        // v11.5.C3 — each gauge wrapped with explain() for hover tooltip
+        let gauges_row = row![
+            explain(
+                crypto_gauge,
+                "Crypto / Risk Sentiment — Alternative.me Fear & Greed (0=extreme fear, 100=extreme greed). Crypto is the canary for risk-on / risk-off appetite.",
+            ),
+            explain(
+                equities_gauge,
+                "Equities Sentiment — derived from VIX, advance-decline, put/call ratio, NYSE highs/lows. Mirrors the broader US stock market mood.",
+            ),
+            explain(
+                ticker_gauge,
+                "Ticker Score — short-term technical signal: RSI, momentum, volume, sentiment news flow. Independent of the astrology engine.",
+            ),
+            explain(
+                astro_gauge,
+                "Astrology Score — natal-chart geometry + current transits + aspect patterns + fixed stars + Arabic Parts. The pure-astro signal before financial blending.",
+            ),
+            explain(
+                lagrange_gauge,
+                "Lagrange Score — adaptive composite of Astro × Financial × Macro × Short × Sentiment. Weights shift based on signal agreement (concordance).",
+            ),
         ]
-        .spacing(8);
+        .spacing(12);
 
         // ── Signal Intelligence ─────────────────────────────
         let signal_section = if self.rows.is_empty() {

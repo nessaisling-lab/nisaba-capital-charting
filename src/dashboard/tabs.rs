@@ -23,12 +23,15 @@ pub enum Tab {
     Portfolio,
     /// Paper trading simulation track record
     PaperTrail,
-    /// User settings: theme, refresh, API keys
-    Settings,
+    /// v11.5.E — Wikipedia summaries per ticker
+    Encyclopedia,
 }
 
 impl Tab {
-    /// All tabs in display order.
+    /// All tabs in display order. v11.5.B5: Settings dropped — modal-only.
+    /// v11.6.A: Encyclopedia dropped from tab strip — reachable via the
+    /// info-circle icon next to the ticker hero. Variant retained so the
+    /// view dispatch + TabSelected handler still resolve.
     pub fn all() -> &'static [Tab] {
         &[
             Tab::Astrology,
@@ -38,7 +41,6 @@ impl Tab {
             Tab::Research,
             Tab::Portfolio,
             Tab::PaperTrail,
-            Tab::Settings,
         ]
     }
 
@@ -51,7 +53,7 @@ impl Tab {
             Tab::Research     => "Research",
             Tab::Portfolio    => "Portfolio",
             Tab::PaperTrail   => "Paper Trail",
-            Tab::Settings     => "Settings",
+            Tab::Encyclopedia => "Encyclopedia",
         }
     }
 
@@ -70,7 +72,7 @@ impl Tab {
             Tab::Research     => icons::NEWSPAPER,
             Tab::Portfolio    => icons::BRIEFCASE,
             Tab::PaperTrail   => icons::GRAPH_UP,
-            Tab::Settings     => icons::GEAR,
+            Tab::Encyclopedia => icons::BOOK_OPEN,
         }
     }
 }

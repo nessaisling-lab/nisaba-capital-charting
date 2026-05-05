@@ -80,7 +80,7 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
         Message::AlertsLoaded(Ok(alerts)) => {
             let unread_count = alerts.iter().filter(|a| !a.is_read).count();
             state.unread_alert_count = unread_count;
-            if unread_count > 0 && !state.notifications_fired {
+            if unread_count > 0 && !state.notifications_fired && state.os_notifications {
                 state.notifications_fired = true;
                 let unread: Vec<LagrangeAlert> =
                     alerts.iter().filter(|a| !a.is_read).cloned().collect();

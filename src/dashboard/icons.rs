@@ -87,6 +87,7 @@ pub const GRAPH_DOWN: char     = '\u{e4ac}';  // ph-trend-down
 pub const ACTIVITY: char       = '\u{e000}';  // ph-activity
 pub const WALLET: char         = '\u{e68a}';  // ph-wallet
 pub const KEY: char            = '\u{e2d6}';  // ph-key
+pub const BOOK_OPEN: char      = '\u{e0dc}';  // ph-book-open — Encyclopedia tab
 
 // ---------------------------------------------------------------------------
 // Helper — returns an iced 0.13 Text element with the Phosphor icon font

@@ -393,9 +393,10 @@ impl canvas::Program<Message> for PriceChart {
                 });
 
                 // OHLCV tooltip — v11.3: size driven by user setting
+                // v11.5.F1+F2: spell out Opening/High/Low/Closing + Volume hint
                 if let Some(row) = self.rows_chrono.get(bar_i) {
                     let label = format!(
-                        "{}\nO:{:.2}  H:{:.2}\nL:{:.2}  C:{:.2}\nVol: {}",
+                        "{}\nOpening:  {:.2}\nHigh:     {:.2}\nLow:      {:.2}\nClosing:  {:.2}\nVolume:   {} shares",
                         row.date,
                         row.open, row.high, row.low, row.close,
                         format_shares(row.volume),

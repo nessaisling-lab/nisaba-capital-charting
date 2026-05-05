@@ -45,11 +45,13 @@ impl TooltipSize {
         }
     }
     /// (font_px, box_width_px, box_height_px)
+    /// v11.5.F1+F2 — widened to fit "Opening / High / Low / Closing / Volume"
+    /// word labels + "shares" suffix on the volume row.
     pub fn dims(self) -> (f32, f32, f32) {
         match self {
-            Self::Small   => (9.0,  92.0, 56.0),
-            Self::Default => (10.0, 106.0, 64.0),
-            Self::Large   => (13.0, 138.0, 84.0),
+            Self::Small   => (9.0,  148.0, 88.0),
+            Self::Default => (10.0, 168.0, 100.0),
+            Self::Large   => (13.0, 220.0, 130.0),
         }
     }
 }
@@ -235,6 +237,8 @@ pub struct Dashboard {
     pub sector_peers:             Vec<String>,
     pub sort_watchlist_by_score:  bool,
     pub recently_viewed:          Vec<String>,
+    pub favorites:                Vec<String>,
+    pub show_settings_modal:      bool,
     pub active_tab:               Tab,
     pub status:                   String,
     pub refreshing:               bool,
@@ -336,6 +340,10 @@ pub struct Dashboard {
     pub chart_size:               ChartSize,
     // Candlestick hover tooltip size (v11.3)
     pub tooltip_size:             TooltipSize,
+    pub os_notifications:         bool,
+    pub natal_zoom:               f32,
+    pub wiki_summary:             Option<crate::db::WikiSummary>,
+    pub wiki_thumbnail_bytes:     Option<Vec<u8>>,
 }
 
 impl Default for Dashboard {
@@ -402,6 +410,8 @@ impl Default for Dashboard {
             sector_peers:             vec![],
             sort_watchlist_by_score:  true,
             recently_viewed:          vec![],
+            favorites:                vec![],
+            show_settings_modal:      false,
             active_tab:               Tab::Astrology,
             status:                   String::new(),
             refreshing:               false,
@@ -484,6 +494,10 @@ impl Default for Dashboard {
             show_retrogrades:         true,
             chart_size:               ChartSize::Default,
             tooltip_size:             TooltipSize::Default,
+            os_notifications:         true,
+            natal_zoom:               1.0,
+            wiki_summary:             None,
+            wiki_thumbnail_bytes:     None,
         }
     }
 }
@@ -547,6 +561,15 @@ pub enum Message {
     AutocompleteResults(Vec<(String, String)>),
     AutocompleteSelected(String),
     RecentlyViewedLoaded(Result<Vec<String>, String>),
+    FavoritesLoaded(Result<Vec<String>, String>),
+    ToggleFavorite(String),
+    OpenSettingsModal,
+    CloseSettingsModal,
+    ToggleOsNotifications(bool),
+    NatalWheelZoom(f32),
+    NatalWheelZoomReset,
+    WikiSummaryLoaded(Result<Option<crate::db::WikiSummary>, String>),
+    WikiThumbnailLoaded(Result<Vec<u8>, String>),
     TabSelected(Tab),
     TabHoverEnter(Tab),
     TabHoverExit(Tab),

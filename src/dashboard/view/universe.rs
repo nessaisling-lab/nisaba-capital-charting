@@ -1,5 +1,7 @@
 use iced::widget::canvas::Canvas;
-use iced::widget::{button, column, container, pick_list, row, rule, text, text_input, tooltip, Column, Row};
+use iced::widget::{button, column, container, pick_list, row, rule, text, text_input, Column, Row};
+
+use super::shared::explain;
 use iced::{Alignment, Element, Length};
 
 use crate::font;
@@ -98,58 +100,55 @@ impl Dashboard {
                     .width(width)
                     .into()
             };
-            // v11.3: explanatory tooltip style for cryptic column abbreviations
-            fn tip_style(_t: &iced::Theme) -> container::Style {
-                let p = theme::palette();
-                container::Style {
-                    background: Some(iced::Background::Color(p.surface)),
-                    border: iced::Border { color: p.gold, width: 1.0, radius: 3.0.into() },
-                    ..Default::default()
-                }
-            }
+            // v11.5.C1+C2 — canonical explain() helper for all column headers
             let hdr = row![
-                text("#").size(theme::text_sm()).width(Length::Fixed(30.0)),
-                sort_hdr("Ticker", UniverseSortCol::Ticker, Length::Fixed(64.0)),
-                text("Company")
-                    .size(theme::text_sm())
-                    .width(Length::FillPortion(3)),
-                text("Sector")
-                    .size(theme::text_sm())
-                    .width(Length::FillPortion(2)),
-                sort_hdr("Astro", UniverseSortCol::Astro, Length::Fixed(64.0)),
-                sort_hdr("Score", UniverseSortCol::Score, Length::Fixed(64.0)),
-                text("Zone")
-                    .size(theme::text_sm())
-                    .width(Length::Fixed(90.0)),
-                tooltip(
-                    sort_hdr("Fin", UniverseSortCol::Fin, Length::Fixed(52.0)),
-                    container(text("Financial Score (P/E, FCF, growth)").size(theme::text_xs()))
-                        .padding([4, 8]).style(tip_style),
-                    tooltip::Position::Bottom,
+                explain(
+                    text("#").size(theme::text_sm()).width(Length::Fixed(theme::sw(30.0))),
+                    "Row number within the current page",
                 ),
-                tooltip(
-                    sort_hdr("Mac", UniverseSortCol::Macro, Length::Fixed(52.0)),
-                    container(text("Macro Alignment (sector + market regime)").size(theme::text_xs()))
-                        .padding([4, 8]).style(tip_style),
-                    tooltip::Position::Bottom,
+                explain(
+                    sort_hdr("Ticker", UniverseSortCol::Ticker, Length::Fixed(theme::sw(64.0))),
+                    "Stock symbol — click to load that ticker into the dashboard",
                 ),
-                tooltip(
-                    sort_hdr("Sht", UniverseSortCol::Short, Length::Fixed(52.0)),
-                    container(text("Short Interest %").size(theme::text_xs()))
-                        .padding([4, 8]).style(tip_style),
-                    tooltip::Position::Bottom,
+                explain(
+                    text("Company").size(theme::text_sm()).width(Length::FillPortion(3)),
+                    "Company name from EDGAR / FMP",
                 ),
-                tooltip(
-                    text("Conc").size(theme::text_sm()).width(Length::Fixed(100.0)),
-                    container(text("Concordance — agreement between astro + financial signals").size(theme::text_xs()))
-                        .padding([4, 8]).style(tip_style),
-                    tooltip::Position::Bottom,
+                explain(
+                    text("Sector").size(theme::text_sm()).width(Length::FillPortion(2)),
+                    "GICS sector classification",
                 ),
-                tooltip(
-                    text("Data").size(theme::text_sm()).width(Length::Fixed(46.0)),
-                    container(text("Data freshness — 5 sources: prices/fundamentals/news/sentiment/astro").size(theme::text_xs()))
-                        .padding([4, 8]).style(tip_style),
-                    tooltip::Position::Bottom,
+                explain(
+                    sort_hdr("Astro", UniverseSortCol::Astro, Length::Fixed(theme::sw(64.0))),
+                    "Astrology Score 0-100 — composite of natal chart + current transits + aspect patterns + fixed stars + Arabic Parts",
+                ),
+                explain(
+                    sort_hdr("Score", UniverseSortCol::Score, Length::Fixed(theme::sw(64.0))),
+                    "Lagrange composite — adaptive blend of Astro × Financial × Macro × Short signals",
+                ),
+                explain(
+                    text("Zone").size(theme::text_sm()).width(Length::Fixed(theme::sw(90.0))),
+                    "Score band: Optimal ≥77 / Favorable 65-76 / Neutral 45-64 / Unfavorable 30-44 / Misaligned <30",
+                ),
+                explain(
+                    sort_hdr("Fin", UniverseSortCol::Fin, Length::Fixed(theme::sw(52.0))),
+                    "Financial Score — P/E, FCF, growth quality from FMP / Finnhub / AV cascade",
+                ),
+                explain(
+                    sort_hdr("Mac", UniverseSortCol::Macro, Length::Fixed(theme::sw(52.0))),
+                    "Macro Alignment — sector tailwind + market regime from FRED / DBnomics",
+                ),
+                explain(
+                    sort_hdr("Sht", UniverseSortCol::Short, Length::Fixed(theme::sw(52.0))),
+                    "Short Interest % of float — high values flag squeeze potential or bear thesis",
+                ),
+                explain(
+                    text("Conc").size(theme::text_sm()).width(Length::Fixed(theme::sw(100.0))),
+                    "Concordance — agreement between astro and financial signals (high = both sides aligned)",
+                ),
+                explain(
+                    text("Data").size(theme::text_sm()).width(Length::Fixed(theme::sw(46.0))),
+                    "Data freshness — fresh-source count out of 5 (prices / fundamentals / news / sentiment / astro)",
                 ),
             ]
             .spacing(6);
@@ -193,7 +192,7 @@ impl Dashboard {
                     row![
                         text(format!("{}", offset + i + 1))
                             .size(theme::text_sm())
-                            .width(Length::Fixed(30.0)),
+                            .width(Length::Fixed(theme::sw(30.0))),
                         ticker_btn,
                         text(company.to_string())
                             .size(theme::text_xs())
@@ -204,30 +203,30 @@ impl Dashboard {
                         text(astro_str)
                             .font(font::INTER)
                             .size(theme::text_sm())
-                            .width(Length::Fixed(64.0)),
+                            .width(Length::Fixed(theme::sw(64.0))),
                         text(format!("{:.0}", u.score))
                             .font(font::INTER)
                             .size(theme::text_sm())
-                            .width(Length::Fixed(64.0)),
+                            .width(Length::Fixed(theme::sw(64.0))),
                         text(u.label.clone())
                             .size(theme::text_sm())
                             .color(zone_color)
-                            .width(Length::Fixed(90.0)),
+                            .width(Length::Fixed(theme::sw(90.0))),
                         text(fin_str)
                             .font(font::INTER)
                             .size(theme::text_sm())
-                            .width(Length::Fixed(52.0)),
+                            .width(Length::Fixed(theme::sw(52.0))),
                         text(macro_str)
                             .font(font::INTER)
                             .size(theme::text_sm())
-                            .width(Length::Fixed(52.0)),
+                            .width(Length::Fixed(theme::sw(52.0))),
                         text(short_str)
                             .font(font::INTER)
                             .size(theme::text_sm())
-                            .width(Length::Fixed(52.0)),
+                            .width(Length::Fixed(theme::sw(52.0))),
                         text(conc.to_string())
                             .size(theme::text_xs())
-                            .width(Length::Fixed(100.0)),
+                            .width(Length::Fixed(theme::sw(100.0))),
                         // v11.4 (Wave 6.A4) — data freshness badge ●●●●○
                         {
                             let n = u.fresh_count.unwrap_or(0).clamp(0, 5) as usize;
@@ -239,7 +238,7 @@ impl Dashboard {
                                 _ => theme::ZONE_MISALIGNED,
                             };
                             text(dots).size(theme::text_xs()).color(badge_color)
-                                .width(Length::Fixed(46.0))
+                                .width(Length::Fixed(theme::sw(46.0)))
                         },
                     ]
                     .spacing(6)
@@ -285,7 +284,10 @@ impl Dashboard {
             text(format!("Universe Explorer — {} scored tickers", total)).font(font::DISPLAY).size(theme::text_lg()),
             section_rule(),
             eyebrow("SECTOR MAP"),
-            text("Sector Heat Map (by avg astro score)").size(theme::text_sm()),
+            explain(
+                text("Sector Heat Map (by avg astro score)").size(theme::text_sm()),
+                "Each tile = one GICS sector, sized by ticker count, colored by mean Astrology Score. Green = sector tailwind; red = headwind. Click a tile to filter the table.",
+            ),
             sector_heatmap,
             section_rule(),
             search_bar,
@@ -329,10 +331,10 @@ impl Dashboard {
             let hdr = row![
                 text("Date")
                     .size(theme::text_base())
-                    .width(Length::Fixed(90.0)),
+                    .width(Length::Fixed(theme::sw(90.0))),
                 text("Ticker")
                     .size(theme::text_base())
-                    .width(Length::Fixed(64.0)),
+                    .width(Length::Fixed(theme::sw(64.0))),
                 text("Score")
                     .size(theme::text_base())
                     .width(Length::Fixed(56.0)),
@@ -379,10 +381,10 @@ impl Dashboard {
                         text(a.alert_date.to_string())
                             .font(font::INTER)
                             .size(theme::text_base())
-                            .width(Length::Fixed(90.0)),
+                            .width(Length::Fixed(theme::sw(90.0))),
                         text(&a.ticker)
                             .size(theme::text_base())
-                            .width(Length::Fixed(64.0)),
+                            .width(Length::Fixed(theme::sw(64.0))),
                         text(format!("{:.1}", a.score))
                             .font(font::INTER)
                             .size(theme::text_base())

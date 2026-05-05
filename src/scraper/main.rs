@@ -25,6 +25,7 @@ mod short_interest;
 mod ticker_seed;
 mod tiingo;
 mod wikidata_enrich;
+mod wikipedia;
 
 use anyhow::{Context, Result};
 use governor::{Quota, RateLimiter};
@@ -665,6 +666,11 @@ async fn run_all_fetches(
         Arc::clone(&pool), Arc::clone(&client), Arc::clone(&user_agent),
         if cik_map.is_empty() { None } else { Some(&cik_map) },
     ).await;
+
+    println!("3.13 Enriching Wikipedia summaries (REST API)...");
+    if let Err(e) = wikipedia::enrich_all(Arc::clone(&pool), Arc::clone(&client)).await {
+        eprintln!("[wikipedia] enrich_all error: {e}");
+    }
 
     // =========================================================================
     // PHASE 4: COMPOSITE SCORING (astro-informed Lagrange Score)

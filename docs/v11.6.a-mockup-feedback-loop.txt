@@ -1,0 +1,85 @@
+v11.6.A header redo — mockup feedback loop transcripts
+=======================================================
+
+5 short videos totaling ~3.5 minutes of voice feedback resolved a
+header layout that had failed to land cleanly across v11.3 + v11.5.B1
+text-spec attempts. Pipeline: HTML mockup → 30-90s voice feedback →
+HTML edit → repeat → ship Rust port.
+
+---
+
+# Round 1 — first mockup feedback (54s, 2026-05-05 14:02:19)
+[00:00] So I don't know maybe I'm just speaking badly.
+[00:07] This is okay.
+[00:09] Search box and icon on the right side.
+[00:15] Recent icon should be under the search box.
+[00:21] Favorites icon should be under the search box.
+[00:25] Apple should be here.
+[00:28] Price should be next to ticker symbol.
+[00:33] High and low like that, that's perfect.
+[00:35] Just put it over here.
+[00:40] This, I like the fact it's all the way up here.
+[00:44] Just put it from left going to right.
+[00:48] At the very top near the border.
+
+---
+
+# Round 2 — mockup v2 feedback (35s, 2026-05-05 14:08:17)
+[00:00] Yes, this is better.
+[00:01] Actually significantly better.
+[00:03] Very happy to see this.
+[00:05] My only, I would say,
+[00:12] desired edit, I want these to be next to each other.
+[00:15] Like favorites on this side,
+[00:17] recent on this side, and then you press,
+[00:19] you press the drop down menu to see reasons of favorites.
+[00:23] And now I'm happy.
+[00:28] I'm happy to see this.
+[00:29] This is exactly what I was been asking for.
+
+---
+
+# Round 3 — Rust port feedback (78s, 2026-05-05 14:23:18)
+[00:00] Okay, this looks excellent.
+[00:02] Way closer to what I had in mind.
+[00:05] And I don't have a lot to complain about.
+[00:08] I will just say the icon was not supposed to be for favorites.
+[00:13] It was supposed to just,
+[00:18] I would say just put the star and the icon
+[00:21] on top of each other or no, scratch that.
+[00:28] Put back the star so you could favor it.
+[00:31] And on this side, this side will have the info button.
+[00:36] That will be the encyclopedia button.
+[00:39] Basically info, you press that, you go to info,
+[00:42] you learn about the company.
+[00:44] We could do without that encyclopedia tab.
+[00:49] Yeah, I think that would be the right call.
+[00:55] I want, because this is for the demo,
+[00:58] I want the tickers that were originally hard-coded
+[01:03] to always be in the favorites menu.
+[01:07] Like always.
+[01:11] And that's all I have to say on that, that's it.
+[01:15] I think these are small changes.
+
+---
+
+# Round 4 — sandwich tweak feedback (30s, 2026-05-05 14:36:42)
+[00:00] Okay, so far so good.
+[00:02] Nearly perfect.
+[00:06] I will say that I want this icon to be here.
+[00:11] That's it.
+[00:12] I want it to be to sandwich that whole portion.
+[00:18] Favorite on left,
+[00:20] I info icon on the right.
+[00:23] That's it.
+[00:25] Borderline, ready to move to the next wave.
+
+---
+
+# Round 5 — confirmation (29s, 2026-05-05 14:40:58)
+[00:00] So, yeah, it looks like it's doing what it's supposed to do.
+[00:04] I don't know if that's supposed to be like that.
+[00:13] Interesting.
+[00:16] Well, is that supposed to be cut off like that?
+[00:23] Well, we work on that later.
+[00:25] Let's start moving forward.

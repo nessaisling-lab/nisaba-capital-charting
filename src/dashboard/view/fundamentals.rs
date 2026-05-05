@@ -7,7 +7,7 @@ use crate::helpers::{format_market_value_i64, format_shares};
 
 use crate::state::{Dashboard, Message};
 use crate::theme;
-use super::shared::{eyebrow, gutter_scroll, section_rule};
+use super::shared::{explain, eyebrow, gutter_scroll, section_rule};
 
 impl Dashboard {
     pub(crate) fn view_fundamentals(&self) -> Element<'_, Message> {
@@ -295,11 +295,24 @@ impl Dashboard {
                     text(assessment.clone()).size(theme::text_xs()).width(Length::Fill),
                 ].spacing(8).into()
             }).collect();
+            // v11.5.C6 — verdict + persona tooltip explains reasoning style
+            let persona_explanation = match analysis.persona {
+                AgentPersona::Buffett => "Warren Buffett's lens: durable competitive moats, owner earnings, free cash flow, capital allocation track record. Skeptical of leverage and margin compression.",
+                AgentPersona::Graham => "Benjamin Graham's lens: margin of safety, net-net working capital, P/B + P/E together, cash + securities vs market cap. Buys obvious bargains.",
+                AgentPersona::Lynch => "Peter Lynch's lens: PEG ratio under 1.0, growth at reasonable price, earnings momentum, 'know what you own'. Favors stories you can summarize in two sentences.",
+                AgentPersona::Munger => "Charlie Munger's lens: quality first, durable franchise, mental models, inversion. 'A great business at a fair price beats a fair business at a great price.'",
+            };
             let mut content = column![
-                text(format!("{}{} — {}", analysis.persona.name(), mode_badge, analysis.persona.philosophy())).size(theme::text_sm()),
+                explain(
+                    text(format!("{}{} — {}", analysis.persona.name(), mode_badge, analysis.persona.philosophy())).size(theme::text_sm()),
+                    persona_explanation,
+                ),
                 rule::horizontal(1),
                 text(analysis.headline.clone()).size(theme::text_base()),
-                text(format!("Verdict: {}", analysis.verdict.label())).size(theme::text_md()).color(verdict_color),
+                explain(
+                    text(format!("Verdict: {}", analysis.verdict.label())).size(theme::text_md()).color(verdict_color),
+                    "Verdict synthesizes fundamental + astrology + macro signals through this persona's framework. StrongBuy/Buy = conviction; Hold = mixed; Sell/StrongSell = thesis breaks.",
+                ),
                 text(analysis.analysis.clone()).size(theme::text_sm()),
                 rule::horizontal(1),
                 Column::with_children(metrics_rows).spacing(3),
