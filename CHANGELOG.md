@@ -6,6 +6,49 @@
 
 ---
 
+## v11.4.0-w6.0 — "The Reliability" (2026-05-04)
+
+**Theme:** Wave 6.0 — paired financial-data + astrology-engine expansion. Track A removes single-points-of-failure in price data. Track B adds geometric pattern recognition the engine was missing.
+
+### Track A — 6.A1 Multi-Source Price Fallback
+
+New `src/scraper/sources/` module with two adapters and a cascade dispatcher:
+- **Yahoo Finance** (`sources/yahoo.rs`) — v8 chart API at `query1.finance.yahoo.com`. JSON shape: `chart.result[0].timestamp[] + indicators.quote[0].{open,high,low,close,volume}`. Browser-style User-Agent required (Yahoo blocks default reqwest UA). 3-month default range, daily interval.
+- **Stooq** (`sources/stooq.rs`) — CSV at `stooq.com/q/d/l/?s={ticker}.us&i=d`. Header parsing strict ("Date,Open,High,Low,Close,Volume" required). Returns "No data" for unknown tickers.
+- **Cascade** (`sources/mod.rs`) — `fetch_fallback_chain(ticker, client)` tries Yahoo then Stooq, returns `(rows, source_name)`. Each failure logged with source identity for operator diagnostics.
+
+`prices::fetch_and_store` refactored: AV primary path → on rate-limit/error → cascade fallback. Provenance tagged at insert via new `data_source` column. AV writes `'alpha_vantage'`, fallback writes `'yahoo'` or `'stooq'`.
+
+Migration `0038_price_data_source.sql`: adds `data_source TEXT NOT NULL DEFAULT 'alpha_vantage'` column + GIN index on `price_data`.
+
+### Track B — 6.B1 Aspect Pattern Recognition
+
+New `src/astrology/patterns.rs` (~470 lines) detecting 7 geometric configurations from combined natal + transit positions:
+
+| Pattern | Geometry | Strength |
+|---------|----------|----------|
+| Grand Trine | 3 planets, each pair 120° (orb 4°) | +15 |
+| T-Square | opposition + 2 squares to apex (orb 6°) | -12 |
+| Grand Cross | 4 planets, 2 oppositions + 4 squares (orb 6°) | -18 |
+| Yod | 2 sextile + apex 150° from both (orb 3-4°) | -8 |
+| Stellium | 3+ planets in same sign | +6 base, +4 per extra body |
+| Mystic Rectangle | 4 planets, 2 sextiles + 2 trines + 2 oppositions (orb 4°) | +10 |
+| Kite | Grand Trine + opposition from 4th planet | +18 |
+
+Each pattern marked `is_cross` when bodies span both natal + transit (1.0× multiplier vs 0.6× for intra-chart). Tightness factor (0.5 + 0.5 × tightness) modulates final strength based on average orb across defining aspects.
+
+`compute_transit_score` adds `pattern_score_total(&patterns)` to `delta_sum` BEFORE sigmoid normalization, so patterns meaningfully shift score without being washed out by aspect_count division.
+
+`TransitScore` gains `patterns: Vec<AspectPattern>` field. New `patterns_to_json()` serializer in `natal.rs`. Scraper `compute_astro_scores` + `compute_astro_score_one` write JSON to new `aspect_patterns` JSONB column.
+
+Migration `0037_aspect_patterns.sql`: adds `aspect_patterns JSONB DEFAULT '[]'` to `astro_scores` + GIN index for "show me all tickers with a Grand Trine" queries.
+
+7/7 unit tests passing: exact Grand Trine, T-Square, Stellium, Yod (with corrected geometry — apex must be 150° from BOTH sextile ends, not 150° from the start), cross-chart marking, intra-chart marking, no false positives on random angles.
+
+**Files modified:** 8 (`src/astrology/mod.rs`, `src/astrology/natal.rs`, `src/astrology/patterns.rs` new, `src/scraper/main.rs`, `src/scraper/astrology.rs`, `src/scraper/prices.rs`, `src/scraper/sources/mod.rs` new, `src/scraper/sources/yahoo.rs` new, `src/scraper/sources/stooq.rs` new, migrations `0037` + `0038`)
+
+---
+
 ## v11.3.0 — "The Refinement" (2026-05-04)
 
 **Theme:** All 22 video-review feedback items shipped across 5 waves. Polish pass on UI density, layout flow, chart overlays, council templates, gauges, and background atmosphere.

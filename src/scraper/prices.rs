@@ -63,6 +63,28 @@ pub(crate) async fn fetch_and_store(
     client: &reqwest::Client,
     api_key: &str,
 ) -> Result<u64> {
+    // Wave 6.A1 — try Alpha Vantage first, fall through to Yahoo + Stooq.
+    match fetch_av(ticker, client, api_key).await {
+        Ok(rows) => {
+            let n = insert_av_rows(ticker, pool, rows).await?;
+            return Ok(n);
+        }
+        Err(e) => {
+            eprintln!("[Prices] {ticker}: AV failed ({e}). Falling back to Yahoo/Stooq...");
+        }
+    }
+
+    let (rows, source) = crate::sources::fetch_fallback_chain(ticker, client).await?;
+    eprintln!("[Prices] {ticker}: filled from {source} ({} rows)", rows.len());
+    insert_sourced_rows(ticker, pool, &rows, source).await
+}
+
+/// Alpha Vantage primary fetch — returns parsed time series or error on rate limit.
+async fn fetch_av(
+    ticker: &str,
+    client: &reqwest::Client,
+    api_key: &str,
+) -> Result<AlphaVantageResponse> {
     let url = format!(
         "https://www.alphavantage.co/query\
          ?function=TIME_SERIES_DAILY\
@@ -71,23 +93,14 @@ pub(crate) async fn fetch_and_store(
          &outputsize=compact"
     );
 
-    // Retry loop: AV returns HTTP 200 with JSON "Note" or "Information" when rate-limited.
-    // Sleep 60s and retry once before giving up.
     let mut body: serde_json::Value = serde_json::Value::Null;
     for attempt in 0..2 {
-        let response = client
-            .get(&url)
-            .send()
-            .await
+        let response = client.get(&url).send().await
             .context("HTTP request to Alpha Vantage failed")?;
-
         if !response.status().is_success() {
             anyhow::bail!("Alpha Vantage returned HTTP {}", response.status());
         }
-
-        body = response
-            .json()
-            .await
+        body = response.json().await
             .context("Failed to parse Alpha Vantage response")?;
 
         if body.get("Note").is_some() || body.get("Information").is_some() {
@@ -96,48 +109,69 @@ pub(crate) async fn fetch_and_store(
                 tokio::time::sleep(std::time::Duration::from_secs(60)).await;
                 continue;
             }
-            // Second attempt also rate-limited — give up
             let msg = body.get("Note")
                 .or_else(|| body.get("Information"))
                 .cloned()
                 .unwrap_or_else(|| serde_json::Value::String("unknown error".to_string()));
             anyhow::bail!("AV rate limit after retry: {msg}");
         }
-        break; // success, no rate limit
+        break;
     }
 
-    let parsed: AlphaVantageResponse =
-        serde_json::from_value(body).context("Failed to parse time series")?;
+    serde_json::from_value(body).context("Failed to parse time series")
+}
 
+async fn insert_av_rows(
+    ticker: &str,
+    pool: &sqlx::PgPool,
+    parsed: AlphaVantageResponse,
+) -> Result<u64> {
     let mut inserted = 0u64;
     for (date_str, entry) in &parsed.time_series {
         let date = NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
             .context(format!("Invalid date: {date_str}"))?;
-
-        let open: Decimal  = entry.open.parse().context("parse open")?;
-        let high: Decimal  = entry.high.parse().context("parse high")?;
-        let low: Decimal   = entry.low.parse().context("parse low")?;
-        let close: Decimal = entry.close.parse().context("parse close")?;
-        let volume: i64    = entry.volume.parse().context("parse volume")?;
+        let open:   Decimal = entry.open.parse().context("parse open")?;
+        let high:   Decimal = entry.high.parse().context("parse high")?;
+        let low:    Decimal = entry.low.parse().context("parse low")?;
+        let close:  Decimal = entry.close.parse().context("parse close")?;
+        let volume: i64     = entry.volume.parse().context("parse volume")?;
 
         let result = sqlx::query(
-            "INSERT INTO price_data (ticker, date, open, high, low, close, volume) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7) \
+            "INSERT INTO price_data (ticker, date, open, high, low, close, volume, data_source) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, 'alpha_vantage') \
+             ON CONFLICT (ticker, date) DO NOTHING",
+        )
+        .bind(ticker).bind(date).bind(open).bind(high)
+        .bind(low).bind(close).bind(volume)
+        .execute(pool).await
+        .context("DB insert failed (AV)")?;
+        inserted += result.rows_affected();
+    }
+    Ok(inserted)
+}
+
+/// Wave 6.A1 — insert rows from a fallback source (Yahoo/Stooq) with provenance tag.
+async fn insert_sourced_rows(
+    ticker: &str,
+    pool: &sqlx::PgPool,
+    rows: &[crate::sources::SourcedPriceRow],
+    source: &str,
+) -> Result<u64> {
+    let mut inserted = 0u64;
+    for r in rows {
+        let result = sqlx::query(
+            "INSERT INTO price_data (ticker, date, open, high, low, close, volume, data_source) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
              ON CONFLICT (ticker, date) DO NOTHING",
         )
         .bind(ticker)
-        .bind(date)
-        .bind(open)
-        .bind(high)
-        .bind(low)
-        .bind(close)
-        .bind(volume)
-        .execute(pool)
-        .await
-        .context("DB insert failed")?;
-
+        .bind(r.date)
+        .bind(r.open).bind(r.high).bind(r.low).bind(r.close)
+        .bind(r.volume.unwrap_or(0))
+        .bind(source)
+        .execute(pool).await
+        .context("DB insert failed (fallback)")?;
         inserted += result.rows_affected();
     }
-
     Ok(inserted)
 }

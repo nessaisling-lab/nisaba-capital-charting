@@ -1,7 +1,7 @@
 use chrono::{Datelike, NaiveDate, Utc};
 use pursuit_week4_automation::astrology::ephemeris::date_to_jdn;
 use pursuit_week4_automation::astrology::interpretation::{generate_horoscope, horoscope_to_json};
-use pursuit_week4_automation::astrology::natal::{aspects_to_json, compute_transit_score, NatalChart};
+use pursuit_week4_automation::astrology::natal::{aspects_to_json, compute_transit_score, patterns_to_json, NatalChart};
 use pursuit_week4_automation::astrology::swisseph_bridge::{
     snapshot_all_precise, longitude_speed, compute_houses_nyse,
 };
@@ -219,22 +219,24 @@ pub async fn compute_astro_scores(pool: Arc<sqlx::PgPool>) {
     println!("Computing astrological scores for {} tickers...", rows.len());
 
     for (ticker, ipo_date) in &rows {
-        let natal        = NatalChart::compute(ticker, *ipo_date);
-        let score        = compute_transit_score(&natal, today);
-        let aspects_json = aspects_to_json(&score.active_aspects);
+        let natal         = NatalChart::compute(ticker, *ipo_date);
+        let score         = compute_transit_score(&natal, today);
+        let aspects_json  = aspects_to_json(&score.active_aspects);
+        let patterns_json = patterns_to_json(&score.patterns);
 
         let result = sqlx::query(
             "INSERT INTO astro_scores \
              (ticker, score_date, astro_score, astro_label, moon_phase, \
-              moon_phase_deg, mercury_rx, active_aspects) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+              moon_phase_deg, mercury_rx, active_aspects, aspect_patterns) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) \
              ON CONFLICT (ticker, score_date) DO UPDATE \
-             SET astro_score    = EXCLUDED.astro_score, \
-                 astro_label    = EXCLUDED.astro_label, \
-                 moon_phase     = EXCLUDED.moon_phase, \
-                 moon_phase_deg = EXCLUDED.moon_phase_deg, \
-                 mercury_rx     = EXCLUDED.mercury_rx, \
-                 active_aspects = EXCLUDED.active_aspects",
+             SET astro_score     = EXCLUDED.astro_score, \
+                 astro_label     = EXCLUDED.astro_label, \
+                 moon_phase      = EXCLUDED.moon_phase, \
+                 moon_phase_deg  = EXCLUDED.moon_phase_deg, \
+                 mercury_rx      = EXCLUDED.mercury_rx, \
+                 active_aspects  = EXCLUDED.active_aspects, \
+                 aspect_patterns = EXCLUDED.aspect_patterns",
         )
         .bind(ticker)
         .bind(today)
@@ -244,6 +246,7 @@ pub async fn compute_astro_scores(pool: Arc<sqlx::PgPool>) {
         .bind(score.moon_phase_deg)
         .bind(score.mercury_rx)
         .bind(&aspects_json)
+        .bind(&patterns_json)
         .execute(pool.as_ref())
         .await;
 
@@ -310,22 +313,24 @@ pub async fn compute_astro_score_one(pool: Arc<sqlx::PgPool>, ticker: &str) -> a
         return Ok(());
     };
 
-    let natal        = NatalChart::compute(ticker, ipo_date);
-    let score        = compute_transit_score(&natal, today);
-    let aspects_json = aspects_to_json(&score.active_aspects);
+    let natal         = NatalChart::compute(ticker, ipo_date);
+    let score         = compute_transit_score(&natal, today);
+    let aspects_json  = aspects_to_json(&score.active_aspects);
+    let patterns_json = patterns_to_json(&score.patterns);
 
     sqlx::query(
         "INSERT INTO astro_scores \
          (ticker, score_date, astro_score, astro_label, moon_phase, \
-          moon_phase_deg, mercury_rx, active_aspects) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+          moon_phase_deg, mercury_rx, active_aspects, aspect_patterns) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) \
          ON CONFLICT (ticker, score_date) DO UPDATE \
-         SET astro_score    = EXCLUDED.astro_score, \
-             astro_label    = EXCLUDED.astro_label, \
-             moon_phase     = EXCLUDED.moon_phase, \
-             moon_phase_deg = EXCLUDED.moon_phase_deg, \
-             mercury_rx     = EXCLUDED.mercury_rx, \
-             active_aspects = EXCLUDED.active_aspects",
+         SET astro_score     = EXCLUDED.astro_score, \
+             astro_label     = EXCLUDED.astro_label, \
+             moon_phase      = EXCLUDED.moon_phase, \
+             moon_phase_deg  = EXCLUDED.moon_phase_deg, \
+             mercury_rx      = EXCLUDED.mercury_rx, \
+             active_aspects  = EXCLUDED.active_aspects, \
+             aspect_patterns = EXCLUDED.aspect_patterns",
     )
     .bind(ticker)
     .bind(today)
@@ -335,6 +340,7 @@ pub async fn compute_astro_score_one(pool: Arc<sqlx::PgPool>, ticker: &str) -> a
     .bind(score.moon_phase_deg)
     .bind(score.mercury_rx)
     .bind(&aspects_json)
+    .bind(&patterns_json)
     .execute(pool.as_ref())
     .await?;
 

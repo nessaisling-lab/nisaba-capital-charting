@@ -17,6 +17,7 @@ mod polymarket;
 mod prices;
 mod retry;
 mod rss_news;
+mod sources;
 mod rss_tone;
 mod sentiment;
 mod short_interest;

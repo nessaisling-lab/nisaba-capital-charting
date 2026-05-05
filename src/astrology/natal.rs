@@ -75,6 +75,8 @@ pub struct TransitScore {
     pub moon_phase_deg: f64,
     pub mercury_rx:     bool,
     pub active_aspects: Vec<ActiveAspect>,
+    /// v11.4 (Wave 6.B1) — geometric patterns detected from natal+transit positions.
+    pub patterns:       Vec<super::patterns::AspectPattern>,
 }
 
 /// Compute the astrological score for a ticker on a given date.
@@ -186,6 +188,13 @@ pub fn compute_transit_score(natal: &NatalChart, score_date: NaiveDate) -> Trans
         b.score_delta.abs().partial_cmp(&a.score_delta.abs()).unwrap_or(std::cmp::Ordering::Equal)
     });
 
+    // v11.4 (Wave 6.B1) — aspect pattern bonus added to delta_sum.
+    // Patterns contribute pre-normalization so they meaningfully shift the
+    // sigmoid input without being washed out by aspect_count division.
+    let patterns = super::patterns::detect_patterns(&natal.positions, &transits);
+    let pattern_delta = super::patterns::pattern_score_total(&patterns);
+    delta_sum += pattern_delta;
+
     // Composite score — normalized sigmoid
     //
     // The raw delta_sum can swing to ±300 with 50+ aspects per ticker.
@@ -223,7 +232,24 @@ pub fn compute_transit_score(natal: &NatalChart, score_date: NaiveDate) -> Trans
         moon_phase_deg,
         mercury_rx,
         active_aspects,
+        patterns,
     }
+}
+
+/// v11.4 (Wave 6.B1) — serialize patterns to JSON for DB storage.
+pub fn patterns_to_json(patterns: &[super::patterns::AspectPattern]) -> serde_json::Value {
+    let arr: Vec<serde_json::Value> = patterns.iter().map(|p| {
+        let bodies: Vec<String> = p.bodies.iter().map(|b| b.name().to_string()).collect();
+        serde_json::json!({
+            "kind":     p.kind.name(),
+            "symbol":   p.kind.symbol(),
+            "bodies":   bodies,
+            "avg_orb":  (p.avg_orb * 10.0).round() / 10.0,
+            "strength": (p.strength * 10.0).round() / 10.0,
+            "is_cross": p.is_cross,
+        })
+    }).collect();
+    serde_json::Value::Array(arr)
 }
 
 fn score_label(score: f32) -> &'static str {

@@ -4,10 +4,10 @@
 
 **Theme:** Pair Track A (financial data) + Track B (astrology engine) so Concordance metric strengthens on both sides. 8 items, 4 sub-waves.
 
-### Wave 6.0 — "The Reliability" (highest impact pair)
+### Wave 6.0 — "The Reliability" (highest impact pair) — SHIPPED 2026-05-04
 
-- [ ] **6.A1 Multi-source price fallback** — `PriceSource` trait, AV→Tiingo→Finnhub→Yahoo→Stooq cascade. `data_source` provenance column. Migration `0026`.
-- [ ] **6.B1 Aspect pattern recognition** — Grand Trine, T-Square, Grand Cross, Yod, Mystic Rectangle, Stellium. `aspect_patterns` table. Migration `0030`.
+- [x] **6.A1 Multi-source price fallback** — Yahoo Finance v8 chart API + Stooq CSV cascade. `data_source` column on `price_data`. AV→Yahoo→Stooq order. Migration `0038`.
+- [x] **6.B1 Aspect pattern recognition** — Grand Trine, T-Square, Grand Cross, Yod, Mystic Rectangle, Stellium, Kite (7 patterns). `aspect_patterns` JSONB column on `astro_scores`. Cross-chart detection (natal+transit mix). 7/7 unit tests passing. Migration `0037`.
 
 ### Wave 6.1 — "The Precision"
 
@@ -57,6 +57,37 @@
 ### OpenBB Platform integration
 **What:** Replace some scraper modules with OpenBB Platform aggregator (wraps many sources).
 **Why:** ~5 of our 20 scrapers could collapse into one OpenBB call. Trade-off: external dep vs less code.
+
+## Open — API Keys Backlog (Wave 6 deferred sources)
+
+Decision 2026-05-04: Wave 6 ships with **free-tier only** (existing AV/FMP/Finnhub/Tiingo + scraping Yahoo/Stooq). Paid keys deferred until validated need.
+
+### Polygon.io — real-time + options
+**What:** Real-time prices, options chains, intraday data, news.
+**Free tier:** 5 req/min — too tight for daily scraper.
+**Paid:** $29/mo Stocks Starter (unlimited 15-min delayed). $79/mo Real-time.
+**Why deferred:** Would unlock options-data feature surface (currently zero options data). Reconsider when we want intraday or options chains in the dashboard.
+
+### EODHD — fundamentals (EU + US)
+**What:** Different fundamentals universe than FMP, especially strong on EU/Asia tickers.
+**Free tier:** 20 req/day — fundamentals universe-wide impossible.
+**Paid:** $19.99/mo (100k req/day).
+**Why deferred:** FMP already covers our US watchlist. EODHD only matters when we expand to international tickers.
+
+### Quandl/Nasdaq Data Link — alt data
+**What:** High-quality macro indicators, alternative datasets, sometimes free academic datasets.
+**Free tier:** 50/day — workable for low-frequency macro pulls.
+**Paid:** Per-dataset pricing, varies wildly.
+**Why deferred:** FRED + DBnomics already cover our macro needs. Reconsider for niche datasets (CFTC, commodity inventories).
+
+### Marketstack — tertiary price fallback
+**Free tier:** 1,000/mo — only ~33/day, not useful as primary or secondary.
+**Paid:** $9.99/mo (10k/mo).
+**Why deferred:** Tiingo + Yahoo + Stooq already give us 3 fallback layers. Marketstack only worth adding if those prove unreliable.
+
+### Polygon News (separate from Polygon Stocks)
+**What:** Aggregated news with full article bodies + sentiment scores.
+**Why deferred:** Finnhub news + RSS scraping already cover headlines. Article-body access only matters if we add full-text NLP analysis.
 
 ## Completed (v6.0-v11.3)
 
