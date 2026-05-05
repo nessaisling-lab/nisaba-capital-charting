@@ -6,6 +6,49 @@
 
 ---
 
+## v11.5 Plan — "The Explanations" (planning, 2026-05-05)
+
+Triggered by 27-min video review on 2026-05-05 — first end-to-end test of full Wave 6 stack on 2028-ticker universe. Transcript saved at `docs/video-review-v11.4-transcript.txt` (331 lines).
+
+### Dominant theme: pop-up explanations EVERYWHERE
+
+User mentioned "should have a pop-up explaining" 15+ times across the video. Game-tutorial UX explicitly requested at 17:06: *"Like in a lot of games when you hover something a pop-up appears, and then you could right-click and choose an option to explain."*
+
+### What worked (validated)
+
+User explicitly approved during the video:
+- Aspect line thinning (Wave 1a) [00:26]
+- Galaxy background mute (Wave 1e) [00:57]
+- Sound effects on alerts (existing) [06:19]
+- Council verdict diversification (Wave 4a) [19:02 *"I like the fact they're having their own opinions on things"*]
+- Horoscope reading layout (Wave 2c+2d) [21:27]
+- Initial state at compact + default text size [00:01]
+
+### Sequencing rationale
+
+Ordered by **dependency + risk + ROI**, not quick-wins:
+1. **A "The Foundation"** — tooltip helper (~0.5d) — unblocks B/C/D/F
+2. **B "The Layout"** — header reshuffle, gauges side-by-side, Settings → modal (~2.5d) — high-risk, do early
+3. **C "The Explanations"** — apply helper to 12 tooltip locations (~2.5d) — additive, lowest risk per item
+4. **D "The Interactions"** — aspect line hover, chart zoom, OS notifications (~2.5d) — isolated to astrology + system layer
+5. **E "The Encyclopedia"** — new Wikipedia tab + scraper module (~1.5d) — fully independent
+6. **F "The Polish"** — candle word labels, loading %/sparkles, strategy defaults (~1d) — final coat
+
+Total ~10 days. **OpenBB Wave 7 defers entirely** — no user pressure for more data sources, plenty of pressure for tooltips/layout/Wikipedia.
+
+### v11.5 sub-waves (6 total, ~22 items)
+
+- **A1-A3**: tooltip helper, right-click menu primitive, doc pattern
+- **B1-B7**: search/ticker swap, favorites dropdown, zodiac legend relocation, gauges side-by-side, Settings modal, XL-size layout fix
+- **C1-C8**: tooltips on Universe columns, A/S header, sector heatmap, 5 gauges, FRED indicators, Lagrange labels, backtest context, council verdicts
+- **D1-D4**: aspect line hover (shader vs Canvas decision needed), mouse-wheel zoom, `notify-rust` toast, multi-monitor verify
+- **E1-E6**: Wikipedia REST scraper, migration `0043_wiki_summary`, new Tab variant, view module, refresh pipeline integration, cache-miss UI
+- **F1-F7**: candle full-word labels, Volume tooltip, loading %, sparkles, stuck-at-85% fix, dedupe indicators, strategy smart defaults
+
+See `docs/research-v11.5-explanations.md` for architecture, video timestamps, technical decisions per item.
+
+---
+
 ## Wave 7 + 8 Plan — Pure-Rust OpenBB Alternative (planning, 2026-05-04, revised)
 
 Initial Wave 7 plan was Python sidecar via `pip install openbb`. Revised to pure-Rust two-phase approach (Path C) after analyzing real provider gap (~10, not 350) and Workspace contract feasibility.

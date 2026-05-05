@@ -1,5 +1,78 @@
 # TODOS
 
+## Open — v11.5 "The Explanations" (~10 days, video review 2026-05-05)
+
+**Source:** 27-min video review on 2026-05-05 produced ~22 distinct feedback items. Transcript at `docs/video-review-v11.4-transcript.txt`. Dominant theme: pop-up explanations EVERYWHERE (mentioned 15+ times). User wants game-tutorial-style hover + right-click expand for every cryptic abbreviation, gauge, and chart element.
+
+**Sequencing rationale:** ordered by dependency + risk + ROI, NOT quick-wins. Foundation (helper) → Layout (high-risk, do early) → Content (tooltips applied) → Interactivity (chart hover/zoom + notifications) → New surface (Wikipedia tab) → Polish (final coat). OpenBB Wave 7 defers entirely until v11.5 ships.
+
+### v11.5.A — "The Foundation" (~0.5 day, foundational)
+
+Build canonical tooltip helper that subsequent phases reuse. Without this, 12 ad-hoc tooltips → inconsistent style.
+
+- [ ] **A1** New `explain_tooltip()` helper in `view/shared.rs` — Phosphor info icon prefix + container styling matching existing `tip_style` from Wave 3b
+- [ ] **A2** Right-click context menu primitive — `mouse_area` + state-tracked overlay for "Explain in detail" with optional URL link
+- [ ] **A3** Document pattern in `view/shared.rs` doc comment — future tooltip additions follow this template
+
+### v11.5.B — "The Layout" (~2.5 days, high risk)
+
+Header reshuffle per user spec [09:25-11:24, 15:02-15:47 in transcript]. Done early so all subsequent waves build on stable layout.
+
+- [ ] **B1** Search bar to top strip (where ticker name currently sits) [09:25]
+- [ ] **B2** Ticker name + price + H/L to middle band (where search currently sits) [10:14]
+- [ ] **B3** Recently-viewed → "Favorites" dropdown (dark button with caret) [10:45-10:57]
+- [ ] **B4** Zodiac symbol legend strip relocated above natal chart not below [09:50]
+- [ ] **B5** Market Sentiment gauges side-by-side row instead of stacked [11:35]
+- [ ] **B6** Settings → modal overlay (not full tab view) [09:11]
+- [ ] **B7** Verify XL text size doesn't break layout [08:51 — "this is now broken"]
+
+### v11.5.C — "The Explanations" (~2.5 days, content-heavy)
+
+Apply A1 helper to ~12 tooltip locations. Lowest individual risk per item; pure additive UX.
+
+- [ ] **C1** Universe table columns — Sector, Score, Astro, Zone get tooltips matching Fin/Mac/Sht/Conc pattern [05:10-05:16, 17:24]
+- [ ] **C2** Astrology Transits table A/S column header → "Applying / Separating" tooltip [08:00-08:04]
+- [ ] **C3** Sector heatmap legend → tooltip explaining color scale + sector ranking
+- [ ] **C4** All 5 Overview gauges (Crypto/Equities Sentiment, Score, Astrology, Lagrange) → tooltip on each label [11:51-12:13]
+- [ ] **C5** FRED macro indicator labels → tooltip + optional Wikipedia/FRED link [17:24-17:48]
+- [ ] **C6** Lagrange Confirm/Deny/Divergence labels → click to expand reasoning [21:02-21:13]
+- [ ] **C7** Backtest results context → "is 50% good?" tooltip with benchmark comparison [20:36]
+- [ ] **C8** Council verdict labels (StrongBuy/Buy/Hold/Sell/StrongSell) → tooltip explaining persona's threshold
+
+### v11.5.D — "The Interactions" (~2.5 days, isolated risk)
+
+Chart interactivity + system-level notifications. Highest technical risk in v11.5 (aspect line hit-testing).
+
+- [ ] **D1** Aspect line hover/click — currently rendered in WGSL shader (no hit-testing). Either: (a) keep shader + add invisible Iced overlay rectangles for click zones along each aspect line, OR (b) move aspect lines from shader to Iced Canvas widget. Approach (a) is less work but approximate; (b) is cleaner but bigger refactor. Decide during build. [07:21-07:31, 07:12]
+- [ ] **D2** Mouse-wheel zoom on natal wheel — Iced 0.14 lacks built-in pinch but `on_scroll` callback workable. Increment `chart_size` enum scale factor in 0.1 steps, clamped 0.5x-2.0x. [06:48-07:00]
+- [ ] **D3** OS-level toast notifications for Lagrange Optimal/Misaligned alerts. Add `notify-rust` crate. Trigger from `Message::AlertFired`. [06:06]
+- [ ] **D4** Verify alert rendering on multiple monitors / Windows notification settings
+
+### v11.5.E — "The Encyclopedia" (~1.5 days, new feature)
+
+NEW tab pulling Wikipedia data per ticker. Fully independent of A-D.
+
+- [ ] **E1** New `src/scraper/wikipedia.rs` — REST API at `https://en.wikipedia.org/api/rest_v1/page/summary/{title}`. Match company name from `company_metadata` to Wikipedia title via fuzzy lookup or stored Wikidata Q-ID (already have wikidata_enrich data).
+- [ ] **E2** Migration `0043_wiki_summary.sql` — table `wiki_summaries` with ticker, summary_text, image_url, last_fetched, wiki_url
+- [ ] **E3** New tab `Tab::Encyclopedia` (or rename existing — user open to placement). Phosphor BOOK_OPEN icon.
+- [ ] **E4** New `view/encyclopedia.rs` — image (if available), description, key facts table, "Read more on Wikipedia →" link
+- [ ] **E5** Wire into refresh pipeline — staleness check (30-day TTL since articles change rarely)
+- [ ] **E6** Cache miss handling — show "No Wikipedia article found" placeholder
+
+### v11.5.F — "The Polish" (~1 day, final coat)
+
+Polish items that benefit from being last (less rework risk).
+
+- [ ] **F1** Candle tooltip full-word labels: "Opening / High / Low / Closing / Volume" [14:30-14:40]
+- [ ] **F2** Volume label gets tooltip explaining "shares traded that day" [14:48-14:52]
+- [ ] **F3** Loading bar shows numeric % alongside fill [14:11]
+- [ ] **F4** Loading bar adds sparkle particles overlay [13:38-13:42]
+- [ ] **F5** Stuck-at-85% fix — when scraper takes >30s, advance to 90% with "still fetching..." text instead of frozen [14:22]
+- [ ] **F6** Dedupe: when fetch is in progress, only show ONE loading indicator (currently can show both bar + spinner) [13:58]
+- [ ] **F7** Strategy backtest defaults — pre-fill Buy/Sell threshold inputs based on ticker's actual astro distribution (median ± stddev), not generic 65/35 [25:05-25:15]
+
+---
+
 ## Open — Wave 6: Data Reliability + Astro Depth (~900 lines, medium risk)
 
 **Theme:** Pair Track A (financial data) + Track B (astrology engine) so Concordance metric strengthens on both sides. 8 items, 4 sub-waves.

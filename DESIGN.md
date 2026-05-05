@@ -3,10 +3,12 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.14, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v11.4.0 (all sub-waves complete)
+**Current version:** v11.4.0 (Wave 6 complete, validated 2026-05-05)
 **Next milestones:**
-- **v12.0 "The Vision"** — full natal chart interactivity (zoom, click-to-inspect, animated transitions). Iced 0.14 prerequisite met.
-- **v11.5 (TBD)** — backlog items: harmonic charts (H4/H5/H7/H9), sidereal vs tropical concordance, progressed charts (secondary + solar arc), real-time fetch progress (subprocess stdout streaming), house numbers on natal chart, OpenBB Platform integration trial.
+- **v11.5 "The Explanations"** (~10 days, planned) — 22 items from 2026-05-05 video review across 6 sub-waves. Sequenced by dependency + risk: foundation (tooltip helper) → layout (header reshuffle, gauges side-by-side, Settings modal) → content (12 tooltips applied) → interactivity (aspect line hover, mouse-wheel zoom, OS notifications) → encyclopedia (new Wikipedia tab) → polish (candle labels, loading %, strategy defaults).
+- **Wave 7 "The Library"** (deferred until after v11.5) — 10 native Rust providers for OpenBB-tier data depth (World Bank, IMF, ECB, CFTC COT, BLS, EIA, OFR, Treasury Direct, CoinGecko + buffer). ~8-10 days.
+- **Wave 8 "The Showcase"** (conditional) — Rust axum sidecar mimicking OpenBB Workspace contract for cloud dashboards. ~7 days.
+- **v12.0 "The Vision"** — full natal chart interactivity beyond v11.5.D scope (e.g., aspect-line click → enter detail mode showing planet relationships).
 - v12.0 "The Vision" — Full natal chart interactivity (zoom, click-to-inspect, animated transitions). Iced 0.14 prerequisite met.
 
 **Completed milestones:**
