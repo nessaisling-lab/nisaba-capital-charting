@@ -52,19 +52,32 @@ pub async fn fetch_analyst_targets(
     }
 
     println!("[Analyst Targets] Fetching {} stale ticker(s)...", stale.len());
+    let mut consecutive_403s = 0;
     for ticker in &stale {
         match fetch_one(ticker, &client, &api_key).await {
             Ok(Some(t)) => {
                 let _ = upsert(&pool, ticker, &t).await;
                 crate::log_fetch(&pool, "finnhub", Some(ticker), "price-target", "ok", None).await;
+                consecutive_403s = 0;
             }
             Ok(None) => {
                 println!("[Analyst Targets] {ticker}: no analyst coverage");
+                consecutive_403s = 0;
             }
             Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("403") {
+                    consecutive_403s += 1;
+                    // Bail after 3 consecutive 403s — endpoint requires paid tier
+                    if consecutive_403s >= 3 {
+                        eprintln!("[Analyst Targets] 3+ consecutive 403s — Finnhub /price-target is paid-tier only. Skipping remaining {} ticker(s).",
+                            stale.len() - (stale.iter().position(|t| t == ticker).unwrap_or(0) + 1));
+                        break;
+                    }
+                }
                 eprintln!("[Analyst Targets] {ticker}: {e}");
                 crate::log_fetch(&pool, "finnhub", Some(ticker), "price-target", "error",
-                    Some(&e.to_string())).await;
+                    Some(&msg)).await;
             }
         }
         // 1.1 sec/call respects 60/min Finnhub limit with headroom.

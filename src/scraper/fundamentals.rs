@@ -55,10 +55,14 @@ struct FmpRatios {
 // ---------------------------------------------------------------------------
 
 /// Fetch fundamental metrics for watchlist + astro-prioritized tickers.
+/// v11.4 (Wave 6.A2 follow-up) — accepts optional finnhub_key + av_key for
+/// fallback cascade when FMP returns 403 or rate-limits.
 pub async fn fetch_fundamentals(
     pool: Arc<sqlx::PgPool>,
     client: Arc<reqwest::Client>,
     fmp_key: Arc<String>,
+    finnhub_key: Option<Arc<String>>,
+    av_key: Option<Arc<String>>,
 ) {
     // Check FMP budget remaining today
     let fmp_calls_today: i64 = sqlx::query_scalar(
@@ -106,20 +110,23 @@ pub async fn fetch_fundamentals(
 
     let mut ok_count = 0usize;
     let mut err_count = 0usize;
+    let mut fmp_403_count = 0usize;
 
     for ticker in &tickers {
-        match fetch_and_store(ticker, &pool, &client, &fmp_key).await {
+        let fh_ref = finnhub_key.as_deref().map(|s| s.as_str());
+        let av_ref = av_key.as_deref().map(|s| s.as_str());
+        match fetch_and_store_with_fallback(ticker, &pool, &client, &fmp_key, fh_ref, av_ref).await {
             Ok(true) => ok_count += 1,
-            Ok(false) => {} // no data from FMP
-            Err(ref e) if e.to_string().contains("403") => {
+            Ok(false) => {} // no data from any source
+            Err(ref e) if e.to_string().contains("403") && fh_ref.is_none() => {
                 eprintln!(
-                    "[Fundamentals] HTTP 403 — FMP paid plan required. \
-                     Stopping ({} remaining).",
+                    "[Fundamentals] FMP 403 + no fallback keys. Stopping ({} remaining).",
                     tickers.len().saturating_sub(ok_count + err_count + 1)
                 );
                 break;
             }
             Err(e) => {
+                if e.to_string().contains("403") { fmp_403_count += 1; }
                 eprintln!("[Fundamentals] {ticker}: {e}");
                 err_count += 1;
             }
@@ -128,6 +135,9 @@ pub async fn fetch_fundamentals(
         // ~4 calls/sec to stay within rate limits
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     }
+    if fmp_403_count > 5 {
+        eprintln!("[Fundamentals] Note: {fmp_403_count} FMP 403s — paid tier may be required. Fallbacks attempted.");
+    }
 
     println!("[Fundamentals] Done — {ok_count} fetched, {err_count} errors.");
 }
@@ -135,15 +145,6 @@ pub async fn fetch_fundamentals(
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
-
-pub(crate) async fn fetch_and_store(
-    ticker: &str,
-    pool: &sqlx::PgPool,
-    client: &reqwest::Client,
-    api_key: &str,
-) -> Result<bool> {
-    fetch_and_store_with_fallback(ticker, pool, client, api_key, None, None).await
-}
 
 /// Wave 6.A2 — FMP primary path with fallback to Finnhub then AV OVERVIEW.
 /// Pass `Some` keys to enable fallback; `None` keeps legacy FMP-only behavior.

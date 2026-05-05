@@ -12,12 +12,13 @@ use serde::Deserialize;
 use std::sync::Arc;
 
 /// GDELT queries targeting finance-relevant geopolitical themes.
+/// v11.4 (Wave 6 follow-up) — GDELT requires explicit parens around OR clauses.
 const GDELT_QUERIES: &[(&str, &str)] = &[
-    ("sanctions OR trade war OR tariff",     "trade"),
-    ("central bank OR interest rate OR monetary policy", "monetary"),
-    ("geopolitical risk OR military conflict OR war",   "conflict"),
-    ("election instability OR regime change OR coup",    "political"),
-    ("oil supply OR OPEC OR energy crisis",              "energy"),
+    ("(sanctions OR \"trade war\" OR tariff)",                       "trade"),
+    ("(\"central bank\" OR \"interest rate\" OR \"monetary policy\")", "monetary"),
+    ("(\"geopolitical risk\" OR \"military conflict\" OR war)",       "conflict"),
+    ("(\"election instability\" OR \"regime change\" OR coup)",       "political"),
+    ("(\"oil supply\" OR OPEC OR \"energy crisis\")",                  "energy"),
 ];
 
 const GDELT_API: &str = "https://api.gdeltproject.org/api/v2/doc/doc";

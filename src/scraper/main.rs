@@ -572,8 +572,14 @@ async fn run_all_fetches(
     }
 
     if let Some(ref fmp_k) = fmp_key {
-        println!("2.7 Fetching fundamental metrics (FMP key-metrics + ratios)...");
-        fundamentals::fetch_fundamentals(Arc::clone(&pool), Arc::clone(&client), Arc::clone(fmp_k)).await;
+        println!("2.7 Fetching fundamental metrics (FMP → Finnhub → AV fallback cascade)...");
+        fundamentals::fetch_fundamentals(
+            Arc::clone(&pool),
+            Arc::clone(&client),
+            Arc::clone(fmp_k),
+            finnhub_key.as_ref().map(Arc::clone),
+            Some(Arc::clone(&api_key)),
+        ).await;
     }
 
     // =========================================================================

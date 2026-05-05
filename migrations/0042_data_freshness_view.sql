@@ -10,7 +10,7 @@ WITH last_dates AS (
             AS last_price_at,
         (SELECT MAX(f.fetch_date)::timestamptz FROM fundamental_metrics f WHERE f.ticker = cm.ticker)
             AS last_fund_at,
-        (SELECT MAX(n.published) FROM news_articles n WHERE n.ticker = cm.ticker)
+        (SELECT MAX(n.published_at) FROM news_articles n WHERE n.ticker = cm.ticker)
             AS last_news_at,
         (SELECT MAX(s.fetch_date)::timestamptz FROM sentiment_scores s WHERE s.ticker = cm.ticker)
             AS last_sent_at,

@@ -15,8 +15,11 @@ CREATE TABLE IF NOT EXISTS eclipses (
     notes         TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_eclipses_upcoming
-    ON eclipses(eclipse_date) WHERE eclipse_date >= CURRENT_DATE;
+-- Plain index on eclipse_date. Query planner uses it for WHERE eclipse_date >=
+-- CURRENT_DATE without needing a partial-index predicate. Partial-index
+-- predicates require IMMUTABLE functions; CURRENT_DATE is STABLE not IMMUTABLE
+-- (depends on transaction time), so Postgres rejects it as the predicate.
+CREATE INDEX IF NOT EXISTS idx_eclipses_date ON eclipses(eclipse_date);
 
 -- Seed data: 2025-2028 eclipses from NASA's Five-Millennium Catalog.
 -- Longitudes are approximate ecliptic positions of the Sun (solar) or
