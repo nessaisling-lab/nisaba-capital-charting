@@ -9,10 +9,10 @@
 - [x] **6.A1 Multi-source price fallback** — Yahoo Finance v8 chart API + Stooq CSV cascade. `data_source` column on `price_data`. AV→Yahoo→Stooq order. Migration `0038`.
 - [x] **6.B1 Aspect pattern recognition** — Grand Trine, T-Square, Grand Cross, Yod, Mystic Rectangle, Stellium, Kite (7 patterns). `aspect_patterns` JSONB column on `astro_scores`. Cross-chart detection (natal+transit mix). 7/7 unit tests passing. Migration `0037`.
 
-### Wave 6.1 — "The Precision"
+### Wave 6.1 — "The Precision" — SHIPPED 2026-05-04
 
-- [ ] **6.A2 Multi-source fundamentals fallback** — FMP→Finnhub `metric/all`→AV `OVERVIEW`. Migration `0027`.
-- [ ] **6.B2 Aspect strength model** — orb tightness, applying/separating, body weight, essential dignity, mutual reception, out-of-sign flag.
+- [x] **6.A2 Multi-source fundamentals fallback** — `SourcedFundamentals` normalized struct, FMP→Finnhub `/stock/metric?metric=all`→AV `OVERVIEW`. `data_source` column on `fundamental_metrics`. Migration `0039`.
+- [x] **6.B2 Aspect strength model** — `body_weight()` table (Sun/Moon=1.5, Jup/Sat=1.3, outers=1.4, inners=1.0, nodes/Chiron=0.8), `mutual_reception_bonus()` (1.15× when bodies in each other's domiciles), `out_of_sign_modifier()` (0.75× when sign-distance mismatches aspect-distance). New `score_aspect_v2()` integrates all multipliers; orb-tightness, applying/separating, dignity already existed pre-Wave 6. 18/18 aspect tests passing.
 
 ### Wave 6.2 — "The Depth"
 

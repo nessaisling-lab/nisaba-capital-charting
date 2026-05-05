@@ -294,6 +294,79 @@ pub fn dignity_modifier(state: DignityState) -> f64 {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Wave 6.B2 — Body weighting
+// ---------------------------------------------------------------------------
+
+/// Each planet's intrinsic weight in transit scoring.
+///
+/// Luminaries (Sun, Moon) drive identity and emotional life — heaviest.
+/// Outer transpersonals (Saturn–Pluto) move slowly so when they aspect
+/// they hold influence for years, not days. Inner planets are quick but
+/// not inherently weighty. Nodes signal karmic axis but their effect
+/// depends on what they aspect.
+pub fn body_weight(planet: Planet) -> f64 {
+    match planet {
+        Planet::Sun     | Planet::Moon                                => 1.5,
+        Planet::Jupiter | Planet::Saturn                              => 1.3,
+        Planet::Uranus  | Planet::Neptune | Planet::Pluto             => 1.4,
+        Planet::Mercury | Planet::Venus   | Planet::Mars              => 1.0,
+        Planet::NorthNode | Planet::SouthNode | Planet::Chiron        => 0.8,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Wave 6.B2 — Mutual reception
+// ---------------------------------------------------------------------------
+
+/// Two planets are in mutual reception when each occupies the other's
+/// domicile sign (e.g. Mars in Libra while Venus in Aries — Mars is in
+/// Venus's sign, Venus in Mars's). Both gain a dignity boost as if each
+/// were in its own domicile, because they "support" each other.
+///
+/// Returns the bonus multiplier (1.15) if mutual reception detected,
+/// or 1.0 otherwise.
+pub fn mutual_reception_bonus(p1: Planet, sign1: &str, p2: Planet, sign2: &str) -> f64 {
+    let p1_in_p2_domicile = matches!(planetary_dignity(p1, sign2), DignityState::Domicile);
+    let p2_in_p1_domicile = matches!(planetary_dignity(p2, sign1), DignityState::Domicile);
+    if p1_in_p2_domicile && p2_in_p1_domicile { 1.15 } else { 1.0 }
+}
+
+// ---------------------------------------------------------------------------
+// Wave 6.B2 — Out-of-sign aspects
+// ---------------------------------------------------------------------------
+
+/// Sign index 0-11 from longitude (Aries=0, Taurus=1, ..., Pisces=11).
+fn sign_idx(longitude: f64) -> i32 {
+    (longitude.rem_euclid(360.0) / 30.0).floor() as i32
+}
+
+/// Returns true when bodies' actual sign separation matches what the
+/// aspect *should* be. Out-of-sign aspects (e.g. Sun at 29° Aries trine
+/// Moon at 1° Virgo — angle 122° fits trine orb but signs are 5 apart,
+/// not 4 = trine count) are weaker because the energy doesn't have
+/// elemental support. Returns 1.0 if in-sign, 0.75 if out-of-sign.
+pub fn out_of_sign_modifier(lon_a: f64, lon_b: f64, aspect: AspectType) -> f64 {
+    let sign_a = sign_idx(lon_a);
+    let sign_b = sign_idx(lon_b);
+    let mut sign_diff = (sign_a - sign_b).abs() % 12;
+    if sign_diff > 6 { sign_diff = 12 - sign_diff; }
+
+    let expected = match aspect {
+        AspectType::Conjunction    => 0,
+        AspectType::SemiSextile    => 1,
+        AspectType::Sextile        => 2,
+        AspectType::Square         => 3,
+        AspectType::Trine          => 4,
+        AspectType::Quincunx       => 5,
+        AspectType::Opposition     => 6,
+        // Minor aspects without integer sign distance — treat as in-sign
+        AspectType::SemiSquare | AspectType::Sesquiquadrate => return 1.0,
+    };
+
+    if sign_diff == expected { 1.0 } else { 0.75 }
+}
+
 impl DignityState {
     pub fn name(self) -> &'static str {
         match self {
@@ -342,6 +415,26 @@ pub fn score_aspect_full(
     transit_speed: Option<f64>,
     transit_sign: Option<&str>,
 ) -> f32 {
+    score_aspect_v2(transit, natal, aspect, orb, transit_speed, transit_sign,
+        None, None, None)
+}
+
+/// Wave 6.B2 — full scoring with body weighting, out-of-sign penalty,
+/// and mutual reception bonus. Pass `Some(longitudes + natal_sign)` to
+/// activate the new modifiers; legacy callers pass `None` and behavior
+/// matches `score_aspect_full`.
+#[allow(clippy::too_many_arguments)]
+pub fn score_aspect_v2(
+    transit: Planet,
+    natal: Planet,
+    aspect: AspectType,
+    orb: f64,
+    transit_speed: Option<f64>,
+    transit_sign: Option<&str>,
+    transit_lon: Option<f64>,
+    natal_lon:   Option<f64>,
+    natal_sign:  Option<&str>,
+) -> f32 {
     let transit_nature = planet_nature(transit);
     let natal_nature   = planet_nature(natal);
     let aspect_dir     = aspect_nature(aspect);
@@ -378,19 +471,8 @@ pub fn score_aspect_full(
     // Minor aspect reduction: minor aspects carry ~50% the weight of major ones
     let minor_mod = if aspect.is_major() { 1.0 } else { 0.5 };
 
-    // Applying/separating multiplier
-    let apply_mod = match transit_speed {
-        Some(_) => {
-            // We can't call is_applying here without transit_lon and natal_lon,
-            // so this is handled by the caller who passes the final multiplier.
-            // For score_aspect_full, the caller should pre-compute and pass via
-            // transit_speed = Some(APPLYING_MULTIPLIER or SEPARATING_MULTIPLIER).
-            // When transit_speed is the raw speed, we default to 1.0 here.
-            // The actual applying/separating is applied in compute_transit_score().
-            1.0
-        }
-        None => 1.0,
-    };
+    // Applying/separating placeholder — handled by caller in compute_transit_score
+    let apply_mod = match transit_speed { Some(_) | None => 1.0 };
 
     // Dignity modifier for the transit planet
     let dig_mod = match transit_sign {
@@ -398,7 +480,23 @@ pub fn score_aspect_full(
         None => 1.0,
     };
 
-    (base * direction * orb_mod * minor_mod * apply_mod * dig_mod) as f32
+    // Wave 6.B2 — body weighting (mean of both bodies' weights)
+    let weight_mod = (body_weight(transit) + body_weight(natal)) / 2.0;
+
+    // Wave 6.B2 — out-of-sign penalty (only when both longitudes known)
+    let oos_mod = match (transit_lon, natal_lon) {
+        (Some(tl), Some(nl)) => out_of_sign_modifier(tl, nl, aspect),
+        _ => 1.0,
+    };
+
+    // Wave 6.B2 — mutual reception bonus
+    let mr_mod = match (transit_sign, natal_sign) {
+        (Some(ts), Some(ns)) => mutual_reception_bonus(transit, ts, natal, ns),
+        _ => 1.0,
+    };
+
+    (base * direction * orb_mod * minor_mod * apply_mod * dig_mod
+        * weight_mod * oos_mod * mr_mod) as f32
 }
 
 // ---------------------------------------------------------------------------
@@ -578,6 +676,52 @@ mod tests {
             exalted.abs() > debilitated.abs(),
             "Exalted Venus ({exalted:.2}) should score higher than debilitated ({debilitated:.2})",
         );
+    }
+
+    #[test]
+    fn test_body_weight_luminaries_heaviest() {
+        assert!(body_weight(Planet::Sun) >= body_weight(Planet::Mercury));
+        assert!(body_weight(Planet::Moon) >= body_weight(Planet::Mercury));
+        assert!(body_weight(Planet::Pluto) >= body_weight(Planet::Mercury));
+        assert!(body_weight(Planet::NorthNode) <= body_weight(Planet::Mercury));
+    }
+
+    #[test]
+    fn test_mutual_reception_mars_venus() {
+        // Mars in Libra (Venus's sign) + Venus in Aries (Mars's sign) = mutual reception
+        let bonus = mutual_reception_bonus(Planet::Mars, "Libra", Planet::Venus, "Aries");
+        assert!((bonus - 1.15).abs() < 0.01, "Expected 1.15, got {bonus}");
+
+        // Mars in Aries (own domicile) + Venus in Pisces (no exchange) = no MR
+        let bonus = mutual_reception_bonus(Planet::Mars, "Aries", Planet::Venus, "Pisces");
+        assert!((bonus - 1.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_out_of_sign_penalty() {
+        // 29° Aries (sign 0) trine 1° Virgo (151°, sign 5): 122° angular sep (within
+        // trine orb) but 5 signs apart, not 4 — out-of-sign.
+        let mod_oos = out_of_sign_modifier(29.0, 151.0, AspectType::Trine);
+        assert!((mod_oos - 0.75).abs() < 0.01, "Expected 0.75 (out-of-sign), got {mod_oos}");
+
+        // 5° Aries (sign 0) trine 5° Leo (125°, sign 4): exactly 4 signs apart = in-sign
+        let mod_in = out_of_sign_modifier(5.0, 125.0, AspectType::Trine);
+        assert!((mod_in - 1.0).abs() < 0.01, "Expected 1.0 (in-sign), got {mod_in}");
+    }
+
+    #[test]
+    fn test_v2_includes_body_weight() {
+        // Same aspect, but Sun (1.5) vs Mercury (1.0) as natal — Sun should score higher
+        let with_sun = score_aspect_v2(
+            Planet::Jupiter, Planet::Sun, AspectType::Trine, 0.0,
+            None, Some("Sagittarius"), None, None, None,
+        );
+        let with_merc = score_aspect_v2(
+            Planet::Jupiter, Planet::Mercury, AspectType::Trine, 0.0,
+            None, Some("Sagittarius"), None, None, None,
+        );
+        assert!(with_sun.abs() > with_merc.abs(),
+            "Aspect with Sun ({with_sun}) should score higher than with Mercury ({with_merc})");
     }
 
     #[test]

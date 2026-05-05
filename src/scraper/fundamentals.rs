@@ -142,7 +142,45 @@ pub(crate) async fn fetch_and_store(
     client: &reqwest::Client,
     api_key: &str,
 ) -> Result<bool> {
-    // Fetch key-metrics TTM (v11.3 — wrapped in retry helper)
+    fetch_and_store_with_fallback(ticker, pool, client, api_key, None, None).await
+}
+
+/// Wave 6.A2 — FMP primary path with fallback to Finnhub then AV OVERVIEW.
+/// Pass `Some` keys to enable fallback; `None` keeps legacy FMP-only behavior.
+pub(crate) async fn fetch_and_store_with_fallback(
+    ticker: &str,
+    pool: &sqlx::PgPool,
+    client: &reqwest::Client,
+    api_key: &str,
+    finnhub_key: Option<&str>,
+    av_key:      Option<&str>,
+) -> Result<bool> {
+    // Try FMP first
+    match fetch_fmp(ticker, client, api_key).await {
+        Ok((km, rat)) => {
+            insert_fmp(ticker, pool, &km, &rat).await?;
+            return Ok(true);
+        }
+        Err(e) => {
+            eprintln!("[Fundamentals] {ticker}: FMP failed ({e}). Trying fallback...");
+        }
+    }
+
+    // Fallback cascade — only when caller provided AV key (AV OVERVIEW is third tier).
+    let av = match av_key { Some(k) => k, None => return Err(anyhow::anyhow!("FMP failed and no fallback keys provided")) };
+    let (sf, source) = crate::sources::fundamentals::fetch_fundamentals_fallback(
+        ticker, client, finnhub_key, av,
+    ).await?;
+    insert_sourced(ticker, pool, &sf, source).await?;
+    println!("[Fundamentals] {ticker}: filled from {source}");
+    Ok(true)
+}
+
+async fn fetch_fmp(
+    ticker: &str,
+    client: &reqwest::Client,
+    api_key: &str,
+) -> Result<(FmpKeyMetrics, FmpRatios)> {
     let km_url = format!(
         "https://financialmodelingprep.com/api/v3/key-metrics-ttm/{ticker}?apikey={api_key}"
     );
@@ -158,9 +196,6 @@ pub(crate) async fn fetch_and_store(
     }).await?;
     let km = km_list.into_iter().next().unwrap_or_default();
 
-    crate::log_fetch(pool, "fmp", Some(ticker), "key-metrics-ttm", "ok", None).await;
-
-    // Fetch ratios TTM (v11.3 — wrapped in retry helper)
     let rat_url = format!(
         "https://financialmodelingprep.com/api/v3/ratios-ttm/{ticker}?apikey={api_key}"
     );
@@ -176,6 +211,19 @@ pub(crate) async fn fetch_and_store(
     }).await?;
     let rat = rat_list.into_iter().next().unwrap_or_default();
 
+    if km.pe_ratio_ttm.is_none() && km.pb_ratio_ttm.is_none() && km.market_cap_ttm.is_none() {
+        anyhow::bail!("FMP returned empty fundamentals");
+    }
+    Ok((km, rat))
+}
+
+async fn insert_fmp(
+    ticker: &str,
+    pool: &sqlx::PgPool,
+    km: &FmpKeyMetrics,
+    rat: &FmpRatios,
+) -> Result<()> {
+    crate::log_fetch(pool, "fmp", Some(ticker), "key-metrics-ttm", "ok", None).await;
     crate::log_fetch(pool, "fmp", Some(ticker), "ratios-ttm", "ok", None).await;
 
     // Derive absolute values from per-share metrics
@@ -194,14 +242,6 @@ pub(crate) async fn fetch_and_store(
     });
     let eps = km.net_income_per_share_ttm;
 
-    // Check if we got any useful data
-    if km.pe_ratio_ttm.is_none()
-        && km.pb_ratio_ttm.is_none()
-        && km.market_cap_ttm.is_none()
-    {
-        return Ok(false);
-    }
-
     sqlx::query(
         "INSERT INTO fundamental_metrics (
             ticker, fetch_date,
@@ -209,14 +249,14 @@ pub(crate) async fn fetch_and_store(
             roe, roa, net_margin, operating_margin,
             debt_equity, current_ratio,
             fcf, operating_cf, revenue, net_income, eps,
-            dividend_yield, shares_outstanding
+            dividend_yield, shares_outstanding, data_source
         ) VALUES (
             $1, CURRENT_DATE,
             $2, $3, $4, $5, $6, $7, $8,
             $9, $10, $11, $12,
             $13, $14,
             $15, $16, $17, $18, $19,
-            $20, $21
+            $20, $21, 'fmp'
         ) ON CONFLICT (ticker, fetch_date) DO UPDATE SET
             market_cap = EXCLUDED.market_cap,
             pe_ratio = EXCLUDED.pe_ratio,
@@ -237,7 +277,8 @@ pub(crate) async fn fetch_and_store(
             net_income = EXCLUDED.net_income,
             eps = EXCLUDED.eps,
             dividend_yield = EXCLUDED.dividend_yield,
-            shares_outstanding = EXCLUDED.shares_outstanding",
+            shares_outstanding = EXCLUDED.shares_outstanding,
+            data_source = EXCLUDED.data_source",
     )
     .bind(ticker)
     .bind(km.market_cap_ttm.map(|v| v as i64))
@@ -264,5 +305,78 @@ pub(crate) async fn fetch_and_store(
     .await
     .context("Failed to insert fundamental_metrics")?;
 
-    Ok(true)
+    Ok(())
+}
+
+/// Wave 6.A2 — insert from a fallback source (Finnhub or AV) with provenance tag.
+async fn insert_sourced(
+    ticker: &str,
+    pool: &sqlx::PgPool,
+    f: &crate::sources::fundamentals::SourcedFundamentals,
+    source: &str,
+) -> Result<()> {
+    sqlx::query(
+        "INSERT INTO fundamental_metrics (
+            ticker, fetch_date,
+            market_cap, pe_ratio, pb_ratio, ps_ratio, ev_ebitda, peg_ratio, price_to_fcf,
+            roe, roa, net_margin, operating_margin,
+            debt_equity, current_ratio,
+            fcf, operating_cf, revenue, net_income, eps,
+            dividend_yield, shares_outstanding, data_source
+        ) VALUES (
+            $1, CURRENT_DATE,
+            $2, $3, $4, $5, $6, $7, $8,
+            $9, $10, $11, $12,
+            $13, $14,
+            $15, $16, $17, $18, $19,
+            $20, $21, $22
+        ) ON CONFLICT (ticker, fetch_date) DO UPDATE SET
+            market_cap = EXCLUDED.market_cap,
+            pe_ratio = EXCLUDED.pe_ratio,
+            pb_ratio = EXCLUDED.pb_ratio,
+            ps_ratio = EXCLUDED.ps_ratio,
+            ev_ebitda = EXCLUDED.ev_ebitda,
+            peg_ratio = EXCLUDED.peg_ratio,
+            price_to_fcf = EXCLUDED.price_to_fcf,
+            roe = EXCLUDED.roe,
+            roa = EXCLUDED.roa,
+            net_margin = EXCLUDED.net_margin,
+            operating_margin = EXCLUDED.operating_margin,
+            debt_equity = EXCLUDED.debt_equity,
+            current_ratio = EXCLUDED.current_ratio,
+            fcf = EXCLUDED.fcf,
+            operating_cf = EXCLUDED.operating_cf,
+            revenue = EXCLUDED.revenue,
+            net_income = EXCLUDED.net_income,
+            eps = EXCLUDED.eps,
+            dividend_yield = EXCLUDED.dividend_yield,
+            shares_outstanding = EXCLUDED.shares_outstanding,
+            data_source = EXCLUDED.data_source",
+    )
+    .bind(ticker)
+    .bind(f.market_cap)
+    .bind(f.pe_ratio)
+    .bind(f.pb_ratio)
+    .bind(f.ps_ratio)
+    .bind(f.ev_ebitda)
+    .bind(f.peg_ratio)
+    .bind(f.price_to_fcf)
+    .bind(f.roe)
+    .bind(f.roa)
+    .bind(f.net_margin)
+    .bind(f.operating_margin)
+    .bind(f.debt_equity)
+    .bind(f.current_ratio)
+    .bind(f.fcf)
+    .bind(f.operating_cf)
+    .bind(f.revenue)
+    .bind(f.net_income)
+    .bind(f.eps)
+    .bind(f.dividend_yield)
+    .bind(f.shares_outstanding)
+    .bind(source)
+    .execute(pool)
+    .await
+    .context("Failed to insert fundamental_metrics (fallback)")?;
+    Ok(())
 }

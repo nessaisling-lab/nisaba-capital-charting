@@ -397,13 +397,17 @@ async fn fetch_single_ticker(
         Arc::clone(&pool), Arc::clone(&client), Arc::clone(&api_key), &one_ticker,
     ).await;
 
-    // 5. Fundamentals (FMP)
+    // 5. Fundamentals — Wave 6.A2 cascade: FMP → Finnhub → AV OVERVIEW
     if let Some(ref fmp) = fmp_key {
-        println!("[{ticker}] Phase 5: Fundamentals...");
-        match fundamentals::fetch_and_store(ticker, &pool, &client, fmp).await {
-            Ok(true) => println!("[{ticker}] Fundamentals: stored"),
+        println!("[{ticker}] Phase 5: Fundamentals (cascade)...");
+        let fh_ref = finnhub_key.as_deref().map(|s| s.as_str());
+        let av_ref = Some(api_key.as_str());
+        match fundamentals::fetch_and_store_with_fallback(
+            ticker, &pool, &client, fmp, fh_ref, av_ref,
+        ).await {
+            Ok(true)  => println!("[{ticker}] Fundamentals: stored"),
             Ok(false) => println!("[{ticker}] Fundamentals: already up to date"),
-            Err(e) => eprintln!("[{ticker}] Fundamentals error: {e:#}"),
+            Err(e)    => eprintln!("[{ticker}] Fundamentals error: {e:#}"),
         }
     }
 

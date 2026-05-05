@@ -8,7 +8,7 @@ use chrono::NaiveDate;
 use std::sync::Mutex;
 
 use super::aspects::{
-    find_aspect, is_applying, moon_phase_modifier, planetary_dignity, score_aspect_full,
+    find_aspect, is_applying, moon_phase_modifier, planetary_dignity, score_aspect_v2,
     ActiveAspect, DignityState, APPLYING_MULTIPLIER, MERCURY_RX_CAP, SEPARATING_MULTIPLIER,
 };
 use super::ephemeris::{
@@ -150,14 +150,19 @@ pub fn compute_transit_score(natal: &NatalChart, score_date: NaiveDate) -> Trans
                     aspect_type.angle(),
                 );
 
-                // Score with full modifiers: dignity + minor aspect reduction
-                let mut delta = score_aspect_full(
+                // Score with v6.B2 full modifier stack: dignity, minor reduction,
+                // body weighting, out-of-sign penalty, mutual reception bonus.
+                let (natal_sign_str, _) = longitude_to_sign(natal_pos.longitude);
+                let mut delta = score_aspect_v2(
                     transit.planet,
                     natal_pos.planet,
                     aspect_type,
                     orb,
                     transit_speed,
                     Some(transit_sign),
+                    Some(transit.longitude),
+                    Some(natal_pos.longitude),
+                    Some(natal_sign_str),
                 );
 
                 // Apply applying/separating multiplier on top

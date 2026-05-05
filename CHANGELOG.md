@@ -6,6 +6,37 @@
 
 ---
 
+## v11.4.0-w6.1 — "The Precision" (2026-05-04)
+
+**Theme:** Wave 6.1 paired Track A (fundamentals fallback chain) + Track B (aspect strength model upgrades). Both inputs to Lagrange composite score get richer simultaneously.
+
+### Track A — 6.A2 Multi-Source Fundamentals Fallback
+
+New `src/scraper/sources/fundamentals.rs` with `SourcedFundamentals` normalized struct (20 optional fields covering everything in `fundamental_metrics`):
+
+- **Finnhub `/stock/metric?metric=all`** — 60-field response covering market cap (in millions, multiplied to USD), P/E TTM, P/B, P/S, EV/EBITDA, PEG, P/FCF, ROE/ROA (returned as %, divided by 100), margins, debt/equity (with awkward `totalDebt/totalEquityAnnual` field name), current ratio, EPS, dividend yield.
+- **Alpha Vantage `OVERVIEW`** — string-typed PascalCase fields. "None" / "-" sentinel handling. Third-tier fallback only (AV rate limit shared with prices).
+
+`fundamentals::fetch_and_store` refactored: extracted `fetch_fmp` + `insert_fmp` + new `insert_sourced` for fallback rows. New `fetch_and_store_with_fallback(ticker, pool, client, fmp_key, finnhub_key, av_key)` is the cascade entry. Old `fetch_and_store` retained as thin wrapper for legacy callers (passes None for fallback keys).
+
+Migration `0039_fundamentals_data_source.sql`: adds `data_source TEXT NOT NULL DEFAULT 'fmp'` + index. Single-ticker fetch in `main.rs` now routes through cascade with full fallback chain.
+
+### Track B — 6.B2 Aspect Strength Model
+
+Added three multiplicative modifiers to score pipeline:
+
+- **`body_weight(planet) -> f64`** — Sun/Moon=1.5 (luminaries drive identity), Jupiter/Saturn=1.3 (slow + heavy), Uranus/Neptune/Pluto=1.4 (transpersonals last years), Mercury/Venus/Mars=1.0 (fast inner planets), nodes/Chiron=0.8 (modal points). Weight applied as mean of both bodies in aspect.
+- **`mutual_reception_bonus(p1, sign1, p2, sign2)`** — 1.15× when `p1` is in `p2`'s domicile AND `p2` is in `p1`'s domicile (e.g. Mars in Libra + Venus in Aries). Both bodies effectively "support" each other across signs.
+- **`out_of_sign_modifier(lon_a, lon_b, aspect)`** — 0.75× when angular separation matches aspect within orb but sign-distance doesn't match aspect's expected sign-count (e.g. trine in 5 signs apart instead of 4). Out-of-sign aspects lack elemental support.
+
+New `score_aspect_v2()` integrates all modifiers. `score_aspect_full()` retained as wrapper for backward compat. `compute_transit_score` switched to `score_aspect_v2` with full longitude + sign context.
+
+Existing modifiers already in place pre-Wave 6: orb tightness (linear from 1.0 to 0.25), applying/separating (1.5×/0.7×), essential dignity (1.2×/0.8×). 18/18 aspect tests passing including new `test_body_weight_luminaries_heaviest`, `test_mutual_reception_mars_venus`, `test_out_of_sign_penalty`, `test_v2_includes_body_weight`.
+
+**Files modified:** 6 (`src/astrology/aspects.rs`, `src/astrology/natal.rs`, `src/scraper/main.rs`, `src/scraper/fundamentals.rs`, `src/scraper/sources/mod.rs`, migration `0039` + new `src/scraper/sources/fundamentals.rs`)
+
+---
+
 ## v11.4.0-w6.0 — "The Reliability" (2026-05-04)
 
 **Theme:** Wave 6.0 — paired financial-data + astrology-engine expansion. Track A removes single-points-of-failure in price data. Track B adds geometric pattern recognition the engine was missing.

@@ -7,6 +7,7 @@
 
 pub mod yahoo;
 pub mod stooq;
+pub mod fundamentals;
 
 use anyhow::Result;
 use chrono::NaiveDate;
