@@ -6,34 +6,63 @@
 
 ---
 
-## Wave 7 Plan — "The Library" (planning, 2026-05-04)
+## Wave 7 + 8 Plan — Pure-Rust OpenBB Alternative (planning, 2026-05-04, revised)
 
-OpenBB Platform integration roadmap added. NOT a code release — this is a planning entry documenting decision and approach.
+Initial Wave 7 plan was Python sidecar via `pip install openbb`. Revised to pure-Rust two-phase approach (Path C) after analyzing real provider gap (~10, not 350) and Workspace contract feasibility.
 
-### Decision
+### Decision: Two-Phase Pure Rust
 
-Add OpenBB Platform as a NEW data tier alongside existing 20 scrapers. Do NOT replace working code. OpenBB acts as "deep cabinet" for 350+ datasets we can't easily integrate one-by-one (CFTC commitment of traders, IMF, World Bank, ECB, OECD, granular SEC institutional ownership).
+- **Wave 7 — "The Library"** — 10 native Rust provider scrapers, ~8-10 days.
+- **Wave 8 — "The Showcase"** (conditional) — Rust axum sidecar mimicking OpenBB Workspace API contract, ~7 days. Decision gate after Wave 7.
 
-### Two Modes
+No Python dependency. No `pip install openbb`. We hand-write Rust HTTP wrappers for the specific datasets we want.
 
-1. **OpenBB Platform API** (programmatic) — Python service at `localhost:6900`, our Rust scraper makes HTTP calls for niche datasets. Primary integration mode.
-2. **OpenBB Workspace** (research UI) — cloud dashboard at `pro.openbb.co`, connects to our local Platform via ngrok tunnel. Used for exploration + design inspiration. NOT embedded in our Iced dashboard.
+### Wave 7: 10 Native Rust Providers
 
-### 5 Sub-Waves
+| # | Provider | Domain | Wave |
+|---|----------|--------|------|
+| 1 | World Bank | International macro (200+ countries) | 7.0 |
+| 2 | IMF DataMapper | Sovereign macro | 7.0 |
+| 3 | ECB Statistical Warehouse | EU monetary policy | 7.0 |
+| 4 | CFTC Commitment of Traders | Futures positioning sentiment | 7.1 |
+| 5 | BLS | Detailed US labor data | 7.2 |
+| 6 | EIA | US energy data | 7.2 |
+| 7 | OFR Financial Stress Index | Composite stress metric | 7.3 |
+| 8 | Treasury Direct | Treasury auctions, yield curve | 7.4 |
+| 9 | CoinGecko | Crypto prices | 7.4 |
+| 10 | Buffer | TBD based on need | — |
 
-- **7.0 "The Connection"** — install OpenBB Python package, run `openbb-api`, smoke test, document setup.
-- **7.1 "The Bridge"** — `src/scraper/sources/openbb.rs` Rust HTTP client + first dataset (recommend World Bank macro, parallels existing FRED scraper). Migration `0043`.
-- **7.2 "The Workspace"** — ngrok tunnel + Workspace account + PAT. Build one research dashboard.
-- **7.3 "The Custom Backend"** (optional) — FastAPI shim exposing our Lagrange/astro data to Workspace. Read-only Postgres role.
-- **7.4 "The Cross-Check"** — run FRED via both native + OpenBB, log discrepancies > 0.5% as data quality signal.
+5 migrations (0043-0047). Existing `src/scraper/sources/` pattern (Wave 6.A1/A2) reused.
+
+### Wave 8: Rust Sidecar (axum) Mimicking OpenBB Workspace
+
+NEW binary `cargo run --bin workspace` serves on localhost:7100. axum + tower-http + sqlx (read-only role). Implements OpenBB Workspace HTTP contract:
+- `GET /widgets.json` — widget catalog
+- `GET /<widget-endpoint>?<params>` — data arrays
+- Bearer PAT auth + CORS for `pro.openbb.co`
+- ngrok tunnel exposes localhost:7100 publicly
+- Workspace cloud UI connects via the tunnel
+
+Surfaces our proprietary Lagrange / astro patterns / eclipses / fixed stars / data freshness as Workspace widgets. Polished cloud dashboards + shareable URLs for Pursuit demo day.
+
+Decision gate: only ship Wave 8 if Wave 7 data is signal-bearing AND Pursuit Fellowship needs shareable dashboards.
+
+### Why Pure-Rust Over Python OpenBB
+
+- Real provider gap = ~10, not 350. Effort to port 10 in Rust ≈ effort to install/learn OpenBB Python.
+- Stays in Rust (project's defining trait).
+- Each provider isolated, our quality control.
+- No Python operational footprint, no two-language maintenance.
+- Workspace integration (Wave 8) keeps the cloud UI value without giving up Rust purity.
 
 ### Won't Do
 
-- ❌ Replace existing scrapers with OpenBB equivalents
-- ❌ Embed Workspace inside Iced dashboard (wrong tool)
-- ❌ Use OpenBB for time-sensitive data (latency stack too long)
+- ❌ Install OpenBB Python package
+- ❌ Replace existing scrapers
+- ❌ Embed Workspace in Iced dashboard
+- ❌ Add paid-tier providers in Wave 7 (those stay in API key backlog)
 
-See `docs/research-wave7-openbb.md` for full plan, architecture diagram, recommended sequencing, and risks.
+See `docs/research-wave7-openbb.md` for architecture, full provider analysis, sub-wave breakdown, risks.
 
 ---
 

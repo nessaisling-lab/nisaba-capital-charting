@@ -55,44 +55,111 @@
 **Blocked by:** User wants to explore Docker first.
 
 ### OpenBB Platform integration — PROMOTED to Wave 7 (2026-05-04)
-**Decision:** Add as new data tier alongside existing scrapers (do NOT replace). OpenBB acts as "deep cabinet" for 350+ datasets we can't easily integrate one-by-one (CFTC, IMF, World Bank, niche macro). See `docs/research-wave7-openbb.md` for full plan.
+**Decision (revised 2026-05-04):** Pure-Rust path (Path C from approach analysis). Two phases:
+- **Phase 1 (Wave 7) — 10 native Rust provider scrapers**, ~8-10 days
+- **Phase 2 (Wave 8, conditional) — Rust sidecar mimicking OpenBB Workspace contract**, ~7 days
 
-## Open — Wave 7: OpenBB Integration ("The Library")
+No Python dependency. No `openbb` package install. We pick datasets we want, hand-write Rust HTTP wrappers in `src/scraper/sources/` matching existing pattern. Phase 2 only happens if Phase 1 data proves worth presenting via Workspace cloud UI.
 
-**Theme:** Add OpenBB Platform as a new data tier without removing any existing scrapers. 4 sub-waves, ~6-8 days total.
+See `docs/research-wave7-openbb.md` for full plan.
 
-### Wave 7.0 — "The Connection"
-- [ ] **7.0.1** Install `openbb` Python package in project venv
-- [ ] **7.0.2** Run `openbb-api` locally, verify localhost:6900
-- [ ] **7.0.3** Smoke test free endpoints (FRED, SEC)
-- [ ] **7.0.4** Write `docs/openbb-setup.md`
+## Open — Wave 7: Native Rust Provider Library ("The Library")
 
-### Wave 7.1 — "The Bridge"
-- [ ] **7.1.1** New `src/scraper/sources/openbb.rs` — Rust async HTTP client for OpenBB API
-- [ ] **7.1.2** Pick first high-value dataset (SEC ownership / World Bank macro / CFTC COT)
-- [ ] **7.1.3** Wire into scraper pipeline as new phase
-- [ ] **7.1.4** Migration `0043_openbb_<dataset>.sql`
-- [ ] **7.1.5** Dashboard display surface
+**Theme:** Add 10 free, high-value data providers as native Rust scrapers. Cherry-pick the datasets that close real gaps in our 20-module existing scraper. 5 sub-waves, ~8-10 days total.
 
-### Wave 7.2 — "The Workspace" (research/inspiration tool)
-- [ ] **7.2.1** ngrok install + tunnel localhost:6900
-- [ ] **7.2.2** OpenBB Workspace account + PAT + backend URL config
-- [ ] **7.2.3** `ngrok-skip-browser-warning` header
-- [ ] **7.2.4** Build one Workspace research dashboard
-- [ ] **7.2.5** Write `docs/openbb-workspace.md`
+**Selection criteria:** (1) free, (2) closes real gap, (3) plausibly affects scoring, (4) low integration effort.
 
-### Wave 7.3 — "The Custom Backend" (optional/aspirational)
-- [ ] **7.3.1** New `services/openbb-bridge/` FastAPI app
-- [ ] **7.3.2** `widgets.json` for Lagrange/astro/patterns widgets
-- [ ] **7.3.3** Endpoints exposing our proprietary data
-- [ ] **7.3.4** Read-only Postgres connection
-- [ ] **7.3.5** Deploy + connect to Workspace
+### Wave 7.0 — "The Macro Foundation" (~2-3 days)
+International + sovereign macro. Closes our biggest data gap (FRED is US-only).
+- [ ] **7.0.1** `src/scraper/world_bank.rs` — `https://api.worldbank.org/v2/country/{code}/indicator/{id}?format=json`. 1500+ indicators, 200+ countries.
+- [ ] **7.0.2** `src/scraper/imf.rs` — `https://www.imf.org/external/datamapper/api/v1/...`. Sovereign macro + IMF forecasts.
+- [ ] **7.0.3** `src/scraper/ecb.rs` — `https://data-api.ecb.europa.eu/service/data/...`. EU monetary policy + EUR FX.
+- [ ] **7.0.4** Migration `0043_intl_macro.sql` — unified `intl_macro_indicators` table (country_code, indicator_code, date, value, data_source).
+- [ ] **7.0.5** Wire into scraper pipeline phase 2.4b (after FRED).
+- [ ] **7.0.6** Dashboard surface — extend Research tab with international macro section.
 
-### Wave 7.4 — "The Cross-Check"
-- [ ] **7.4.1** Pick overlap dataset (FRED in both)
-- [ ] **7.4.2** Tag `data_source = 'openbb_<provider>'` rows
-- [ ] **7.4.3** Discrepancy detector (>0.5% delta logged)
-- [ ] **7.4.4** Surface in dashboard as data quality signal
+### Wave 7.1 — "The Sentiment Layer" (~2 days)
+Futures positioning sentiment. Qualitatively new signal type.
+- [ ] **7.1.1** `src/scraper/cftc_cot.rs` — weekly CSV download from `cftc.gov`. Parse commercial vs speculator net positions.
+- [ ] **7.1.2** Migration `0044_cftc_cot.sql` — `cftc_positioning` table (commodity, report_date, commercial_net, large_spec_net, small_spec_net).
+- [ ] **7.1.3** Wire into scraper pipeline phase 2.5b.
+- [ ] **7.1.4** New Research tab section "Futures Positioning" — gold, oil, SPX, treasuries.
+
+### Wave 7.2 — "The Labor + Energy" (~2 days)
+US sector-level signal sources.
+- [ ] **7.2.1** `src/scraper/bls.rs` — `https://api.bls.gov/publicAPI/v2/timeseries/data/`. Free tier 25 queries/day, 50 series/query. Detailed CPI components, sector employment, productivity.
+- [ ] **7.2.2** `src/scraper/eia.rs` — `https://api.eia.gov/v2/`. Energy data: oil/gas prices, production, inventories. Drives energy/utility tickers.
+- [ ] **7.2.3** Migration `0045_bls_eia.sql` — `bls_series` + `eia_series` tables.
+- [ ] **7.2.4** Wire into pipeline + Research tab.
+
+### Wave 7.3 — "The Stress Index" (~1 day)
+Single high-signal composite metric.
+- [ ] **7.3.1** `src/scraper/ofr.rs` — Office of Financial Research. Financial Stress Index, money market data. Single endpoint, single number.
+- [ ] **7.3.2** Migration `0046_ofr_stress.sql`.
+- [ ] **7.3.3** Surface in Universe tab as new column or in macro overview.
+
+### Wave 7.4 — "The Treasury + Crypto" (~2 days)
+Round out coverage with two more high-value providers.
+- [ ] **7.4.1** `src/scraper/treasury_direct.rs` — `https://api.fiscaldata.treasury.gov/services/api/...`. US Treasury auctions, debt-to-the-penny, yield curve raw.
+- [ ] **7.4.2** `src/scraper/coingecko.rs` — `https://api.coingecko.com/api/v3/...`. Crypto prices/market data, 30/min free. Optional but adds asset class.
+- [ ] **7.4.3** Migration `0047_treasury_crypto.sql`.
+- [ ] **7.4.4** Pipeline + display.
+
+### Wave 7 totals
+**10 providers**: World Bank, IMF, ECB, CFTC, BLS, EIA, OFR, Treasury Direct, CoinGecko, plus 1 buffer slot.
+**5 migrations**: 0043-0047.
+**Estimate**: 8-10 days.
+
+---
+
+## Open — Wave 8 (CONDITIONAL): Rust Sidecar + OpenBB Workspace ("The Showcase")
+
+**Theme:** Build Rust HTTP server (axum) mimicking OpenBB Platform's API contract. OpenBB Workspace cloud UI connects to it as if it were OpenBB. Gives us polished dashboards + sharing for Pursuit demo day. ~7 days.
+
+**Decision gate:** Only ship Wave 8 IF Wave 7 data is worth presenting via Workspace AND Pursuit Fellowship needs polished shareable dashboards. Validate before committing.
+
+### Wave 8.0 — "The Scaffold" (~1 day)
+- [ ] **8.0.1** Cargo workspace `[[bin]]` target for `workspace` binary at `src/workspace/main.rs`.
+- [ ] **8.0.2** axum scaffold serving `localhost:7100`.
+- [ ] **8.0.3** `tower-http` CORS layer allowing `https://pro.openbb.co`.
+- [ ] **8.0.4** PAT bearer auth middleware (env var `WORKSPACE_PAT`).
+- [ ] **8.0.5** Read-only Postgres role + sqlx connection pool.
+
+### Wave 8.1 — "The Contract" (~1 day)
+- [ ] **8.1.1** Implement `GET /widgets.json` returning widget catalog.
+- [ ] **8.1.2** Implement `GET /apps.json` for app definitions.
+- [ ] **8.1.3** First widget endpoint: `GET /lagrange-scores?ticker=X` returning array of `{ticker, score_date, score, label}`.
+- [ ] **8.1.4** Verify Workspace can render the widget end-to-end.
+
+### Wave 8.2 — "The Widget Set" (~2 days)
+Add core widgets exposing our proprietary data.
+- [ ] **8.2.1** `/aspect-patterns?ticker=X` (Wave 6.B1)
+- [ ] **8.2.2** `/eclipse-activations?ticker=X` (Wave 6.B4)
+- [ ] **8.2.3** `/fixed-stars?date=D` (Wave 6.B3)
+- [ ] **8.2.4** `/universe?zone=X&sector=Y` (paginated universe table)
+- [ ] **8.2.5** `/data-freshness?ticker=X` (Wave 6.A4)
+- [ ] **8.2.6** `/lagrange-history?ticker=X` (line chart series)
+
+### Wave 8.3 — "The Visuals" (~1 day)
+Chart-type widgets, not just tables.
+- [ ] **8.3.1** Lagrange-over-time line chart widget.
+- [ ] **8.3.2** Sector heatmap widget.
+- [ ] **8.3.3** Aspect pattern timeline gantt-style.
+
+### Wave 8.4 — "The Tunnel" (~1 day)
+- [ ] **8.4.1** ngrok install + auth token + tunnel `localhost:7100`.
+- [ ] **8.4.2** OpenBB Workspace account + PAT generation.
+- [ ] **8.4.3** Workspace settings → backend URL = ngrok URL → header `ngrok-skip-browser-warning: true`.
+- [ ] **8.4.4** Verify all widgets load in Workspace.
+
+### Wave 8.5 — "The Dashboard" (~1 day)
+- [ ] **8.5.1** Build one polished Workspace dashboard combining 6+ widgets.
+- [ ] **8.5.2** Screenshot for Pursuit portfolio.
+- [ ] **8.5.3** Document in `docs/openbb-workspace-rust.md` — setup, deployment, architecture.
+
+### Wave 8 totals
+**~7 days**, ~3000 LOC new Rust, 0 new external dependencies (axum/sqlx/tokio already in tree).
+**Conditional ship gate**: validate after Wave 7 ships.
 
 ## Open — API Keys Backlog (Wave 6 deferred sources)
 
