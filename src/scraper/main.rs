@@ -14,6 +14,7 @@ mod macro_data;
 mod options;
 mod paper_engine;
 mod polymarket;
+mod analyst_targets;
 mod prices;
 mod retry;
 mod rss_news;
@@ -397,6 +398,16 @@ async fn fetch_single_ticker(
         Arc::clone(&pool), Arc::clone(&client), Arc::clone(&api_key), &one_ticker,
     ).await;
 
+    // 4b. Analyst price targets (Wave 6.A3) — single-ticker via Finnhub
+    if let Some(ref fh_key) = finnhub_key {
+        println!("[{ticker}] Phase 4b: Analyst targets...");
+        if let Err(e) = analyst_targets::fetch_one_and_store(
+            Arc::clone(&pool), Arc::clone(&client), Arc::clone(fh_key), ticker,
+        ).await {
+            eprintln!("[{ticker}] Analyst targets error: {e:#}");
+        }
+    }
+
     // 5. Fundamentals — Wave 6.A2 cascade: FMP → Finnhub → AV OVERVIEW
     if let Some(ref fmp) = fmp_key {
         println!("[{ticker}] Phase 5: Fundamentals (cascade)...");
@@ -536,6 +547,12 @@ async fn run_all_fetches(
         finnhub::fetch_all_finnhub(
             Arc::clone(&pool), Arc::clone(&client), Arc::clone(fh_key), Arc::clone(&fh_limiter),
             &priority,
+        ).await;
+
+        // Wave 6.A3 — analyst price targets (separate Finnhub endpoint).
+        println!("2.3b Fetching analyst price targets (Finnhub)...");
+        analyst_targets::fetch_analyst_targets(
+            Arc::clone(&pool), Arc::clone(&client), Arc::clone(fh_key),
         ).await;
     }
 

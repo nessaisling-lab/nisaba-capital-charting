@@ -3,12 +3,13 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.14, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v11.4.0-w6.1
+**Current version:** v11.4.0-w6.2
 **Next milestones:**
-- v11.4 Wave 6 sub-waves remaining — **6.2 "The Depth"**: earnings calendar + fixed stars/Arabic Parts. **6.3 "The Trust"**: data freshness UI badges + eclipse cycles.
+- v11.4 Wave 6 sub-waves remaining — **6.3 "The Trust"**: data freshness UI badges + eclipse cycles + Saros series.
 - v12.0 "The Vision" — Full natal chart interactivity (zoom, click-to-inspect, animated transitions). Iced 0.14 prerequisite met.
 
 **Completed milestones:**
+- v11.4-w6.2 "The Depth" — Analyst price targets via Finnhub `/stock/price-target` (new `analyst_targets` table, single-ticker + universe-wide flows, 7-day staleness gate). Fixed stars (8 stars: Regulus/Spica/Antares/Aldebaran/Sirius/Vega/Fomalhaut/Algol) with J2000 longitudes + linear precession, 1° activation orb, Algol negative-strength. Arabic Parts (Fortune, Spirit, Commerce, Substance) derived from ASC + Sun/Moon/Mercury, with transit-aspect detection (3° orb). NatalChart now stores ascendant. Both star + Part contributions added to delta_sum pre-sigmoid. Migration `0040`. 8 new tests, 57/57 lib tests passing.
 - v11.4-w6.1 "The Precision" — Multi-source fundamentals fallback (FMP → Finnhub `/stock/metric` → AV `OVERVIEW`) with `data_source` provenance column. Aspect strength model adds body weighting (Sun/Moon=1.5, outers=1.4, inners=1.0, nodes=0.8), mutual reception bonus (1.15× when bodies in each other's domiciles), out-of-sign penalty (0.75× when sign-distance mismatches aspect-distance). New `score_aspect_v2()` integrates full multiplier stack. Migration `0039`. 18/18 aspect tests passing.
 - v11.4-w6.0 "The Reliability" — Multi-source price fallback (Yahoo + Stooq with provenance column on `price_data`) + 7-pattern aspect recognition (Grand Trine, T-Square, Grand Cross, Yod, Stellium, Mystic Rectangle, Kite) with cross-chart detection wired into `compute_transit_score`. 2 migrations (0037 aspect_patterns, 0038 price_data_source). 7/7 pattern tests passing.
 - v11.3 "The Refinement" — All 22 video-review items shipped across 5 waves: aspect tuning, section icons, layout restructure (header price/H-L, search above ornament, astrology two-column), UX fixes (sector dropdown, column tooltips, Rising sign backfill, per-ticker fetch scope), planet symbol overlay (Iced 0.14 pin/stack), hover tooltips, council template diversification (6 headlines/persona, fundamental injection), chart size + tooltip size enums, fetch progress bar (time-based fill), gauge compass-rose redesign (sundial ticks + 8-pt star cap), parchment fiber background texture, scraper retry helper.

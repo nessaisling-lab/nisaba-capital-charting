@@ -28,6 +28,8 @@ pub struct NatalChart {
     pub ticker:     String,
     pub ipo_date:   NaiveDate,
     pub positions:  Vec<PlanetSnapshot>,
+    /// v11.4 (Wave 6.B3) — Ascendant longitude (NYSE coords) for Arabic Parts.
+    pub ascendant:  Option<f64>,
 }
 
 impl NatalChart {
@@ -43,15 +45,18 @@ impl NatalChart {
             ipo_date.day(),
             14.5, // 09:30 EST in UTC
         );
-        let positions = {
+        let (positions, ascendant) = {
             let _lock = SWE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
             let precise = swisseph_bridge::snapshot_all_precise(jdn);
-            if precise.len() >= 10 { precise } else { snapshot_all(jdn) }
+            let pos = if precise.len() >= 10 { precise } else { snapshot_all(jdn) };
+            let asc = swisseph_bridge::compute_houses_nyse(jdn).ok().map(|h| h.ascendant);
+            (pos, asc)
         };
         NatalChart {
             ticker: ticker.to_string(),
             ipo_date,
             positions,
+            ascendant,
         }
     }
 
@@ -67,16 +72,22 @@ impl NatalChart {
 // ---------------------------------------------------------------------------
 
 pub struct TransitScore {
-    pub ticker:         String,
-    pub score_date:     NaiveDate,
-    pub astro_score:    f32,
-    pub astro_label:    String,
-    pub moon_phase:     String,
-    pub moon_phase_deg: f64,
-    pub mercury_rx:     bool,
-    pub active_aspects: Vec<ActiveAspect>,
+    pub ticker:           String,
+    pub score_date:       NaiveDate,
+    pub astro_score:      f32,
+    pub astro_label:      String,
+    pub moon_phase:       String,
+    pub moon_phase_deg:   f64,
+    pub mercury_rx:       bool,
+    pub active_aspects:   Vec<ActiveAspect>,
     /// v11.4 (Wave 6.B1) — geometric patterns detected from natal+transit positions.
-    pub patterns:       Vec<super::patterns::AspectPattern>,
+    pub patterns:         Vec<super::patterns::AspectPattern>,
+    /// v11.4 (Wave 6.B3) — fixed-star conjunctions within 1° orb.
+    pub star_activations: Vec<super::fixed_stars::StarActivation>,
+    /// v11.4 (Wave 6.B3) — computed Arabic Parts (Fortune, Spirit, Commerce, Substance).
+    pub arabic_parts:     Vec<super::arabic_parts::ArabicPart>,
+    /// v11.4 (Wave 6.B3) — transit aspects to Arabic Parts.
+    pub part_activations: Vec<super::arabic_parts::PartActivation>,
 }
 
 /// Compute the astrological score for a ticker on a given date.
@@ -200,6 +211,19 @@ pub fn compute_transit_score(natal: &NatalChart, score_date: NaiveDate) -> Trans
     let pattern_delta = super::patterns::pattern_score_total(&patterns);
     delta_sum += pattern_delta;
 
+    // v11.4 (Wave 6.B3) — fixed-star activations + Arabic Part aspects.
+    // Both contribute pre-normalization. Fixed stars trigger only on tight
+    // (within 1°) transit conjunctions, so noise is naturally limited.
+    let star_activations = super::fixed_stars::detect_activations(&transits, score_date);
+    let star_delta = super::fixed_stars::activation_score_total(&star_activations);
+    delta_sum += star_delta;
+
+    // Arabic Parts (Fortune, Spirit, Commerce, Substance) — only when ASC known.
+    let arabic_parts = super::arabic_parts::compute_parts(natal.ascendant, &natal.positions);
+    let part_activations = super::arabic_parts::detect_part_aspects(&arabic_parts, &transits);
+    let part_delta = super::arabic_parts::part_activation_score_total(&part_activations);
+    delta_sum += part_delta;
+
     // Composite score — normalized sigmoid
     //
     // The raw delta_sum can swing to ±300 with 50+ aspects per ticker.
@@ -238,6 +262,9 @@ pub fn compute_transit_score(natal: &NatalChart, score_date: NaiveDate) -> Trans
         mercury_rx,
         active_aspects,
         patterns,
+        star_activations,
+        arabic_parts,
+        part_activations,
     }
 }
 

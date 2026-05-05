@@ -14,10 +14,10 @@
 - [x] **6.A2 Multi-source fundamentals fallback** — `SourcedFundamentals` normalized struct, FMP→Finnhub `/stock/metric?metric=all`→AV `OVERVIEW`. `data_source` column on `fundamental_metrics`. Migration `0039`.
 - [x] **6.B2 Aspect strength model** — `body_weight()` table (Sun/Moon=1.5, Jup/Sat=1.3, outers=1.4, inners=1.0, nodes/Chiron=0.8), `mutual_reception_bonus()` (1.15× when bodies in each other's domiciles), `out_of_sign_modifier()` (0.75× when sign-distance mismatches aspect-distance). New `score_aspect_v2()` integrates all multipliers; orb-tightness, applying/separating, dignity already existed pre-Wave 6. 18/18 aspect tests passing.
 
-### Wave 6.2 — "The Depth"
+### Wave 6.2 — "The Depth" — SHIPPED 2026-05-04
 
-- [ ] **6.A3 Earnings calendar + analyst targets** — FMP `/earning_calendar` + Finnhub `/stock/price-target`. Migration `0028`.
-- [ ] **6.B3 Fixed stars + Arabic Parts** — Regulus/Algol/Spica/Antares/Sirius/Vega/Aldebaran/Fomalhaut + Part of Fortune/Spirit/Commerce.
+- [x] **6.A3 Analyst price targets** — Finnhub `/stock/price-target` endpoint, new `analyst_targets` table (low/median/high/n_analysts), 7-day staleness check, single-ticker + universe-wide variants. Migration `0040`. Earnings calendar already existed via existing finnhub.rs.
+- [x] **6.B3 Fixed stars + Arabic Parts** — 8 stars (Regulus/Spica/Antares/Aldebaran/Sirius/Vega/Fomalhaut/Algol) with hardcoded J2000 longitudes + linear precession (~0.014°/year). 1° conjunction orb. Algol carries negative strength (-14). Arabic Parts: Fortune, Spirit, Commerce, Substance computed from ASC + Sun + Moon + Mercury. NatalChart gains `ascendant: Option<f64>` field. Both add to delta_sum pre-sigmoid. 5 new tests passing (precession, conjunction detection, orb edge, Moon skip, Algol negative, Fortune formula, transit-conjunct-Fortune).
 
 ### Wave 6.3 — "The Trust"
 

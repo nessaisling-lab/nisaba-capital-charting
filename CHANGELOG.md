@@ -6,6 +6,57 @@
 
 ---
 
+## v11.4.0-w6.2 — "The Depth" (2026-05-04)
+
+**Theme:** Wave 6.2 paired Track A (analyst price targets) + Track B (fixed stars + Arabic Parts). Both add new dimensions of signal: forward-looking analyst consensus, and traditional astrological reference points the engine was missing.
+
+### Track A — 6.A3 Analyst Price Targets
+
+New `src/scraper/analyst_targets.rs` calls Finnhub `/stock/price-target` endpoint. Response shape: `targetHigh / targetLow / targetMedian / numberOfAnalysts` (camelCase). All fields optional — tickers without analyst coverage return all-None response, treated as no-data and skipped.
+
+Migration `0040_analyst_targets.sql`: new `analyst_targets` table keyed on ticker (single row, latest fetch wins). Fields: low/median/high (NUMERIC(10,2)), n_analysts, fetch_date, last_updated. Index on fetch_date.
+
+Two API surfaces:
+- `fetch_analyst_targets(pool, client, key)` — universe-wide pull, 30 ticker batch budget per run, 7-day staleness check. 1.1s sleep between calls = 55/min stays inside Finnhub free 60/min limit.
+- `fetch_one_and_store(pool, client, key, ticker)` — single-ticker variant for FetchThisTicker flow.
+
+Wired into `run_all_fetches` (phase 2.3b after general Finnhub) and `fetch_single_ticker` (phase 4b).
+
+### Track B — 6.B3 Fixed Stars + Arabic Parts
+
+**Fixed stars** (`src/astrology/fixed_stars.rs`): 8 stars catalog with J2000 ecliptic longitudes hardcoded, linear precession applied (`50.29″/year ≈ 0.01397°/year`). Activation = transit planet within 1° orb. Strength tightness-scaled (full at 0° orb, half at 1° orb). Catalog:
+
+| Star | J2000 Lon | Strength | Archetype |
+|------|-----------|----------|-----------|
+| Regulus | 149.83° | +10 | Kingship, finance success |
+| Spica | 203.88° | +12 | Wealth, abundance |
+| Antares | 249.83° | +8 | Leadership, finance/military |
+| Aldebaran | 69.93° | +6 | Honors, recognition |
+| Sirius | 104.28° | +8 | Fame, media attention |
+| Vega | 285.38° | +5 | Artistry, IP success |
+| Fomalhaut | 334.08° | +4 | Transformation, dreams |
+| Algol | 56.35° | -14 | Sudden loss, danger |
+
+Approximation rationale: precise positions require `swe_fixstar2` via raw FFI (the safe wrapper of `swiss-eph` doesn't expose it). For 1° orb activations, linear precession from J2000 is sufficient (~0.36° drift in 26 years, well within orb tolerance). Documented in module comment.
+
+**Arabic Parts** (`src/astrology/arabic_parts.rs`): pure formula derivations.
+- **Part of Fortune** = ASC + Moon - Sun (day formula; IPO charts always day)
+- **Part of Spirit** = ASC + Sun - Moon
+- **Part of Commerce** = ASC + Mercury - Sun
+- **Part of Substance** = ASC + 30° (2nd-house cusp approximation, Whole Sign)
+
+Transit aspects to Parts use 3° orb (sensitive degrees, not bodies). Aspects scored: conjunction (+4), sextile (+2), square (-3), trine (+3.5), opposition (-3.5). Part of Fortune carries 1.0× weight; others 0.5× (advisory).
+
+`NatalChart` struct gains `ascendant: Option<f64>` field. `NatalChart::compute` calls `compute_houses_nyse(jdn)` and stores result. Updates breaking change to `helpers.rs::build_natal_from_snapshots` (sets `ascendant: None`).
+
+`compute_transit_score` adds star + Arabic Part deltas to `delta_sum` pre-sigmoid. `TransitScore` gains `star_activations`, `arabic_parts`, `part_activations` fields.
+
+5 new unit tests (precession arithmetic, conjunction detection, orb edge, Moon skip filter, Algol negative-strength); 3 Arabic Part tests (Fortune formula, no-ascendant fallback, transit-conjunct-Fortune detection). 57/57 lib tests passing total.
+
+**Files modified:** 6 (`src/astrology/mod.rs`, `src/astrology/natal.rs`, `src/scraper/main.rs`, `src/dashboard/update/helpers.rs`) + 4 new (`fixed_stars.rs`, `arabic_parts.rs`, `analyst_targets.rs`, migration `0040`)
+
+---
+
 ## v11.4.0-w6.1 — "The Precision" (2026-05-04)
 
 **Theme:** Wave 6.1 paired Track A (fundamentals fallback chain) + Track B (aspect strength model upgrades). Both inputs to Lagrange composite score get richer simultaneously.

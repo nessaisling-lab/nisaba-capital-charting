@@ -349,6 +349,10 @@ fn natal_positions_to_chart(ticker: &str, positions: &[NatalPosition]) -> Option
         ticker: ticker.to_string(),
         ipo_date: chrono::Utc::now().date_naive(),
         positions: snapshots,
+        // v11.4 (Wave 6.B3) — ascendant computed in dashboard from natal_angles
+        // table when available; pass None here since helpers.rs builds chart
+        // from snapshots only (used for backtests, not transit scoring).
+        ascendant: None,
     })
 }
 
