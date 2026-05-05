@@ -6,6 +6,37 @@
 
 ---
 
+## Wave 7 Plan — "The Library" (planning, 2026-05-04)
+
+OpenBB Platform integration roadmap added. NOT a code release — this is a planning entry documenting decision and approach.
+
+### Decision
+
+Add OpenBB Platform as a NEW data tier alongside existing 20 scrapers. Do NOT replace working code. OpenBB acts as "deep cabinet" for 350+ datasets we can't easily integrate one-by-one (CFTC commitment of traders, IMF, World Bank, ECB, OECD, granular SEC institutional ownership).
+
+### Two Modes
+
+1. **OpenBB Platform API** (programmatic) — Python service at `localhost:6900`, our Rust scraper makes HTTP calls for niche datasets. Primary integration mode.
+2. **OpenBB Workspace** (research UI) — cloud dashboard at `pro.openbb.co`, connects to our local Platform via ngrok tunnel. Used for exploration + design inspiration. NOT embedded in our Iced dashboard.
+
+### 5 Sub-Waves
+
+- **7.0 "The Connection"** — install OpenBB Python package, run `openbb-api`, smoke test, document setup.
+- **7.1 "The Bridge"** — `src/scraper/sources/openbb.rs` Rust HTTP client + first dataset (recommend World Bank macro, parallels existing FRED scraper). Migration `0043`.
+- **7.2 "The Workspace"** — ngrok tunnel + Workspace account + PAT. Build one research dashboard.
+- **7.3 "The Custom Backend"** (optional) — FastAPI shim exposing our Lagrange/astro data to Workspace. Read-only Postgres role.
+- **7.4 "The Cross-Check"** — run FRED via both native + OpenBB, log discrepancies > 0.5% as data quality signal.
+
+### Won't Do
+
+- ❌ Replace existing scrapers with OpenBB equivalents
+- ❌ Embed Workspace inside Iced dashboard (wrong tool)
+- ❌ Use OpenBB for time-sensitive data (latency stack too long)
+
+See `docs/research-wave7-openbb.md` for full plan, architecture diagram, recommended sequencing, and risks.
+
+---
+
 ## v11.4.0-w6.3 — "The Trust" (2026-05-04)
 
 **Theme:** Final Wave 6 sub-wave. Track A surfaces data quality directly in the UI; Track B adds the loudest astrological events (eclipses) to the engine.

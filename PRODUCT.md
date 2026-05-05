@@ -77,8 +77,9 @@ What we take from each instead:
 ## Technical Context
 
 - **Current stack:** Rust, Iced 0.14 (GPU-accelerated), SQLx, PostgreSQL, WGSL shaders, Swiss Ephemeris (sub-arcsecond), 20-module scraper
-- **Current state:** v11.3 desktop app, scraper + dashboard binaries
+- **Current state:** v11.4 desktop app (Wave 6 complete), scraper + dashboard binaries
 - **Data sources active:** Alpha Vantage, FMP, Finnhub, FRED/DBnomics, EDGAR, Polymarket, GDELT, RSS, Tiingo, Wikidata
-- **Wave 6 planned:** multi-source fallback chains (AV→Tiingo→Finnhub→Yahoo→Stooq for prices; FMP→Finnhub→AV for fundamentals), aspect pattern recognition, fixed stars, eclipse cycles, aspect strength upgrade. Doubles signal density on both Lagrange inputs.
+- **Wave 6 shipped (v11.4):** multi-source fallback chains for prices (AV→Tiingo→Finnhub→Yahoo→Stooq) + fundamentals (FMP→Finnhub→AV), 7-pattern aspect recognition (Grand Trine, T-Square, Yod, etc.), aspect strength upgrade (body weight, mutual reception, out-of-sign), 8 fixed stars + 4 Arabic Parts, 17 eclipses with Saros tracking, data freshness UI badges. Both Lagrange inputs significantly richer.
+- **Wave 7 planned:** OpenBB Platform integration as additive data tier (NOT replacing existing scrapers). 350+ datasets via Python service at localhost:6900. Optional Workspace cloud UI for research. Cross-check existing FRED data for discrepancy detection.
 - **Deployment:** Not yet deployed. Cross-platform strategy TBD (Rust → mobile options include Tauri, Dioxus, or native bridges).
 - **Class context:** Pursuit NYC Week 4 Fellowship project. Teacher previously critical of UI/UX (pre-v7.0 builds). v11.2 self-reviewed on 2026-04-30 (15-min video review, 22 feedback items captured). Key findings: layout needs tightening, natal chart needs higher visual quality (finer aspect lines, planet symbols, interactivity), Council agents too template-generic, sector filter UX poor. Approved: tab bookmark styling, icon-only nav, Universe legibility. Iced 0.13→0.14 framework upgrade completed same day (19 breaking API changes across 13 files). All 22 items shipped 2026-05-04 as v11.3 "The Refinement" across 5 waves. Wave 6 next — paired data reliability (multi-source fallback) + astrology engine depth (patterns, fixed stars, eclipses, dignity-weighted aspects).

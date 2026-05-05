@@ -54,9 +54,45 @@
 **What:** `docker-compose.yml` to start PostgreSQL. 10-line file, `POSTGRES_PASSWORD=dev`, port 5432.
 **Blocked by:** User wants to explore Docker first.
 
-### OpenBB Platform integration
-**What:** Replace some scraper modules with OpenBB Platform aggregator (wraps many sources).
-**Why:** ~5 of our 20 scrapers could collapse into one OpenBB call. Trade-off: external dep vs less code.
+### OpenBB Platform integration — PROMOTED to Wave 7 (2026-05-04)
+**Decision:** Add as new data tier alongside existing scrapers (do NOT replace). OpenBB acts as "deep cabinet" for 350+ datasets we can't easily integrate one-by-one (CFTC, IMF, World Bank, niche macro). See `docs/research-wave7-openbb.md` for full plan.
+
+## Open — Wave 7: OpenBB Integration ("The Library")
+
+**Theme:** Add OpenBB Platform as a new data tier without removing any existing scrapers. 4 sub-waves, ~6-8 days total.
+
+### Wave 7.0 — "The Connection"
+- [ ] **7.0.1** Install `openbb` Python package in project venv
+- [ ] **7.0.2** Run `openbb-api` locally, verify localhost:6900
+- [ ] **7.0.3** Smoke test free endpoints (FRED, SEC)
+- [ ] **7.0.4** Write `docs/openbb-setup.md`
+
+### Wave 7.1 — "The Bridge"
+- [ ] **7.1.1** New `src/scraper/sources/openbb.rs` — Rust async HTTP client for OpenBB API
+- [ ] **7.1.2** Pick first high-value dataset (SEC ownership / World Bank macro / CFTC COT)
+- [ ] **7.1.3** Wire into scraper pipeline as new phase
+- [ ] **7.1.4** Migration `0043_openbb_<dataset>.sql`
+- [ ] **7.1.5** Dashboard display surface
+
+### Wave 7.2 — "The Workspace" (research/inspiration tool)
+- [ ] **7.2.1** ngrok install + tunnel localhost:6900
+- [ ] **7.2.2** OpenBB Workspace account + PAT + backend URL config
+- [ ] **7.2.3** `ngrok-skip-browser-warning` header
+- [ ] **7.2.4** Build one Workspace research dashboard
+- [ ] **7.2.5** Write `docs/openbb-workspace.md`
+
+### Wave 7.3 — "The Custom Backend" (optional/aspirational)
+- [ ] **7.3.1** New `services/openbb-bridge/` FastAPI app
+- [ ] **7.3.2** `widgets.json` for Lagrange/astro/patterns widgets
+- [ ] **7.3.3** Endpoints exposing our proprietary data
+- [ ] **7.3.4** Read-only Postgres connection
+- [ ] **7.3.5** Deploy + connect to Workspace
+
+### Wave 7.4 — "The Cross-Check"
+- [ ] **7.4.1** Pick overlap dataset (FRED in both)
+- [ ] **7.4.2** Tag `data_source = 'openbb_<provider>'` rows
+- [ ] **7.4.3** Discrepancy detector (>0.5% delta logged)
+- [ ] **7.4.4** Surface in dashboard as data quality signal
 
 ## Open — API Keys Backlog (Wave 6 deferred sources)
 
