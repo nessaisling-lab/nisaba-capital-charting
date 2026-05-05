@@ -3,12 +3,14 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.14, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v11.4.0-w6.2
+**Current version:** v11.4.0 (all sub-waves complete)
 **Next milestones:**
-- v11.4 Wave 6 sub-waves remaining — **6.3 "The Trust"**: data freshness UI badges + eclipse cycles + Saros series.
+- **v12.0 "The Vision"** — full natal chart interactivity (zoom, click-to-inspect, animated transitions). Iced 0.14 prerequisite met.
+- **v11.5 (TBD)** — backlog items: harmonic charts (H4/H5/H7/H9), sidereal vs tropical concordance, progressed charts (secondary + solar arc), real-time fetch progress (subprocess stdout streaming), house numbers on natal chart, OpenBB Platform integration trial.
 - v12.0 "The Vision" — Full natal chart interactivity (zoom, click-to-inspect, animated transitions). Iced 0.14 prerequisite met.
 
 **Completed milestones:**
+- v11.4-w6.3 "The Trust" — Data freshness SQL view aggregating 5-source completeness per ticker (prices/fundamentals/news/sentiment/astro). `fresh_count` 0-5 surfaced on universe table as ●●●●○ badge with zone-tinted color. Eclipse activation engine: 17 hardcoded NASA-catalog eclipses 2025-2028, 6° natal-conjunction orb, 12mo-future + 6mo-past echo window, Solar/Lunar separate strength bases (-10/-6), tightness + time-fade scaling, Saros series tracked. Migrations `0041` + `0042`. 5 new tests, 67/67 lib tests passing.
 - v11.4-w6.2 "The Depth" — Analyst price targets via Finnhub `/stock/price-target` (new `analyst_targets` table, single-ticker + universe-wide flows, 7-day staleness gate). Fixed stars (8 stars: Regulus/Spica/Antares/Aldebaran/Sirius/Vega/Fomalhaut/Algol) with J2000 longitudes + linear precession, 1° activation orb, Algol negative-strength. Arabic Parts (Fortune, Spirit, Commerce, Substance) derived from ASC + Sun/Moon/Mercury, with transit-aspect detection (3° orb). NatalChart now stores ascendant. Both star + Part contributions added to delta_sum pre-sigmoid. Migration `0040`. 8 new tests, 57/57 lib tests passing.
 - v11.4-w6.1 "The Precision" — Multi-source fundamentals fallback (FMP → Finnhub `/stock/metric` → AV `OVERVIEW`) with `data_source` provenance column. Aspect strength model adds body weighting (Sun/Moon=1.5, outers=1.4, inners=1.0, nodes=0.8), mutual reception bonus (1.15× when bodies in each other's domiciles), out-of-sign penalty (0.75× when sign-distance mismatches aspect-distance). New `score_aspect_v2()` integrates full multiplier stack. Migration `0039`. 18/18 aspect tests passing.
 - v11.4-w6.0 "The Reliability" — Multi-source price fallback (Yahoo + Stooq with provenance column on `price_data`) + 7-pattern aspect recognition (Grand Trine, T-Square, Grand Cross, Yod, Stellium, Mystic Rectangle, Kite) with cross-chart detection wired into `compute_transit_score`. 2 migrations (0037 aspect_patterns, 0038 price_data_source). 7/7 pattern tests passing.

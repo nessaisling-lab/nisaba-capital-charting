@@ -145,6 +145,12 @@ impl Dashboard {
                         .padding([4, 8]).style(tip_style),
                     tooltip::Position::Bottom,
                 ),
+                tooltip(
+                    text("Data").size(theme::text_sm()).width(Length::Fixed(46.0)),
+                    container(text("Data freshness — 5 sources: prices/fundamentals/news/sentiment/astro").size(theme::text_xs()))
+                        .padding([4, 8]).style(tip_style),
+                    tooltip::Position::Bottom,
+                ),
             ]
             .spacing(6);
 
@@ -222,6 +228,19 @@ impl Dashboard {
                         text(conc.to_string())
                             .size(theme::text_xs())
                             .width(Length::Fixed(100.0)),
+                        // v11.4 (Wave 6.A4) — data freshness badge ●●●●○
+                        {
+                            let n = u.fresh_count.unwrap_or(0).clamp(0, 5) as usize;
+                            let dots = "\u{25CF}".repeat(n) + &"\u{25CB}".repeat(5 - n);
+                            let badge_color = match n {
+                                5 => theme::ZONE_OPTIMAL,
+                                3 | 4 => theme::ZONE_FAVORABLE,
+                                2 => theme::ZONE_NEUTRAL,
+                                _ => theme::ZONE_MISALIGNED,
+                            };
+                            text(dots).size(theme::text_xs()).color(badge_color)
+                                .width(Length::Fixed(46.0))
+                        },
                     ]
                     .spacing(6)
                     .align_y(Alignment::Center)

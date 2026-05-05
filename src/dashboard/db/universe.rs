@@ -45,6 +45,8 @@ pub struct UniverseRow {
     pub macro_score:  Option<f32>,
     pub short_score:  Option<f32>,
     pub concordance:  Option<String>,
+    /// v11.4 (Wave 6.A4) — fresh source count, 0-5. Drives `●●●●○` badge.
+    pub fresh_count:  Option<i32>,
 }
 
 /// Fetch a page of the scored universe, with optional zone, sector, and search filters.
@@ -89,13 +91,15 @@ pub async fn fetch_universe_page(
                 lh.fin_score,
                 lh.macro_score,
                 lh.short_score,
-                lh.concordance
+                lh.concordance,
+                df.fresh_count::int AS fresh_count
          FROM astro_scores a
          CROSS JOIN latest_astro la
          LEFT JOIN company_metadata cm ON cm.ticker = a.ticker
          LEFT JOIN lagrange_history lh
               ON lh.ticker = a.ticker
              AND lh.score_date = (SELECT d FROM latest_lagrange)
+         LEFT JOIN data_freshness df ON df.ticker = a.ticker
          WHERE a.score_date = la.d
            AND ($1::text IS NULL OR COALESCE(lh.label, CASE
                     WHEN a.astro_score >= 70 THEN 'Optimal'

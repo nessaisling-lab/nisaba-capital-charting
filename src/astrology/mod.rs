@@ -1,5 +1,6 @@
 pub mod arabic_parts;
 pub mod aspects;
+pub mod eclipses;
 pub mod ephemeris;
 pub mod fixed_stars;
 pub mod interpretation;

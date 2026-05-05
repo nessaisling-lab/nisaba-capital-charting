@@ -88,6 +88,8 @@ pub struct TransitScore {
     pub arabic_parts:     Vec<super::arabic_parts::ArabicPart>,
     /// v11.4 (Wave 6.B3) — transit aspects to Arabic Parts.
     pub part_activations: Vec<super::arabic_parts::PartActivation>,
+    /// v11.4 (Wave 6.B4) — eclipse-natal activations (next 12mo + past 6mo echo).
+    pub eclipse_activations: Vec<super::eclipses::EclipseActivation>,
 }
 
 /// Compute the astrological score for a ticker on a given date.
@@ -224,6 +226,16 @@ pub fn compute_transit_score(natal: &NatalChart, score_date: NaiveDate) -> Trans
     let part_delta = super::arabic_parts::part_activation_score_total(&part_activations);
     delta_sum += part_delta;
 
+    // v11.4 (Wave 6.B4) — eclipse activations: natal planets within 6° of an
+    // upcoming or recently-past eclipse. Solar eclipses tend toward identity-
+    // driving stress, lunar toward emotional/relational themes.
+    let upcoming = super::eclipses::upcoming_eclipses();
+    let eclipse_activations = super::eclipses::detect_activations(
+        &upcoming, &natal.positions, score_date,
+    );
+    let eclipse_delta = super::eclipses::activation_score_total(&eclipse_activations);
+    delta_sum += eclipse_delta;
+
     // Composite score — normalized sigmoid
     //
     // The raw delta_sum can swing to ±300 with 50+ aspects per ticker.
@@ -265,6 +277,7 @@ pub fn compute_transit_score(natal: &NatalChart, score_date: NaiveDate) -> Trans
         star_activations,
         arabic_parts,
         part_activations,
+        eclipse_activations,
     }
 }
 

@@ -19,10 +19,10 @@
 - [x] **6.A3 Analyst price targets** — Finnhub `/stock/price-target` endpoint, new `analyst_targets` table (low/median/high/n_analysts), 7-day staleness check, single-ticker + universe-wide variants. Migration `0040`. Earnings calendar already existed via existing finnhub.rs.
 - [x] **6.B3 Fixed stars + Arabic Parts** — 8 stars (Regulus/Spica/Antares/Aldebaran/Sirius/Vega/Fomalhaut/Algol) with hardcoded J2000 longitudes + linear precession (~0.014°/year). 1° conjunction orb. Algol carries negative strength (-14). Arabic Parts: Fortune, Spirit, Commerce, Substance computed from ASC + Sun + Moon + Mercury. NatalChart gains `ascendant: Option<f64>` field. Both add to delta_sum pre-sigmoid. 5 new tests passing (precession, conjunction detection, orb edge, Moon skip, Algol negative, Fortune formula, transit-conjunct-Fortune).
 
-### Wave 6.3 — "The Trust"
+### Wave 6.3 — "The Trust" — SHIPPED 2026-05-04
 
-- [ ] **6.A4 Data freshness UI badges** — `data_freshness` SQL view. Universe table badge column. Verdict confidence annotation. Migration `0029`.
-- [ ] **6.B4 Eclipse cycles + lunar nodes** — `swe_sol_eclipse_when_loc` + Saros series. New `eclipses` table. Forecast tab timeline. Migration `0031`.
+- [x] **6.A4 Data freshness UI badges** — `data_freshness` SQL view aggregating 5-source completeness (prices/fundamentals/news/sentiment/astro) per ticker. `fresh_count: Option<i32>` added to UniverseRow. Universe table badge column rendering ●●●●○ with zone-color tinting (5=optimal, 3-4=favorable, 2=neutral, ≤1=misaligned). Migration `0042`.
+- [x] **6.B4 Eclipse cycles + Saros series** — Hardcoded NASA eclipse catalog 2025-2028 (17 eclipses) in both `eclipses.rs::upcoming_eclipses()` const + migration `0041` seed. Activations: natal planets within 6° of any upcoming (12mo) or past (6mo echo) eclipse. Solar negative-strength (-10), lunar (-6), tightness + time-fade scaling. Saros series number stored. 5/5 unit tests passing.
 
 ## Open — Future
 

@@ -6,6 +6,52 @@
 
 ---
 
+## v11.4.0-w6.3 — "The Trust" (2026-05-04)
+
+**Theme:** Final Wave 6 sub-wave. Track A surfaces data quality directly in the UI; Track B adds the loudest astrological events (eclipses) to the engine.
+
+### Track A — 6.A4 Data Freshness UI Badges
+
+Migration `0042_data_freshness_view.sql`: new `data_freshness` SQL view computes per-ticker:
+- `last_price_at` — MAX(price_data.date)
+- `last_fund_at` — MAX(fundamental_metrics.fetch_date)
+- `last_news_at` — MAX(news_articles.published)
+- `last_sent_at` — MAX(sentiment_scores.fetch_date)
+- `last_astro_at` — MAX(astro_scores.score_date)
+- `price_source_count` — DISTINCT data_source values (provenance from Wave 6.A1)
+- `fresh_count` — 0-5 score: each source contributes 1 if fresh within threshold (prices 3d, fundamentals 30d, news 7d, sentiment 7d, astro 2d)
+
+`UniverseRow` gains `fresh_count: Option<i32>` field. Universe table query LEFT JOIN's the view. New "Data" column with badge: `●●●●○` rendered via Unicode `\u{25CF}` (filled) + `\u{25CB}` (outline) repeats. Color tinting follows zones: 5=Optimal green, 3-4=Favorable, 2=Neutral, ≤1=Misaligned red. Tooltip on header explains the 5 sources.
+
+### Track B — 6.B4 Eclipse Cycles + Saros Series
+
+New `src/astrology/eclipses.rs` module + migration `0041_eclipses.sql` with 17 eclipses (NASA Five-Millennium Catalog 2025-2028) hardcoded in both:
+
+- **DB seed** (`migrations/0041`) — table `eclipses` with date PK, type CHECK constraint (solar_total/partial/annular/hybrid + lunar_total/partial/penumbral), longitude, magnitude, saros_series, notes. Index on upcoming dates.
+- **Const fallback** (`upcoming_eclipses()` fn) — same data hardcoded so transit scoring works without DB round-trip. Sync needed when adding entries.
+
+Why both: `compute_transit_score` is sync (called from many code paths) and adding async DB lookup would cascade refactors. Const list keeps scoring fast; DB table available for UI listing/queries later.
+
+`detect_activations(eclipses, natal_positions, score_date)` returns activations within 6° orb. Time window: next 12 months OR past 6 months (echo fade). Strength model:
+
+- Solar = -10.0 base (identity-driving stress)
+- Lunar = -6.0 base (emotional/relational)
+- Tightness factor: 1.0 at 0° orb → 0.3 at 6° orb (linear)
+- Time factor:
+  - Within 90 days: 1.0
+  - 90-365 days: ramps 1.0 → 0.5 (anticipation)
+  - Past, in echo window: 1.0 → 0.0 over 180 days
+
+`TransitScore` gains `eclipse_activations: Vec<EclipseActivation>` field. Activation total added to delta_sum pre-sigmoid alongside patterns/stars/Arabic-parts (Wave 6.B1/B3 stack).
+
+Each activation tagged with `saros_series` so future feature can cross-reference what happened to the ticker last time same Saros family hit (cycle = 18y 11d 8h).
+
+5 new unit tests: orb detection, distance rejection, far-future window exclusion, lunar < solar magnitude, past-echo window. 67/67 lib tests passing.
+
+**Files modified:** 5 (`src/astrology/mod.rs`, `src/astrology/natal.rs`, `src/dashboard/db/universe.rs`, `src/dashboard/view/universe.rs`) + 3 new (`src/astrology/eclipses.rs`, migrations `0041` + `0042`)
+
+---
+
 ## v11.4.0-w6.2 — "The Depth" (2026-05-04)
 
 **Theme:** Wave 6.2 paired Track A (analyst price targets) + Track B (fixed stars + Arabic Parts). Both add new dimensions of signal: forward-looking analyst consensus, and traditional astrological reference points the engine was missing.
