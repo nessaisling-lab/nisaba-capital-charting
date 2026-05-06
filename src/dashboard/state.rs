@@ -404,6 +404,10 @@ pub struct Dashboard {
     /// `{planet}:{station}:{date}` so re-loading the same retrograde
     /// event window doesn't re-emit pills the user already saw.
     pub transit_pill_keys:        std::collections::HashSet<String>,
+    /// Wave 9.6.1 — dedupe set for progressed Sun/Moon ingress pills.
+    /// Key format: `{ticker}:{planet}:{date}` so the same upcoming
+    /// ingress doesn't re-emit on every data refresh.
+    pub progression_pill_keys:    std::collections::HashSet<String>,
     /// v12.1 — id of the sticky sparkly fetch pill so it can be
     /// dismissed on FetchTickerComplete.
     pub fetch_notification_id:    Option<u64>,
@@ -569,6 +573,7 @@ impl Default for Dashboard {
             next_notification_id:     1,
             alerted_lagrange_ids:     std::collections::HashSet::new(),
             transit_pill_keys:        std::collections::HashSet::new(),
+            progression_pill_keys:    std::collections::HashSet::new(),
             fetch_notification_id:    None,
             notifications_drawer_open: false,
         }

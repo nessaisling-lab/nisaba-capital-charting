@@ -129,6 +129,15 @@ pub fn compute_transit_score(natal: &NatalChart, score_date: NaiveDate) -> Trans
         .map(|s| s.retrograde)
         .unwrap_or(false);
 
+    // Wave 9.6.2 — compute the year's time-lord (profected ruler) so
+    // aspects involving it get a +50% emphasis multiplier. Only available
+    // when the natal chart has an ascendant — without ASC, we can't
+    // determine which house is profected for the current age.
+    let time_lord: Option<Planet> = natal.ascendant.map(|asc| {
+        let prof = super::profections::compute_profection(natal.ipo_date, asc, score_date);
+        prof.lord_planet
+    });
+
     // Find all active aspects: every transit planet vs every natal planet
     let mut active_aspects: Vec<ActiveAspect> = Vec::new();
     let mut delta_sum: f32 = 0.0;
@@ -181,6 +190,16 @@ pub fn compute_transit_score(natal: &NatalChart, score_date: NaiveDate) -> Trans
                 // Apply applying/separating multiplier on top
                 let apply_mult = if applying { APPLYING_MULTIPLIER } else { SEPARATING_MULTIPLIER };
                 delta = (delta as f64 * apply_mult) as f32;
+
+                // Wave 9.6.2 — Hellenistic time-lord emphasis. If either
+                // the transit or natal planet matches the year's profected
+                // ruler, magnify the aspect by TIME_LORD_MULTIPLIER (1.5×).
+                if let Some(lord) = time_lord {
+                    if transit.planet == lord || natal_pos.planet == lord {
+                        delta = (delta as f64
+                            * super::profections::TIME_LORD_MULTIPLIER) as f32;
+                    }
+                }
 
                 delta_sum += delta;
 

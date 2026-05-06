@@ -918,10 +918,24 @@ impl Dashboard {
         let today = chrono::Local::now().date_naive();
         let target_year = chrono::Datelike::year(&today);
 
-        // Solar Return for current calendar year.
-        let sr_line: String = match pursuit_week4_automation::astrology::solar_return::compute_solar_return(&natal, target_year) {
-            Ok(sr) => pursuit_week4_automation::astrology::solar_return::summary_line(&sr),
+        // Solar Return for current calendar year — line + top 5 cross-aspects.
+        let sr_compute = pursuit_week4_automation::astrology::solar_return::compute_solar_return(&natal, target_year);
+        let sr_line: String = match &sr_compute {
+            Ok(sr) => pursuit_week4_automation::astrology::solar_return::summary_line(sr),
             Err(_) => "Solar Return unavailable.".to_string(),
+        };
+        // Wave 9.6.3 — top 5 SR-to-natal aspects, formatted one per line.
+        let sr_aspect_lines: Vec<String> = match &sr_compute {
+            Ok(sr) => sr.aspects_to_natal.iter().take(5).map(|a| {
+                format!(
+                    "  · SR {} {} natal {} (orb {:.1}°)",
+                    a.sr_planet.name(),
+                    a.aspect.name(),
+                    a.natal_planet.name(),
+                    a.orb,
+                )
+            }).collect(),
+            Err(_) => vec![],
         };
 
         // Upcoming returns — first one after `today` for each major.
@@ -956,10 +970,23 @@ impl Dashboard {
                 .color(Color { r: 0.95, g: 0.90, b: 0.80, a: 1.0 })
                 .into()
         };
+        let sub_line_style = |s: String| -> Element<'_, Message> {
+            text(s).size(theme::text_xs())
+                .color(Color { r: 0.85, g: 0.80, b: 0.70, a: 1.0 })
+                .into()
+        };
 
-        column![
+        // Wave 9.6.3 — assemble Solar Return block with cross-aspects list.
+        let mut sr_col = column![
             text("Current Solar Return").size(theme::text_xs()).color(Color { a: 0.65, ..p.gold }),
             line_style(sr_line),
+        ].spacing(2);
+        for line in sr_aspect_lines {
+            sr_col = sr_col.push(sub_line_style(line));
+        }
+
+        column![
+            sr_col,
             iced::widget::Space::new().height(Length::Fixed(6.0)),
             text("Upcoming returns").size(theme::text_xs()).color(Color { a: 0.65, ..p.gold }),
             line_style(saturn_line),

@@ -18,6 +18,13 @@ pub(crate) fn handle(state: &mut Dashboard, message: &Message) -> Option<Task<Me
 
         Message::NatalChartLoaded(Ok(p)) => {
             state.natal_positions = p.clone();
+            // Wave 9.6.1 — if IPO date already known, scan for upcoming
+            // progressed Sun / Moon ingresses now that positions are set.
+            if let Some(ipo) = state.natal_ipo_date {
+                if !p.is_empty() {
+                    emit_progression_ingress_pills(state, ipo);
+                }
+            }
             // v11.0: Trigger 90-day forecast computation
             if !p.is_empty() {
                 let ticker = state.selected_ticker.clone();
@@ -47,9 +54,15 @@ pub(crate) fn handle(state: &mut Dashboard, message: &Message) -> Option<Task<Me
         }
         Message::NatalAnglesLoaded(Err(_)) => Some(Task::none()),
 
-        // Wave 9.5.1 — IPO date load
+        // Wave 9.5.1 — IPO date load.
+        // Wave 9.6.1 — when both IPO + natal positions are present, scan
+        // for upcoming progressed Sun / Moon sign ingresses within 12mo
+        // and emit Transit pills (deduped via progression_pill_keys).
         Message::IpoDateLoaded(Ok(d)) => {
             state.natal_ipo_date = *d;
+            if let (Some(ipo), false) = (*d, state.natal_positions.is_empty()) {
+                emit_progression_ingress_pills(state, ipo);
+            }
             Some(Task::none())
         }
         Message::IpoDateLoaded(Err(_)) => Some(Task::none()),
@@ -170,5 +183,59 @@ pub(crate) fn handle(state: &mut Dashboard, message: &Message) -> Option<Task<Me
         }
 
         _ => None,
+    }
+}
+
+/// Wave 9.6.1 — Scan upcoming progressed Sun/Moon sign ingresses within
+/// 12 months of today and emit one Transit pill per new ingress signature.
+/// Deduped via `state.progression_pill_keys`. Click → Astrology tab.
+///
+/// Progressed Sun ingresses are rare (~once every 30 years) but mark
+/// major character shifts. Progressed Moon ingresses every ~2.3 years
+/// set the emotional tone.
+fn emit_progression_ingress_pills(
+    state: &mut Dashboard,
+    ipo: chrono::NaiveDate,
+) {
+    use pursuit_week4_automation::astrology::natal::NatalChart;
+    use pursuit_week4_automation::astrology::progressions::upcoming_sign_ingresses;
+
+    let ticker = state.selected_ticker.clone();
+    // Build a NatalChart from the loaded positions. We only do this if
+    // positions are actually available (caller checks).
+    let natal = NatalChart::compute(&ticker, ipo);
+    let today = chrono::Local::now().date_naive();
+
+    let ingresses = match upcoming_sign_ingresses(&natal, today, 1) {
+        Ok(v) => v,
+        Err(_) => return,
+    };
+
+    for ev in ingresses.iter() {
+        // Only surface ingresses within the next 90 days — that's the
+        // window where the user can act on the signal.
+        if ev.days_offset < 0 || ev.days_offset > 90 { continue; }
+
+        let key = format!("{}:{:?}:{}:{}",
+            ticker, ev.planet, ev.from_sign, ev.ingress_date,
+        );
+        if !state.progression_pill_keys.insert(key) { continue; }
+
+        let id = state.next_notif_id();
+        let n = crate::notifications::Notification::new(
+            id,
+            crate::notifications::NotificationVariant::Transit,
+            format!(
+                "Prog. {} ingressing {} in {}d",
+                ev.planet.name(),
+                ev.to_sign,
+                ev.days_offset,
+            ),
+        )
+        .with_emphasis(ticker.clone())
+        .with_click(crate::state::Message::TabSelected(
+            crate::tabs::Tab::Astrology,
+        ));
+        state.push_notification(n);
     }
 }
