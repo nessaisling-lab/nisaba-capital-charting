@@ -61,6 +61,41 @@ impl std::fmt::Display for TooltipSize {
     }
 }
 
+/// Wave 9.5.6 — UI-friendly enum of backtest window choices. Maps to
+/// `BacktestConfig::time_window` at RunBacktest time. Variants have no
+/// payload so they can drive a `pick_list` directly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BacktestWindowChoice {
+    All,
+    Last5y,
+    SaturnReturnZone,
+    JupiterReturnZone,
+}
+
+impl BacktestWindowChoice {
+    pub fn all() -> &'static [BacktestWindowChoice] {
+        &[Self::All, Self::Last5y, Self::SaturnReturnZone, Self::JupiterReturnZone]
+    }
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::All               => "All time",
+            Self::Last5y            => "Last 5 years",
+            Self::SaturnReturnZone  => "Saturn return ±1y",
+            Self::JupiterReturnZone => "Jupiter return ±6mo",
+        }
+    }
+}
+
+impl Default for BacktestWindowChoice {
+    fn default() -> Self { Self::All }
+}
+
+impl std::fmt::Display for BacktestWindowChoice {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.label())
+    }
+}
+
 /// Natal wheel size preference (v11.3 — user setting).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChartSize {
@@ -196,6 +231,10 @@ pub struct Dashboard {
     pub astro_aspects:     Vec<serde_json::Value>, // decoded from active_aspects JSONB
     pub natal_positions:   Vec<NatalPosition>,
     pub natal_angles:      Option<pursuit_week4_automation::models::NatalAngles>,
+    /// Wave 9.5.1 — IPO date for selected ticker. Drives profections,
+    /// progressions, and solar return computation. Loaded via
+    /// `fetch_ipo_date()` on TickerSelected and initial load.
+    pub natal_ipo_date:    Option<chrono::NaiveDate>,
     pub daily_transits:    Vec<DailyTransit>,
     pub retrograde_events: Vec<RetroEvent>,
     pub horoscope:         Option<pursuit_week4_automation::astrology::interpretation::HoroscopeReading>,
@@ -270,6 +309,9 @@ pub struct Dashboard {
     pub backtest_result:          Option<BacktestResult>,
     pub backtest_buy_input:       String,
     pub backtest_sell_input:      String,
+    /// Wave 9.5.6 — User's chosen backtest time window. Drives the
+    /// `BacktestConfig.time_window` build at RunBacktest time.
+    pub backtest_window_choice:   BacktestWindowChoice,
     // Astro Forecast (v11.0)
     pub forecast:                 Vec<ForecastDay>,
     // Portfolio P&L
@@ -395,6 +437,7 @@ impl Default for Dashboard {
             astro_aspects:   vec![],
             natal_positions: vec![],
             natal_angles:    None,
+            natal_ipo_date:  None,
             daily_transits:  vec![],
             retrograde_events: vec![],
             horoscope:         None,
@@ -462,6 +505,7 @@ impl Default for Dashboard {
             backtest_result:          None,
             backtest_buy_input:       "65".to_string(),
             backtest_sell_input:      "35".to_string(),
+            backtest_window_choice:   BacktestWindowChoice::default(),
             forecast:                 vec![],
             portfolio_pnl:            vec![],
             strategy:                 Strategy::default(),
@@ -551,6 +595,8 @@ pub enum Message {
     AstroScoreLoaded(Result<Option<AstroScore>, String>),
     NatalChartLoaded(Result<Vec<NatalPosition>, String>),
     NatalAnglesLoaded(Result<Option<pursuit_week4_automation::models::NatalAngles>, String>),
+    /// Wave 9.5.1 — IPO date load result for current ticker.
+    IpoDateLoaded(Result<Option<chrono::NaiveDate>, String>),
     TransitsLoaded(Result<Vec<DailyTransit>, String>),
     RetroEventsLoaded(Result<Vec<RetroEvent>, String>),
     AstroAspectsLoaded(Result<serde_json::Value, String>),
@@ -642,6 +688,8 @@ pub enum Message {
     // Backtest
     BacktestBuyInput(String),
     BacktestSellInput(String),
+    /// Wave 9.5.6 — User picks a backtest time window.
+    SetBacktestWindowChoice(BacktestWindowChoice),
     RunBacktest,
     ClearBacktest,
     ForecastComputed(Vec<ForecastDay>),

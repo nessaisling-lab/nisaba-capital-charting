@@ -47,6 +47,13 @@ pub(crate) fn handle(state: &mut Dashboard, message: &Message) -> Option<Task<Me
         }
         Message::NatalAnglesLoaded(Err(_)) => Some(Task::none()),
 
+        // Wave 9.5.1 — IPO date load
+        Message::IpoDateLoaded(Ok(d)) => {
+            state.natal_ipo_date = *d;
+            Some(Task::none())
+        }
+        Message::IpoDateLoaded(Err(_)) => Some(Task::none()),
+
         Message::TransitsLoaded(Ok(t)) => {
             state.daily_transits = t.clone();
             Some(Task::none())

@@ -1,6 +1,6 @@
 use iced::widget::canvas::Canvas;
 use iced::widget::{button, column, container, mouse_area, pick_list, pin, row, rule, stack, text, text_input, tooltip, Column, Shader};
-use iced::{Alignment, Element, Length};
+use iced::{Alignment, Color, Element, Length};
 
 // v11.3 — natal wheel overlay constants (must match WGSL shader)
 // v11.6.C — reduce tilt 0.32 → 0.10 so wheel reads as a sphere not an oval.
@@ -39,7 +39,7 @@ use crate::calendar::AstroCalendar;
 use crate::shaders::NatalWheel3DProgram;
 use crate::font;
 use crate::icons;
-use crate::state::{ChartSize, Dashboard, Message};
+use crate::state::{BacktestWindowChoice, ChartSize, Dashboard, Message};
 use super::shared::{icon_eyebrow, section_rule};
 use crate::strategy::Condition;
 use crate::theme;
@@ -119,11 +119,36 @@ impl Dashboard {
                 for np in &self.natal_positions {
                     let (px, py) = planet_pixel_pos(np.longitude, R_NATAL, chart_px);
                     let glyph_color = theme::NATAL_GOLD;
-                    let info = format!(
+                    // Wave 9.5.2 — enrich planet hover with decan + Sabian
+                    // + critical/OOB flags so each glyph reveals its full
+                    // narrative + precision context.
+                    let decan = pursuit_week4_automation::astrology::decans::decan_for_longitude(np.longitude);
+                    let sabian = pursuit_week4_automation::astrology::sabian::sabian_for_longitude(np.longitude);
+                    let crit = pursuit_week4_automation::astrology::critical::is_critical_degree(np.longitude);
+                    let mut info = format!(
                         "{} in {} {:.1}°{}",
                         np.planet, np.sign, np.degree,
                         if np.retrograde { "  R" } else { "" }
                     );
+                    info.push_str(&format!(
+                        "\n• Decan: {}-{} {}",
+                        decan.ruler.name(), decan.sub_ruler.name(), decan.theme,
+                    ));
+                    info.push_str(&format!(
+                        "\n• Sabian {}°: {}",
+                        sabian.degree, sabian.image,
+                    ));
+                    if let Some(c) = crit {
+                        info.push_str(&format!("\n• {}", c.label()));
+                    }
+                    // Declination not stored in natal_positions table —
+                    // approximate from longitude assuming β = 0 (sufficient
+                    // accuracy for OOB tagging on outer planets).
+                    let approx_dec = pursuit_week4_automation::astrology::ephemeris::ecliptic_to_declination(np.longitude, 0.0);
+                    if pursuit_week4_automation::astrology::ephemeris::is_out_of_bounds(approx_dec) {
+                        let dir = if approx_dec > 0.0 { "north" } else { "south" };
+                        info.push_str(&format!("\n• Out-of-bounds {dir} ({:.1}°)", approx_dec));
+                    }
                     let glyph = text(planet_glyph(&np.planet))
                         .size(GLYPH_SIZE)
                         .color(glyph_color);
@@ -331,9 +356,44 @@ impl Dashboard {
             .spacing(4)
             .align_y(Alignment::Center);
 
+            // Wave 9.5.1 — Year of [Lord] badge. Computes the Hellenistic
+            // annual time-lord from natal IPO date + ascendant. Renders a
+            // gold-outline pill below the chart title.
+            let year_of_lord_badge: Element<Message> = if let (Some(ipo), Some(angles)) =
+                (self.natal_ipo_date, self.natal_angles.as_ref())
+            {
+                let target = chrono::Local::now().date_naive();
+                let prof = pursuit_week4_automation::astrology::profections::compute_profection(
+                    ipo, angles.ascendant, target,
+                );
+                let line = pursuit_week4_automation::astrology::profections::summary_line(&prof);
+                let p_b = theme::palette();
+                container(
+                    text(line)
+                        .size(theme::text_sm())
+                        .color(Color { r: 1.0, g: 1.0, b: 1.0, a: 1.0 }),
+                )
+                .padding([4, 12])
+                .style(move |_t: &iced::Theme| container::Style {
+                    background: Some(iced::Background::Color(
+                        Color { r: 0.12, g: 0.10, b: 0.08, a: 0.85 },
+                    )),
+                    border: iced::Border {
+                        color: Color { a: 0.65, ..p_b.gold },
+                        width: 1.0,
+                        radius: 12.0.into(),
+                    },
+                    ..Default::default()
+                })
+                .into()
+            } else {
+                iced::widget::Space::new().into()
+            };
+
             // v11.5.B3 — zodiac legend relocated ABOVE natal wheel
             let wheel_col = column![
                 text(format!("{} Birth Chart", self.selected_ticker)).font(font::DISPLAY).size(theme::text_lg()),
+                year_of_lord_badge,
                 big_three_row,
                 layer_toggles,
                 build_wheel_legend(),
@@ -434,6 +494,15 @@ impl Dashboard {
                     .on_input(Message::BacktestSellInput)
                     .width(Length::Fixed(50.0))
                     .size(theme::text_sm()),
+                // Wave 9.5.6 — TimeWindow picker. Wires `BacktestConfig.time_window`
+                // through user choice. Cycle-aligned modes use the Wave 9.A2 returns
+                // engine to find Saturn / Jupiter return dates per natal chart.
+                pick_list(
+                    BacktestWindowChoice::all(),
+                    Some(self.backtest_window_choice),
+                    Message::SetBacktestWindowChoice,
+                )
+                .text_size(theme::text_sm()),
                 button(text("Run Backtest").size(theme::text_sm())).on_press(Message::RunBacktest),
             ]
             .spacing(8)
@@ -800,9 +869,17 @@ impl Dashboard {
         .spacing(theme::SPACE_XS)
         .width(Length::FillPortion(1));
 
+        // ── Wave 9.5.3 + 9.5.4 — Lifecycle section (Solar Return +
+        // upcoming returns + progressed Sun). Builds only when IPO + ASC
+        // are both available; otherwise renders a compact placeholder.
+        let lifecycle_section: Element<Message> = self.build_lifecycle_section();
+
         column![
             icon_eyebrow(icons::GLOBE, "NATAL CHART"),
             astrology_section,
+            section_rule(),
+            icon_eyebrow(icons::CLOCK, "LIFECYCLE"),
+            container(lifecycle_section).padding([10, 14]),
             section_rule(),
             row![calendar_col, forecast_col]
                 .spacing(theme::SPACE_MD)
@@ -817,6 +894,82 @@ impl Dashboard {
             container(strategy_section).padding([10, 14]),
         ]
         .spacing(theme::SPACE_SM)
+        .into()
+    }
+
+    /// Wave 9.5.3 + 9.5.4 — Build the Lifecycle section.
+    /// Combines current-year Solar Return summary, upcoming planetary
+    /// returns (Saturn / Jupiter / Mars), and progressed Sun position.
+    fn build_lifecycle_section(&self) -> Element<'_, Message> {
+        use pursuit_week4_automation::astrology::ephemeris::Planet;
+        let p = theme::palette();
+
+        let (Some(ipo), Some(_angles)) = (self.natal_ipo_date, self.natal_angles.as_ref()) else {
+            return text(
+                "Lifecycle data requires natal IPO date + Ascendant. \
+                 Run the scraper to populate company_metadata + natal_angles."
+            ).size(theme::text_sm()).into();
+        };
+
+        // Build a NatalChart from stored positions.
+        let ticker = self.selected_ticker.clone();
+        let natal = pursuit_week4_automation::astrology::natal::NatalChart::compute(&ticker, ipo);
+
+        let today = chrono::Local::now().date_naive();
+        let target_year = chrono::Datelike::year(&today);
+
+        // Solar Return for current calendar year.
+        let sr_line: String = match pursuit_week4_automation::astrology::solar_return::compute_solar_return(&natal, target_year) {
+            Ok(sr) => pursuit_week4_automation::astrology::solar_return::summary_line(&sr),
+            Err(_) => "Solar Return unavailable.".to_string(),
+        };
+
+        // Upcoming returns — first one after `today` for each major.
+        let format_return = |label: &str, planet: Planet| -> String {
+            match pursuit_week4_automation::astrology::returns::next_return(&natal, planet, today, 60) {
+                Ok(Some(ev)) => {
+                    let days = (ev.return_date - today).num_days();
+                    let when = if days < 365 {
+                        format!("in {} days", days)
+                    } else {
+                        let years = days / 365;
+                        let months = (days % 365) / 30;
+                        format!("in {}y {}mo", years, months)
+                    };
+                    format!("Next {label}: {} ({when})", ev.return_date)
+                }
+                _ => format!("Next {label}: not in 60y window"),
+            }
+        };
+        let saturn_line = format_return("Saturn return", Planet::Saturn);
+        let jupiter_line = format_return("Jupiter return", Planet::Jupiter);
+        let mars_line = format_return("Mars return", Planet::Mars);
+
+        // Progressed Sun.
+        let prog_line: String = match pursuit_week4_automation::astrology::progressions::compute_progressed_chart(&natal, today) {
+            Ok(prog) => pursuit_week4_automation::astrology::progressions::summary_line(&prog),
+            Err(_) => "Progressed chart unavailable.".to_string(),
+        };
+
+        let line_style = move |s: String| -> Element<'_, Message> {
+            text(s).size(theme::text_sm())
+                .color(Color { r: 0.95, g: 0.90, b: 0.80, a: 1.0 })
+                .into()
+        };
+
+        column![
+            text("Current Solar Return").size(theme::text_xs()).color(Color { a: 0.65, ..p.gold }),
+            line_style(sr_line),
+            iced::widget::Space::new().height(Length::Fixed(6.0)),
+            text("Upcoming returns").size(theme::text_xs()).color(Color { a: 0.65, ..p.gold }),
+            line_style(saturn_line),
+            line_style(jupiter_line),
+            line_style(mars_line),
+            iced::widget::Space::new().height(Length::Fixed(6.0)),
+            text("Progressed Sun").size(theme::text_xs()).color(Color { a: 0.65, ..p.gold }),
+            line_style(prog_line),
+        ]
+        .spacing(2)
         .into()
     }
 }

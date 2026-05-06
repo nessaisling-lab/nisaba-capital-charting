@@ -6,6 +6,35 @@
 
 ---
 
+## Wave 9.5 — "UI integration" (shipped 2026-05-06)
+
+**Theme:** Surface every Wave 9 engine layer in the dashboard. Engine was callable but invisible. Now visible-by-default in the Astrology tab.
+
+### 9.5.1 — Year of [Lord] badge
+Gold-outline pill below the chart title showing `Year of Venus (10th house · Libra)`-style summary. Computes via `profections::compute_profection(ipo, ascendant, today)` whenever both natal IPO date + Ascendant are loaded.
+
+### 9.5.2 — Planet hover enrichment
+Each natal-planet glyph tooltip on the wheel now shows decan (Mars-Saturn + theme), Sabian symbol per degree, critical-degree classification (World / Cardinal / Fixed / Mutable), and OOB flag with declination. Approximate declination (β=0) used for natal positions since `natal_positions` table doesn't store latitude.
+
+### 9.5.3 + 9.5.4 — Lifecycle section (combined)
+New "LIFECYCLE" section between Natal Chart and Calendar:
+- Current Solar Return summary
+- Upcoming Saturn / Jupiter / Mars return countdowns ("in 14y 2mo")
+- Progressed Sun position + lead progressed-natal aspect
+
+### 9.5.6 — Backtest TimeWindow picker
+`pick_list` between thresholds and Run button: All time / Last 5 years / Saturn return ±1y / Jupiter return ±6mo. Cycle-aligned modes resolve return dates via `find_returns()` at RunBacktest time using the selected ticker's IPO chart.
+
+### Database plumbing
+- New `fetch_ipo_date(pool, ticker) -> Result<Option<NaiveDate>, String>` query
+- New `Message::IpoDateLoaded` + `state.natal_ipo_date: Option<NaiveDate>` field
+- Wired into `Dashboard::fetch_all()` so every ticker selection pulls IPO date
+
+### Deferred (9.5.5)
+Progressed Sun ingress pill emit on `NatalChartLoaded`. Engine ready (`upcoming_sign_ingresses()`), emit path is one handler hook. Bonus polish, defer to Wave 9.6 or next polish cycle.
+
+---
+
 ## Wave 9 — "The Compounding" (shipped 2026-05-06)
 
 **Theme:** Production-tier financial astrology engine. Time-lord systems + cycle returns + narrative depth + visual precision. 5 paired sub-waves shipped against `docs/wave9-plan.md`. AAPL validation reference (IPO 1980-12-12 09:30 EST) round-trips through every module without > 0.1° drift.

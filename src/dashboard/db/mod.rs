@@ -43,6 +43,23 @@ pub async fn load_tickers(pool: Arc<PgPool>) -> Result<Vec<String>, String> {
 // Ticker autocomplete -- prefix + fuzzy company name search
 // ---------------------------------------------------------------------------
 
+/// Wave 9.5.1 — Fetch a ticker's IPO date for profections / progressions /
+/// solar return computation. Returns `None` if the ticker is not in
+/// `company_metadata` or `ipo_date` is NULL.
+pub async fn fetch_ipo_date(
+    pool: Arc<PgPool>,
+    ticker: String,
+) -> Result<Option<chrono::NaiveDate>, String> {
+    let row: Option<(Option<chrono::NaiveDate>,)> = sqlx::query_as(
+        "SELECT ipo_date FROM company_metadata WHERE ticker = $1 LIMIT 1",
+    )
+    .bind(&ticker)
+    .fetch_optional(pool.as_ref())
+    .await
+    .ctx("fetch_ipo_date")?;
+    Ok(row.and_then(|r| r.0))
+}
+
 pub async fn search_tickers(
     pool: Arc<PgPool>,
     prefix: String,

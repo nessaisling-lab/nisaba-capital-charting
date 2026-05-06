@@ -38,20 +38,58 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
         // ── Backtest ────────────────────────────────────────────────────
         Message::BacktestBuyInput(s) => { state.backtest_buy_input = s; Some(Task::none()) }
         Message::BacktestSellInput(s) => { state.backtest_sell_input = s; Some(Task::none()) }
+        Message::SetBacktestWindowChoice(c) => {
+            state.backtest_window_choice = c;
+            Some(Task::none())
+        }
         Message::ClearBacktest => {
             state.backtest_result = None;
             Some(Task::none())
         }
         Message::RunBacktest => {
+            use pursuit_week4_automation::astrology::{ephemeris::Planet, returns::find_returns};
+            use crate::state::BacktestWindowChoice;
+
             let buy = state.backtest_buy_input.parse::<f64>().unwrap_or(65.0);
             let sell = state.backtest_sell_input.parse::<f64>().unwrap_or(35.0);
+
+            // Wave 9.5.6 — Translate the UI choice into a real TimeWindow.
+            // For ReturnZone variants, compute the natal chart from the
+            // selected ticker's IPO date and find every return inside a
+            // 60-year window. If no IPO date is available, fall back to All.
+            let time_window = match state.backtest_window_choice {
+                BacktestWindowChoice::All => crate::backtest::TimeWindow::All,
+                BacktestWindowChoice::Last5y => crate::backtest::TimeWindow::LastYears(5),
+                BacktestWindowChoice::SaturnReturnZone | BacktestWindowChoice::JupiterReturnZone => {
+                    let planet = if matches!(state.backtest_window_choice, BacktestWindowChoice::SaturnReturnZone) {
+                        Planet::Saturn
+                    } else {
+                        Planet::Jupiter
+                    };
+                    let zone_days = if matches!(planet, Planet::Saturn) { 365 } else { 180 };
+                    if let Some(ipo) = state.natal_ipo_date {
+                        let natal = pursuit_week4_automation::astrology::natal::NatalChart::compute(
+                            &state.selected_ticker, ipo,
+                        );
+                        match find_returns(&natal, planet, 60) {
+                            Ok(events) => crate::backtest::TimeWindow::ReturnZone {
+                                planet,
+                                return_dates: events.into_iter().map(|e| e.return_date).collect(),
+                                zone_days,
+                            },
+                            Err(_) => crate::backtest::TimeWindow::All,
+                        }
+                    } else {
+                        crate::backtest::TimeWindow::All
+                    }
+                }
+            };
+
             state.backtest_config = crate::backtest::BacktestConfig {
                 buy_threshold: buy,
                 sell_threshold: sell,
                 initial_capital: 10_000.0,
-                // Wave 9.I2 — preserve user's window choice across re-runs;
-                // fall back to All if state has no override yet.
-                time_window: state.backtest_config.time_window.clone(),
+                time_window,
             };
             if let Some(pool) = &state.pool {
                 Some(Task::perform(

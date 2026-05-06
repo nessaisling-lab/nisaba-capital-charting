@@ -34,17 +34,20 @@ Infrastructure:
 - [x] **9.I1** Declination in Swiss Eph bridge
 - [x] **9.I2** Backtest extension — TimeWindow enum (All/LastYears/Custom/ReturnZone)
 
-### Wave 9.5 — UI integration (next, ~2-3 days)
+### Wave 9.5 — UI integration — SHIPPED 2026-05-06 (5 of 6)
 
-The engine layers exist but the dashboard UI doesn't surface them yet. Wire:
-- [ ] "Year of [Lord]" badge in Astrology tab header
-- [ ] Solar Return sub-section showing current year's SR chart + key cross-aspects
-- [ ] "Upcoming returns" timeline (Saturn / Jupiter / Mars next return countdown)
-- [ ] Decan info on planet hover ("Aries decan 2 (Mars-Sun) — leadership shine")
-- [ ] Sabian symbol tooltip on planet hover
-- [ ] Critical degree + OOB badges on planet display
-- [ ] Progressed Sun ingress notification (when within 12 months)
-- [ ] Backtest UI toggles for TimeWindow modes (All / LastYears 5 / Cycle-aligned)
+- [x] **9.5.1** Year of [Lord] badge in Astrology header
+- [x] **9.5.2** Decan + Sabian + Critical + OOB on planet hover tooltip
+- [x] **9.5.3** Solar Return summary in Lifecycle section
+- [x] **9.5.4** Upcoming returns timeline (Saturn/Jupiter/Mars) in Lifecycle
+- [ ] **9.5.5** Progressed Sun ingress pill — deferred to next polish cycle
+- [x] **9.5.6** Backtest TimeWindow picker (All / Last5y / Saturn / Jupiter)
+
+### Wave 9.6 — Future polish (planned, low priority)
+- [ ] **9.5.5 carryover** — emit Transit pill on data load when progressed Sun within 12 months of sign ingress
+- [ ] Solar Return mini-wheel (currently text-only summary; render the SR chart graphically)
+- [ ] Profection time-lord aspect emphasis: wire `TIME_LORD_MULTIPLIER` into `score_aspect_v2`
+- [ ] Backtest UI: visual histogram of return zones overlaid on price chart
 
 ### v12.3 — "The Profiling" (planned, ~1-2 days, low priority)
 Deeper chart hover investigation + perf instrumentation.
@@ -66,6 +69,24 @@ Defer indefinitely unless user requests:
 - Asteroid catalog beyond Chiron — needs `.se1` packaging story
 - Placidus/Koch alternative house systems — Whole Sign serves
 - Vertex / East Point secondary angles
+
+---
+
+## Closed — Wave 9.5 "UI integration" — SHIPPED 2026-05-06
+
+5 of 6 sub-items shipped. v9.5.5 progressed Sun ingress pill deferred to v9.6 polish cycle.
+
+- [x] **9.5.1** Year of [Lord] badge — gold-outline pill below chart title with `summary_line(prof)` rendering. Computes via `profections::compute_profection(ipo, ascendant_lon, today)`.
+- [x] **9.5.2** Planet hover enrichment — natal-glyph tooltip shows decan + Sabian + critical degree + OOB flag. Approximate β=0 declination for natal positions (latitude not stored in DB).
+- [x] **9.5.3 + 9.5.4** Lifecycle section — combined into one section between Natal Chart and Calendar: Solar Return summary, Saturn/Jupiter/Mars upcoming return countdowns, Progressed Sun line.
+- [x] **9.5.6** Backtest TimeWindow picker — pick_list with All/Last5y/Saturn-zone/Jupiter-zone. Cycle-aligned modes resolve real return dates via Wave 9.A2 `find_returns()`.
+
+### Database plumbing
+- [x] New `fetch_ipo_date(pool, ticker)` query in `db/mod.rs`
+- [x] New `Message::IpoDateLoaded` + handler
+- [x] New `state.natal_ipo_date: Option<NaiveDate>`
+- [x] New `state.backtest_window_choice: BacktestWindowChoice` + `SetBacktestWindowChoice` Message
+- [x] Wired into `Dashboard::fetch_all()`
 
 ---
 
