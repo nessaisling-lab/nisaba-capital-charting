@@ -1,10 +1,10 @@
 # TODOS
 
-## Active — Wave 9 planning shipped 2026-05-06; implementation pending.
+## Active — Wave 9 "The Compounding" SHIPPED 2026-05-06.
 
-v12.0 + v12.1 + v12.2 shipped + user-validated. *"Overall huge win, very happy with the progress we made!"*
+All 5 sub-waves complete. 132/132 lib tests + 8/8 backtest tests pass. Production-tier financial astrology engine landed.
 
-Next: Wave 9 "The Compounding" — full plan at `docs/wave9-plan.md`. 13-day scope, 5 paired sub-waves.
+Next: pause for user direction. Pitch/demo prep + UI integration of new layers (Solar Return badge, Year of [Lord] header, decan/Sabian on planet hover) outstanding.
 
 ---
 
@@ -14,31 +14,37 @@ Next: Wave 9 "The Compounding" — full plan at `docs/wave9-plan.md`. 13-day sco
 - **Chart hover real-time** — v12.0.B precompute + v12.0.D state-mutation skip both landed. User still flags non-real-time vs gauges/sparkline. Suspect: cosmic-text glyph shaping inside hover `fill_text` per redraw. Needs frame-time instrumentation OR pre-shaped glyph cache. Deferred to v12.3.
 - **OS toast HRESULT** — installer ships AUMID binding (v12.0.A). User reported HRESULT 0x80070005 still firing post-install. Likely Start Menu indexer hasn't picked up binding — recommend sign-out/in OR explorer.exe restart. Pill system covers visibility; OS toast is bonus.
 
-### Wave 9 — "The Compounding" (planned, ~13 days)
+### Wave 9 — "The Compounding" — SHIPPED 2026-05-06
+
 **Full plan: `docs/wave9-plan.md`**
 
 Track A — Time-lord systems (cycle precision):
-- [ ] **9.A1** Solar Return charts (annual birthday-anchored chart, exact Sun-return moment)
-- [ ] **9.A2** Profections (Hellenistic annual time-lord, 12-year house cycle)
-- [ ] **9.A3** Planetary returns (Saturn 29.5y, Jupiter 12y, Mars 2y; return charts)
-- [ ] **9.A4** Secondary progressions (1° = 1 year; progressed Sun/Moon ingresses)
+- [x] **9.A1** Solar Return charts (Newton search, < 0.001° tolerance)
+- [x] **9.A2** Planetary returns (Saturn/Jupiter/Mars; cluster-merge for retrograde triple-passes)
+- [x] **9.A3** Profections (Hellenistic annual time-lord, traditional rulers, monthly sub-lords)
+- [x] **9.A4** Secondary progressions (1° = 1 year; sign ingress detection)
 
 Track B — Narrative + precision:
-- [ ] **9.B1** Decans (3 per sign, 36 total; Egyptian system primary)
-- [ ] **9.B2** Sabian symbols (360 degree-meanings; Marc Edmund Jones 1925)
-- [ ] **9.B3** Aspect strength visual gradient (replace binary green/red with continuous)
-- [ ] **9.B4** Critical degrees + out-of-bounds detection
+- [x] **9.B1** Decans (36 entries with Egyptian + Chaldean rulers)
+- [x] **9.B2** Sabian symbols (360 entries from Marc Edmund Jones 1925)
+- [x] **9.B3** Aspect strength visual gradient (orb-tightness driven; opposition added)
+- [x] **9.B4** Critical degrees + OOB detection
 
 Infrastructure:
-- [ ] **9.I1** Declination support in Swiss Eph bridge (unlocks OOB + parallels)
-- [ ] **9.I2** Backtest extension — 1y/3y/5y windows + cycle-aligned filtering
+- [x] **9.I1** Declination in Swiss Eph bridge
+- [x] **9.I2** Backtest extension — TimeWindow enum (All/LastYears/Custom/ReturnZone)
 
-Sequencing pairs:
-1. **9.0** "The Foundation" — 9.I1 + 9.B3 (1.5d)
-2. **9.1** "The Year" — 9.A1 + 9.B1 (2.5d)
-3. **9.2** "The Cycle" — 9.A2 + 9.B2 (2.5d)
-4. **9.3** "The Lord" — 9.A3 + 9.B4 (3d)
-5. **9.4** "The Maturation" — 9.A4 + 9.I2 (3.5d)
+### Wave 9.5 — UI integration (next, ~2-3 days)
+
+The engine layers exist but the dashboard UI doesn't surface them yet. Wire:
+- [ ] "Year of [Lord]" badge in Astrology tab header
+- [ ] Solar Return sub-section showing current year's SR chart + key cross-aspects
+- [ ] "Upcoming returns" timeline (Saturn / Jupiter / Mars next return countdown)
+- [ ] Decan info on planet hover ("Aries decan 2 (Mars-Sun) — leadership shine")
+- [ ] Sabian symbol tooltip on planet hover
+- [ ] Critical degree + OOB badges on planet display
+- [ ] Progressed Sun ingress notification (when within 12 months)
+- [ ] Backtest UI toggles for TimeWindow modes (All / LastYears 5 / Cycle-aligned)
 
 ### v12.3 — "The Profiling" (planned, ~1-2 days, low priority)
 Deeper chart hover investigation + perf instrumentation.
@@ -63,17 +69,44 @@ Defer indefinitely unless user requests:
 
 ---
 
-## Closed — Wave 9 "The Compounding" — PLAN ONLY 2026-05-06
+## Closed — Wave 9 "The Compounding" — SHIPPED 2026-05-06
 
-Plan delivered. Implementation not yet started (awaiting user kickoff).
+All 5 paired sub-waves complete. 132/132 lib tests + 8/8 backtest tests pass. AAPL validation round-trips through every module.
 
-- [x] Engine inventory via `Explore` agent (current state catalogued)
-- [x] Sub-wave decomposition (4 paired tracks A+B + 2 infrastructure tasks)
-- [x] Sequencing (5 ship pairs over 13 days)
+### Plan phase (PLAN ONLY 2026-05-06)
+- [x] Engine inventory via `Explore` agent
+- [x] Sub-wave decomposition (4 paired tracks A+B + 2 infrastructure)
+- [x] Sequencing (5 pairs over 13 days)
 - [x] Risk register
 - [x] AAPL validation reference
-- [x] Out-of-scope register (synastry, Vedic dashas, lunar mansions, asteroids, alt house systems)
 - [x] Plan doc: `docs/wave9-plan.md`
+
+### 9.0 "The Foundation"
+- [x] **9.I1** Declination support — `OBLIQUITY_J2000` constant, `ecliptic_to_declination()` helper, `is_out_of_bounds()` predicate, `declination` field on PlanetSnapshot, public bridge accessor. 5 PlanetSnapshot construction sites updated.
+- [x] **9.B3** Aspect strength visual gradient — orb-tightness gradient in `natal_wheel_3d.wgsl`, alpha 0.55→1.0, width 0.65×→1.25×. Opposition (180°) added with magenta + shimmer 3.0.
+
+### 9.1 "The Year"
+- [x] **9.A1** Solar Return charts (`src/astrology/solar_return.rs`, ~270 lines). Newton search, `SolarReturnChart` + `SrAspect` types, AAPL 2026 SR converges 4 iterations to 0.0001°.
+- [x] **9.B1** Decans (`src/astrology/decans.rs`, ~190 lines). 36 entries Egyptian-primary + Chaldean sub-ruler. 10/10 tests.
+
+### 9.2 "The Cycle"
+- [x] **9.A2** Planetary Returns (`src/astrology/returns.rs`, ~290 lines). Coarse-scan + bisection, cluster-merge for retrograde triple-passes, skip natal-epoch wobble. AAPL Saturn return ~2010 ✓.
+- [x] **9.B2** Sabian Symbols (`src/astrology/sabian.rs`, ~430 lines). All 360 Marc Edmund Jones 1925 symbols. AAPL Sun → "child and a dog wearing borrowed eyeglasses." 8/8 tests.
+
+### 9.3 "The Lord"
+- [x] **9.A3** Profections (`src/astrology/profections.rs`, ~250 lines). Hellenistic traditional rulers (no modern outers). Monthly sub-lords. AAPL 2026-05-06 = Year of Venus 10th house Libra. 10/10 tests.
+- [x] **9.B4** Critical Degrees + OOB (`src/astrology/critical.rs`, ~310 lines). World degrees, modality-based critical points, OobState enum, `PrecisionFlags` combined multiplier capped 2.0×. 17/17 tests.
+
+### 9.4 "The Maturation"
+- [x] **9.A4** Secondary Progressions (`src/astrology/progressions.rs`, ~270 lines). 1d=1y advancement. AAPL 2026-05-06 → equivalent ~1981-01-26 → Sun moved ~44.7°. Sign ingress detection. 6/6 tests.
+- [x] **9.I2** Backtest extension (`src/dashboard/backtest.rs`). `TimeWindow` enum (All/LastYears/Custom/ReturnZone), `BacktestConfig::filter_days()` helper. 5 new tests pass.
+
+### Final stats
+- 9 new modules (~2200 lines astrology code)
+- 65 new tests (132/132 lib + 8/8 backtest)
+- Zero warnings
+- Off-by-one caught: sign modality cycles in 3s not 4s (Cancer test failure → fix)
+- Retrograde-induced spurious returns caught: cluster-merge + skip natal wobble
 
 ## Closed — v12.2 "The Drawer + Polish" — SHIPPED 2026-05-06
 

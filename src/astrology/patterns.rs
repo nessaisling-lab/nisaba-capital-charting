@@ -417,6 +417,7 @@ mod tests {
             sign,
             degree,
             retrograde: false,
+            declination: crate::astrology::ephemeris::ecliptic_to_declination(lon, 0.0),
         }
     }
 

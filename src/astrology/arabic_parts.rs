@@ -146,7 +146,10 @@ mod tests {
 
     fn snap(planet: Planet, lon: f64) -> PlanetSnapshot {
         let (sign, degree) = super::super::ephemeris::longitude_to_sign(lon);
-        PlanetSnapshot { planet, longitude: lon, sign, degree, retrograde: false }
+        PlanetSnapshot {
+            planet, longitude: lon, sign, degree, retrograde: false,
+            declination: super::super::ephemeris::ecliptic_to_declination(lon, 0.0),
+        }
     }
 
     #[test]

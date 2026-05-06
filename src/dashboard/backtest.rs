@@ -7,7 +7,7 @@
 //! Key metric: **Astro Signal Accuracy** — what percentage of the time did a
 //! favorable astro score predict a price increase within 30 days?
 
-use chrono::NaiveDate;
+use chrono::{Datelike, NaiveDate};
 
 /// User-configurable backtest parameters.
 #[derive(Debug, Clone)]
@@ -18,6 +18,40 @@ pub struct BacktestConfig {
     pub sell_threshold: f64,
     /// Starting capital in dollars.
     pub initial_capital: f64,
+    /// Wave 9.I2 — Time window for backtest. Defaults to `All` (use every
+    /// row supplied). Other variants pre-filter the data slice before
+    /// running the strategy. Lets users compare "Saturn return zone" vs
+    /// "all time" performance.
+    pub time_window: TimeWindow,
+}
+
+/// Wave 9.I2 — Selectable backtest window.
+///
+/// `LastYears`, `Custom`, and `ReturnZone` variants are constructed by
+/// the UI (Settings → Backtest) — wired in a follow-up. The variants are
+/// public + tested so the engine can already consume them.
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
+pub enum TimeWindow {
+    /// Use every row provided.
+    All,
+    /// Most-recent N years from the supplied data's last date.
+    LastYears(u32),
+    /// Custom date range. Both inclusive.
+    Custom(NaiveDate, NaiveDate),
+    /// Wave 9.I2 + 9.A3 — Cycle-aligned: only include days falling within
+    /// a planet's *return-zone* (±N days from each exact return).
+    /// E.g. Saturn return zone = ±365 days from each Saturn return moment.
+    /// Empty if the natal chart has no returns of `planet` in the dataset.
+    ReturnZone {
+        planet: pursuit_week4_automation::astrology::ephemeris::Planet,
+        return_dates: Vec<NaiveDate>,
+        zone_days: i64,
+    },
+}
+
+impl Default for TimeWindow {
+    fn default() -> Self { Self::All }
 }
 
 impl Default for BacktestConfig {
@@ -26,6 +60,44 @@ impl Default for BacktestConfig {
             buy_threshold: 65.0,
             sell_threshold: 35.0,
             initial_capital: 10_000.0,
+            time_window: TimeWindow::default(),
+        }
+    }
+}
+
+impl BacktestConfig {
+    /// Wave 9.I2 — Apply the time_window filter to a sorted-ascending
+    /// slice of days. Returns the filtered subset.
+    pub fn filter_days(&self, days: &[BacktestDay]) -> Vec<BacktestDay> {
+        match &self.time_window {
+            TimeWindow::All => days.to_vec(),
+            TimeWindow::LastYears(n) => {
+                if days.is_empty() { return Vec::new(); }
+                let last = days.last().unwrap().date;
+                // Subtract `n` calendar years from `last` — same month/day.
+                let start = NaiveDate::from_ymd_opt(
+                    last.year() - *n as i32,
+                    last.month(),
+                    last.day(),
+                ).unwrap_or(last);
+                days.iter().filter(|d| d.date >= start).cloned().collect()
+            }
+            TimeWindow::Custom(start, end) => {
+                days.iter()
+                    .filter(|d| d.date >= *start && d.date <= *end)
+                    .cloned()
+                    .collect()
+            }
+            TimeWindow::ReturnZone { return_dates, zone_days, .. } => {
+                days.iter()
+                    .filter(|d| {
+                        return_dates.iter().any(|r| {
+                            (d.date - *r).num_days().abs() <= *zone_days
+                        })
+                    })
+                    .cloned()
+                    .collect()
+            }
         }
     }
 }
@@ -77,6 +149,12 @@ pub fn run_backtest(
     data: &[BacktestDay],
     config: &BacktestConfig,
 ) -> BacktestResult {
+    // Wave 9.I2 — apply time_window filter before any min-data checks so
+    // that ReturnZone / Custom modes that select sparse subsets surface
+    // a clear "insufficient data" message instead of running a degenerate
+    // backtest on filtered-down rows.
+    let filtered = config.filter_days(data);
+    let data = filtered.as_slice();
     if data.len() < 30 {
         return BacktestResult {
             ticker: ticker.to_string(),
@@ -298,5 +376,94 @@ mod tests {
         // Day 3 (score 70): next day = 98. Max future = 98 < 100. Inaccurate.
         // Total: 1 correct out of 3 = 33.3%
         assert!(acc > 30.0 && acc < 40.0);
+    }
+
+    // ── Wave 9.I2 — TimeWindow filter tests ─────────────────────────
+
+    fn day_seq(start_year: i32, count: usize) -> Vec<BacktestDay> {
+        (0..count).map(|i| {
+            let date = NaiveDate::from_ymd_opt(start_year, 1, 1).unwrap()
+                + chrono::Duration::days(i as i64);
+            make_day(date.year(), date.month(), date.day(), 100.0, 50.0)
+        }).collect()
+    }
+
+    #[test]
+    fn time_window_all_keeps_everything() {
+        let data = day_seq(2020, 100);
+        let cfg = BacktestConfig { time_window: TimeWindow::All, ..Default::default() };
+        let filtered = cfg.filter_days(&data);
+        assert_eq!(filtered.len(), 100);
+    }
+
+    #[test]
+    fn time_window_last_years_filters_recent() {
+        // 5 years worth of days
+        let data = day_seq(2020, 5 * 365);
+        let cfg = BacktestConfig {
+            time_window: TimeWindow::LastYears(2),
+            ..Default::default()
+        };
+        let filtered = cfg.filter_days(&data);
+        // Last 2 calendar years from data's last date (2024-12-30) =
+        // 2022-12-30 .. 2024-12-30 ≈ 731 days
+        assert!(filtered.len() > 600 && filtered.len() < 800,
+            "Expected ~730 days for LastYears(2), got {}", filtered.len());
+        // First filtered date should be ≥ (last - 2y)
+        let last = data.last().unwrap().date;
+        let first = filtered.first().unwrap().date;
+        assert!(first >= NaiveDate::from_ymd_opt(last.year() - 2, last.month(), last.day()).unwrap());
+    }
+
+    #[test]
+    fn time_window_custom_range() {
+        let data = day_seq(2020, 365);
+        let cfg = BacktestConfig {
+            time_window: TimeWindow::Custom(
+                NaiveDate::from_ymd_opt(2020, 4, 1).unwrap(),
+                NaiveDate::from_ymd_opt(2020, 6, 30).unwrap(),
+            ),
+            ..Default::default()
+        };
+        let filtered = cfg.filter_days(&data);
+        // April-June 2020: 30+31+30 = 91 days
+        assert_eq!(filtered.len(), 91);
+    }
+
+    #[test]
+    fn time_window_return_zone() {
+        let data = day_seq(2020, 365);
+        // Single "return" event in the middle of the year, ±10-day zone
+        let cfg = BacktestConfig {
+            time_window: TimeWindow::ReturnZone {
+                planet: pursuit_week4_automation::astrology::ephemeris::Planet::Saturn,
+                return_dates: vec![NaiveDate::from_ymd_opt(2020, 6, 15).unwrap()],
+                zone_days: 10,
+            },
+            ..Default::default()
+        };
+        let filtered = cfg.filter_days(&data);
+        // ±10 days = 21-day window
+        assert_eq!(filtered.len(), 21);
+    }
+
+    #[test]
+    fn time_window_return_zone_multiple_returns() {
+        let data = day_seq(2020, 365 * 5);
+        let cfg = BacktestConfig {
+            time_window: TimeWindow::ReturnZone {
+                planet: pursuit_week4_automation::astrology::ephemeris::Planet::Jupiter,
+                return_dates: vec![
+                    NaiveDate::from_ymd_opt(2020, 6, 15).unwrap(),
+                    NaiveDate::from_ymd_opt(2024, 6, 15).unwrap(),
+                ],
+                zone_days: 30,
+            },
+            ..Default::default()
+        };
+        let filtered = cfg.filter_days(&data);
+        // Two windows of 61 days each = 122 days max
+        assert!(filtered.len() > 60 && filtered.len() <= 122,
+            "Expected 60-122 days from two return zones, got {}", filtered.len());
     }
 }

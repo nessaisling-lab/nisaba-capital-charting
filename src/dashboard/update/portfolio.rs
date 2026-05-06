@@ -49,6 +49,9 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
                 buy_threshold: buy,
                 sell_threshold: sell,
                 initial_capital: 10_000.0,
+                // Wave 9.I2 — preserve user's window choice across re-runs;
+                // fall back to All if state has no override yet.
+                time_window: state.backtest_config.time_window.clone(),
             };
             if let Some(pool) = &state.pool {
                 Some(Task::perform(

@@ -466,10 +466,48 @@ pub struct PlanetSnapshot {
     pub sign:       &'static str,
     pub degree:     f64,
     pub retrograde: bool,
+    /// Wave 9.I1 — equatorial declination in degrees. Required for
+    /// out-of-bounds detection (|δ| > 23.4367°) and parallel aspects.
+    /// For Meeus fallback (no ecliptic latitude available) this is computed
+    /// assuming latitude = 0; for the Swiss Ephemeris path it uses the
+    /// real ecliptic latitude. Range: [-90, +90].
+    pub declination: f64,
+}
+
+/// Wave 9.I1 — Mean obliquity of the ecliptic at J2000 (degrees).
+/// ε ≈ 23.4393 - 0.0130·T where T is centuries since J2000. For 2000-2050
+/// the variation is < 0.0007°, far below astrological orbs. Constant is OK.
+pub const OBLIQUITY_J2000: f64 = 23.4367;
+
+/// Wave 9.I1 — Convert ecliptic (longitude, latitude) → equatorial declination
+/// using the standard celestial-mechanics formula:
+/// `δ = arcsin( sin(β)·cos(ε) + cos(β)·sin(ε)·sin(λ) )`.
+pub fn ecliptic_to_declination(lon_deg: f64, lat_deg: f64) -> f64 {
+    let lon = lon_deg.to_radians();
+    let lat = lat_deg.to_radians();
+    let eps = OBLIQUITY_J2000.to_radians();
+    let sin_dec = lat.sin() * eps.cos() + lat.cos() * eps.sin() * lon.sin();
+    sin_dec.clamp(-1.0, 1.0).asin().to_degrees()
+}
+
+/// Wave 9.I1 — Out-of-bounds threshold. The Sun never exceeds ±ε at the
+/// solstices, so |δ| > ε means the body is "beyond the Sun's path." Used
+/// in critical-degree / OOB tagging.
+pub const OUT_OF_BOUNDS_THRESHOLD: f64 = OBLIQUITY_J2000;
+
+pub fn is_out_of_bounds(declination: f64) -> bool {
+    declination.abs() > OUT_OF_BOUNDS_THRESHOLD
 }
 
 /// Snapshot the 10 classical planets using the Meeus fallback engine.
 /// For all 13 bodies (including nodes + Chiron), use the Swiss Ephemeris bridge.
+///
+/// Wave 9.I1 — Meeus fallback assumes ecliptic latitude = 0 (planets very
+/// close to the ecliptic plane). Declination is computed from longitude
+/// alone via δ = arcsin( sin(ε)·sin(λ) ). Sufficient for OOB detection on
+/// the Sun (always lat=0) and the outer planets (lat < 2°). Inner planets
+/// can have lat up to ~7° (Moon) — for sub-arcminute declination accuracy
+/// use the Swiss Ephemeris bridge.
 pub fn snapshot_all(jdn: f64) -> Vec<PlanetSnapshot> {
     let t = jdn_to_t(jdn);
     Planet::all_classical().iter().map(|&planet| {
@@ -479,7 +517,8 @@ pub fn snapshot_all(jdn: f64) -> Vec<PlanetSnapshot> {
             Planet::Sun | Planet::Moon => false,  // never retrograde
             other => is_retrograde(other, jdn),
         };
-        PlanetSnapshot { planet, longitude, sign, degree, retrograde }
+        let declination = ecliptic_to_declination(longitude, 0.0);
+        PlanetSnapshot { planet, longitude, sign, degree, retrograde, declination }
     }).collect()
 }
 
@@ -526,6 +565,58 @@ mod tests {
         assert_eq!(moon_phase_name(90.0),  "First Quarter");
         assert_eq!(moon_phase_name(180.0), "Full Moon");
         assert_eq!(moon_phase_name(270.0), "Last Quarter");
+    }
+
+    /// Wave 9.I1 — Declination should be ~0 at the equinoxes (Aries/Libra
+    /// 0°), peak at the solstices (Cancer/Capricorn 0° where δ = ±ε).
+    #[test]
+    fn test_declination_equinox_solstice() {
+        // Aries 0° (vernal equinox point) → δ = 0
+        let dec = ecliptic_to_declination(0.0, 0.0);
+        assert!(dec.abs() < 0.01, "Aries 0° declination should be 0, got {dec}");
+
+        // Libra 0° (autumnal equinox point) → δ = 0
+        let dec = ecliptic_to_declination(180.0, 0.0);
+        assert!(dec.abs() < 0.01, "Libra 0° declination should be 0, got {dec}");
+
+        // Cancer 0° (summer solstice) → δ = +ε ≈ +23.44
+        let dec = ecliptic_to_declination(90.0, 0.0);
+        assert!(
+            (dec - OBLIQUITY_J2000).abs() < 0.01,
+            "Cancer 0° declination should be +ε ({}), got {dec}", OBLIQUITY_J2000,
+        );
+
+        // Capricorn 0° (winter solstice) → δ = -ε ≈ -23.44
+        let dec = ecliptic_to_declination(270.0, 0.0);
+        assert!(
+            (dec + OBLIQUITY_J2000).abs() < 0.01,
+            "Capricorn 0° declination should be -ε ({}), got {dec}", -OBLIQUITY_J2000,
+        );
+    }
+
+    /// Wave 9.I1 — A planet with ecliptic latitude > 0 in northern signs
+    /// should have *higher* declination than one at the same longitude
+    /// with β = 0. Sanity for the formula.
+    #[test]
+    fn test_declination_latitude_lifts() {
+        let baseline = ecliptic_to_declination(45.0, 0.0); // Taurus 15°
+        let with_lat = ecliptic_to_declination(45.0, 5.0); // 5° north of ecliptic
+        assert!(
+            with_lat > baseline,
+            "Northern latitude should raise declination: baseline={baseline}, with_lat={with_lat}",
+        );
+    }
+
+    /// Wave 9.I1 — Out-of-bounds detection. The Sun never goes OOB by
+    /// definition (its declination = ±ε at solstices, never beyond).
+    #[test]
+    fn test_oob_threshold() {
+        assert!(!is_out_of_bounds(0.0));
+        assert!(!is_out_of_bounds(23.0));
+        assert!(!is_out_of_bounds(-23.0));
+        // Just past ε
+        assert!(is_out_of_bounds(24.0));
+        assert!(is_out_of_bounds(-25.0));
     }
 
     #[test]

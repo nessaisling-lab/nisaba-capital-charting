@@ -1,9 +1,16 @@
 pub mod arabic_parts;
 pub mod aspects;
+pub mod critical;
+pub mod decans;
 pub mod eclipses;
 pub mod ephemeris;
 pub mod fixed_stars;
 pub mod interpretation;
 pub mod natal;
 pub mod patterns;
+pub mod profections;
+pub mod progressions;
+pub mod returns;
+pub mod sabian;
+pub mod solar_return;
 pub mod swisseph_bridge;

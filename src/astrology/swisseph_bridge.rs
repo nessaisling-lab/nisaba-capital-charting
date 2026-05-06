@@ -21,7 +21,7 @@ use swiss_eph::safe::{
 };
 
 use super::ephemeris::{
-    Planet, PlanetSnapshot, longitude_to_sign, norm360, snapshot_all,
+    Planet, PlanetSnapshot, ecliptic_to_declination, longitude_to_sign, norm360, snapshot_all,
 };
 
 // ---------------------------------------------------------------------------
@@ -74,16 +74,20 @@ fn default_flags() -> CalcFlags {
 /// 09:30 EST, that's JDN + 14.5/24 (UT) plus ~69 seconds delta-T,
 /// but the delta-T difference is negligible for astrological orbs.
 ///
-/// Returns `(longitude, longitude_speed)` where speed is degrees/day.
-/// Negative speed = retrograde.
-fn calc_position(planet: Planet, jd: f64) -> anyhow::Result<(f64, f64)> {
+/// Returns `(longitude, longitude_speed, declination)` where:
+///   - longitude: ecliptic longitude (degrees, 0-360)
+///   - longitude_speed: degrees/day — negative = retrograde
+///   - declination: equatorial declination (degrees, -90 to +90),
+///     computed from the body's actual ecliptic latitude. Wave 9.I1.
+fn calc_position(planet: Planet, jd: f64) -> anyhow::Result<(f64, f64, f64)> {
     if planet == Planet::SouthNode {
         // South Node is always 180° opposite the True (North) Node
-        let (north_lon, north_speed) = calc_position(Planet::NorthNode, jd)?;
+        let (north_lon, north_speed, north_dec) = calc_position(Planet::NorthNode, jd)?;
         let south_lon = norm360(north_lon + 180.0);
-        // South Node speed mirrors North Node (same magnitude, same sign —
-        // both nodes move in the same direction along the ecliptic)
-        return Ok((south_lon, north_speed));
+        // South Node mirrors the True Node across the equator → declination
+        // sign flips. (Both nodes move in the same direction along the
+        // ecliptic, so speed sign is shared.)
+        return Ok((south_lon, north_speed, -north_dec));
     }
 
     let swe_planet = to_swe_planet(planet)
@@ -97,7 +101,9 @@ fn calc_position(planet: Planet, jd: f64) -> anyhow::Result<(f64, f64)> {
         anyhow::bail!("{:?}: Swiss Ephemeris returned NaN longitude", planet);
     }
 
-    Ok((norm360(pos.longitude), pos.longitude_speed))
+    let lon = norm360(pos.longitude);
+    let declination = ecliptic_to_declination(lon, pos.latitude);
+    Ok((lon, pos.longitude_speed, declination))
 }
 
 // ---------------------------------------------------------------------------
@@ -113,7 +119,7 @@ pub fn snapshot_all_precise(jdn: f64) -> Vec<PlanetSnapshot> {
 
     for &planet in Planet::all() {
         match calc_position(planet, jdn) {
-            Ok((longitude, speed)) => {
+            Ok((longitude, speed, declination)) => {
                 let (sign, degree) = longitude_to_sign(longitude);
                 let retrograde = match planet {
                     // Sun and Moon never retrograde
@@ -129,6 +135,7 @@ pub fn snapshot_all_precise(jdn: f64) -> Vec<PlanetSnapshot> {
                     sign,
                     degree,
                     retrograde,
+                    declination,
                 });
             }
             Err(_e) => {
@@ -144,6 +151,7 @@ pub fn snapshot_all_precise(jdn: f64) -> Vec<PlanetSnapshot> {
                             sign: snap.sign,
                             degree: snap.degree,
                             retrograde: snap.retrograde,
+                            declination: snap.declination,
                         });
                     }
                 }
@@ -163,7 +171,26 @@ pub fn snapshot_all_precise(jdn: f64) -> Vec<PlanetSnapshot> {
 /// Positive = direct motion, negative = retrograde.
 /// This is critical for determining applying vs separating aspects.
 pub fn longitude_speed(planet: Planet, jdn: f64) -> Option<f64> {
-    calc_position(planet, jdn).ok().map(|(_, speed)| speed)
+    calc_position(planet, jdn).ok().map(|(_, speed, _)| speed)
+}
+
+/// Wave 9.I1 — Get a planet's declination at a given JDN. Returns `None`
+/// if the Swiss Ephemeris call fails (e.g. Chiron without `.se1` files).
+pub fn declination(planet: Planet, jdn: f64) -> Option<f64> {
+    calc_position(planet, jdn).ok().map(|(_, _, dec)| dec)
+}
+
+/// Wave 9.A1 — Tight single-Sun longitude lookup. Used by the Solar
+/// Return Newton search loop (~10 calls per chart). Avoids the all-bodies
+/// snapshot overhead.
+pub fn calc_sun_longitude_for_search(jd: f64) -> Option<f64> {
+    calc_position(Planet::Sun, jd).ok().map(|(lon, _, _)| lon)
+}
+
+/// Wave 9.A2 — Tight single-planet longitude lookup. Used by planetary
+/// return search (Saturn / Jupiter / Mars). Returns longitude only.
+pub fn calc_planet_longitude_for_search(planet: Planet, jd: f64) -> Option<f64> {
+    calc_position(planet, jd).ok().map(|(lon, _, _)| lon)
 }
 
 // ---------------------------------------------------------------------------
@@ -232,7 +259,7 @@ mod tests {
         let _guard = super::SWE_TEST_LOCK.lock().unwrap();
         // Jan 1, 2000 12:00 UT — Sun should be ~280° (Capricorn)
         let jdn = date_to_jdn(2000, 1, 1, 12.0);
-        let (lon, speed) = calc_position(Planet::Sun, jdn).unwrap();
+        let (lon, speed, _dec) = calc_position(Planet::Sun, jdn).unwrap();
         assert!(lon > 270.0 && lon < 290.0, "Sun lon at J2000 unexpected: {lon}");
         assert!(speed > 0.0, "Sun should be direct: {speed}");
     }
@@ -262,14 +289,14 @@ mod tests {
         let _guard = super::SWE_TEST_LOCK.lock().unwrap();
         let jdn = date_to_jdn(2024, 6, 15, 12.0);
         for planet in [Planet::NorthNode, Planet::SouthNode] {
-            let (lon, _speed) = calc_position(planet, jdn)
+            let (lon, _speed, _dec) = calc_position(planet, jdn)
                 .unwrap_or_else(|e| panic!("{:?} failed: {e}", planet));
             assert!(lon >= 0.0 && lon < 360.0, "{:?} lon out of range: {lon}", planet);
         }
 
         // North Node + South Node should be exactly 180° apart
-        let (north, _) = calc_position(Planet::NorthNode, jdn).unwrap();
-        let (south, _) = calc_position(Planet::SouthNode, jdn).unwrap();
+        let (north, _, _) = calc_position(Planet::NorthNode, jdn).unwrap();
+        let (south, _, _) = calc_position(Planet::SouthNode, jdn).unwrap();
         let mut diff = (north - south).abs();
         if diff > 180.0 { diff = 360.0 - diff; }
         assert!(
@@ -283,7 +310,7 @@ mod tests {
         let _guard = super::SWE_TEST_LOCK.lock().unwrap();
         let jdn = date_to_jdn(2024, 6, 15, 12.0);
         match calc_position(Planet::Chiron, jdn) {
-            Ok((lon, _speed)) => {
+            Ok((lon, _speed, _dec)) => {
                 assert!(lon >= 0.0 && lon < 360.0, "Chiron lon out of range: {lon}");
             }
             Err(e) => {

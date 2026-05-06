@@ -3,7 +3,7 @@ use iced::keyboard::{Key, Modifiers};
 use iced::Task;
 use std::sync::Arc;
 
-use pursuit_week4_automation::astrology::ephemeris::{Planet, PlanetSnapshot, longitude_to_sign};
+use pursuit_week4_automation::astrology::ephemeris::{Planet, PlanetSnapshot, ecliptic_to_declination, longitude_to_sign};
 use pursuit_week4_automation::astrology::natal::{NatalChart, compute_transit_score};
 use pursuit_week4_automation::models::{FundamentalMetric, LagrangeAlert, NatalPosition, PriceRow};
 
@@ -413,6 +413,11 @@ fn natal_positions_to_chart(ticker: &str, positions: &[NatalPosition]) -> Option
                 sign,
                 degree,
                 retrograde: p.retrograde,
+                // Wave 9.I1 — declination unknown from DB-stored natal_positions
+                // (table doesn't store ecliptic latitude). Approximate as if β=0.
+                // Sufficient for outer planets; inner planets can have lat up to
+                // ~7° (Moon) — refresh from Swiss Eph for sub-arcminute accuracy.
+                declination: ecliptic_to_declination(p.longitude, 0.0),
             })
         })
         .collect();

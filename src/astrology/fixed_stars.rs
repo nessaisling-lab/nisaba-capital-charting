@@ -126,6 +126,7 @@ mod tests {
             sign: super::super::ephemeris::longitude_to_sign(lon).0,
             degree: super::super::ephemeris::longitude_to_sign(lon).1,
             retrograde: false,
+            declination: super::super::ephemeris::ecliptic_to_declination(lon, 0.0),
         }
     }
 

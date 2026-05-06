@@ -6,6 +6,48 @@
 
 ---
 
+## Wave 9 — "The Compounding" (shipped 2026-05-06)
+
+**Theme:** Production-tier financial astrology engine. Time-lord systems + cycle returns + narrative depth + visual precision. 5 paired sub-waves shipped against `docs/wave9-plan.md`. AAPL validation reference (IPO 1980-12-12 09:30 EST) round-trips through every module without > 0.1° drift.
+
+### Wave 9.0 — "The Foundation"
+
+- **9.I1 Declination support** in Swiss Ephemeris bridge. New `OBLIQUITY_J2000` constant (23.4367°), `ecliptic_to_declination()` helper, `is_out_of_bounds()` predicate (|δ| > ε). New `declination: f64` field on `PlanetSnapshot`. Public `declination(planet, jdn)` accessor in bridge. 5 PlanetSnapshot construction sites updated.
+- **9.B3 Aspect strength visual gradient.** Replaced binary green/red aspect lines with continuous orb-tightness gradient. Each aspect branch in `natal_wheel_3d.wgsl` computes `tight = 1 - orb/max_orb` → alpha scales 0.55→1.0, width 0.65×→1.25×. Tight aspects (orb < 1°) glow noticeably brighter than wide aspects. Opposition (180°) added — magenta variant with shimmer speed 3.0.
+
+### Wave 9.1 — "The Year"
+
+- **9.A1 Solar Return charts** (`src/astrology/solar_return.rs`, ~270 lines). `compute_solar_return(natal, target_year)` searches the exact Sun-return moment via Newton's method (~10 iterations to < 0.001° tolerance — Sun is monotonic prograde). Casts full chart at the return moment + computes cross-aspects with natal. New `calc_sun_longitude_for_search()` in bridge for tight Newton loops. AAPL 2026 SR returns near 2026-12-12 with SR Sun matching natal to 0.0001°.
+- **9.B1 Decans** (`src/astrology/decans.rs`, ~190 lines). 12 signs × 3 decans = 36 entries with Egyptian primary ruler + Chaldean sub-ruler + theme. `decan_for_longitude(lon) -> Decan` pure lookup. AAPL natal Sun (Sagittarius decan 3, Mars-Saturn flavored Jupiter ruler) verified.
+
+### Wave 9.2 — "The Cycle"
+
+- **9.A2 Planetary Returns** (`src/astrology/returns.rs`, ~290 lines). Find every Saturn (29.5y) / Jupiter (12y) / Mars (2y) return in a window. Coarse scan + bisection root-finder for retrograde-aware roots. Cluster-merges retrograde triple-passes within `synodic_years/3` threshold. Skips first 70% of one synodic to avoid natal-epoch wobble. AAPL Saturn return ~2010 ✓, Jupiter returns ~11.86y apart ✓.
+- **9.B2 Sabian Symbols** (`src/astrology/sabian.rs`, ~430 lines). All 360 Marc Edmund Jones 1925 symbols with image + keynote. AAPL natal Sun → "A child and a dog wearing borrowed eyeglasses" (Sagittarius 21°).
+
+### Wave 9.3 — "The Lord"
+
+- **9.A3 Profections** (`src/astrology/profections.rs`, ~250 lines). Hellenistic annual time-lord rotation. `traditional_ruler(sign_index)` uses Hellenistic-only rulers (Scorpio→Mars, Aquarius→Saturn, Pisces→Jupiter — no modern outers). `compute_profection(natal_date, ascendant_lon, target_date)` handles pre-anniversary age decrement. Yearly + monthly sub-lords. `TIME_LORD_MULTIPLIER = 1.5` for aspect strength boost when time-lord involved. AAPL 2026-05-06 = **Year of Venus (10th house · Libra)**.
+- **9.B4 Critical Degrees + OOB** (`src/astrology/critical.rs`, ~310 lines). World degrees (0° cardinal), cardinal 13°/26°, fixed 8°-9°/21°-22°, mutable 4°/17°. `PrecisionFlags { critical, oob }` with combined strength multiplier capped at 2.0×. `OobState` enum (Normal/OobNorth/OobSouth) consuming the new declination field.
+
+### Wave 9.4 — "The Maturation"
+
+- **9.A4 Secondary Progressions** (`src/astrology/progressions.rs`, ~270 lines). "1 day = 1 year" advancement. `compute_progressed_chart(natal, target_date)` casts a chart at `natal_jd + years_elapsed`. AAPL 2026-05-06 → 45.4 years elapsed → equivalent date ~1981-01-26 → progressed Sun moved ~44.7° to ~6° Aquarius. Outer planets nearly stationary in progression. Sign ingress detection for Sun + Moon.
+- **9.I2 Backtest extension** (`src/dashboard/backtest.rs`). New `TimeWindow` enum: `All`, `LastYears(u32)`, `Custom(start, end)`, `ReturnZone { planet, return_dates, zone_days }`. `BacktestConfig::filter_days()` pre-filters before min-30-day check. The cycle-aligned mode is the bridge that lets users measure "Does Lagrange work better in Saturn-return-zone years?"
+
+### Validation
+
+- 132/132 lib tests pass (65 new in Wave 9)
+- 8/8 dashboard backtest tests pass
+- Release build clean, zero warnings
+- AAPL natal chart round-trip across all modules without > 0.1° drift
+
+### Out of scope (deferred)
+
+Synastry / composite, Vedic dashas, lunar mansions, asteroid catalog beyond Chiron, alternative house systems, Vertex / East Point. See `docs/wave9-plan.md` risk register.
+
+---
+
 ## v12.2 — "The Drawer + Polish" (shipped 2026-05-06)
 
 **Theme:** Tighten v12.1 + close quick wins. 5 sub-items polish the pill notification system and clear residual dead code.

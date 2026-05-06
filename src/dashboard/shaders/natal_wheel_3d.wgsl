@@ -246,26 +246,47 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             var asp_color = vec3<f32>(0.0);
             var asp_alpha = 0.0;
             var asp_w = ASPECT_W;
+            var tight = 0.0; // Wave 9.B3 — orb-tightness factor 0..1 (1 = exact)
 
             if diff < 8.0 || diff > 352.0 {
                 // Conjunction — thick bright gold (strongest aspect, most visible)
+                let orb = min(diff, 360.0 - diff);
+                tight = clamp(1.0 - orb / 8.0, 0.0, 1.0);
                 asp_color = vec3<f32>(1.0, 0.85, 0.2);
                 asp_alpha = 0.45;
                 asp_w = ASPECT_W * 2.0;
             } else if abs(diff - 60.0) < 6.0 {
-                // Sextile — bright green
+                // Sextile — bright green (harmony, lighter touch)
+                tight = clamp(1.0 - abs(diff - 60.0) / 6.0, 0.0, 1.0);
                 asp_color = vec3<f32>(0.2, 1.0, 0.45);
                 asp_alpha = 0.30;
             } else if abs(diff - 90.0) < 8.0 {
                 // Square — vivid red (tension = attention)
+                tight = clamp(1.0 - abs(diff - 90.0) / 8.0, 0.0, 1.0);
                 asp_color = vec3<f32>(1.0, 0.2, 0.2);
                 asp_alpha = 0.35;
                 asp_w = ASPECT_W * 1.3;
             } else if abs(diff - 120.0) < 8.0 {
-                // Trine — bright blue (harmony)
+                // Trine — bright blue (harmony, deep flow)
+                tight = clamp(1.0 - abs(diff - 120.0) / 8.0, 0.0, 1.0);
                 asp_color = vec3<f32>(0.25, 0.65, 1.0);
                 asp_alpha = 0.40;
+            } else if abs(diff - 180.0) < 8.0 {
+                // Opposition — magenta (polarity, axis tension) — Wave 9.B3 added
+                tight = clamp(1.0 - abs(diff - 180.0) / 8.0, 0.0, 1.0);
+                asp_color = vec3<f32>(1.0, 0.35, 0.85);
+                asp_alpha = 0.40;
+                asp_w = ASPECT_W * 1.4;
             }
+
+            // Wave 9.B3 — Tightness-driven visual gradient.
+            // Tight aspects (orb < 1°) glow brighter and render wider; wide
+            // aspects (orb near max) appear muted and thinner. Replaces
+            // binary on/off with continuous intensity.
+            //   alpha multiplier:  0.55 (wide) → 1.0 (exact)
+            //   width  multiplier: 0.65 (wide) → 1.25 (exact)
+            asp_alpha = asp_alpha * (0.55 + 0.45 * tight);
+            asp_w = asp_w * (0.65 + 0.60 * tight);
 
             if asp_alpha > 0.0 {
                 let d = sdf_segment(pc, n_pos, t_pos);
@@ -292,6 +313,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 else if abs(diff - 60.0) < 6.0 { shimmer_speed = 1.5; }      // sextile
                 else if abs(diff - 90.0) < 8.0 { shimmer_speed = 4.0; }      // square
                 else if abs(diff - 120.0) < 8.0 { shimmer_speed = 2.0; }     // trine
+                else if abs(diff - 180.0) < 8.0 { shimmer_speed = 3.0; }     // opposition (Wave 9.B3)
                 let shimmer = 0.55 + 0.45 * sin(line_t * TAU - u.time * shimmer_speed);
 
                 color = mix(color, asp_color, la * asp_alpha * shimmer);
