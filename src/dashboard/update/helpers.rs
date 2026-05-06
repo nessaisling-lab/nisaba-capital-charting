@@ -444,13 +444,9 @@ pub fn compute_forecast(
             let date = today + chrono::Duration::days(day_offset);
             let ts = compute_transit_score(&natal, date);
 
-            let label = match ts.astro_score as u32 {
-                0..=24  => "Misaligned",
-                25..=39 => "Unfavorable",
-                40..=59 => "Neutral",
-                60..=75 => "Favorable",
-                _       => "Optimal",
-            }.to_string();
+            // v12.2.2 — `label` field removed from ForecastDay (was set
+            // here, never read). Score band labeling is reconstructed at
+            // render time when needed.
 
             // Pick strongest aspect as key event
             let key_aspect = ts.active_aspects.first().map(|a| {
@@ -462,7 +458,7 @@ pub fn compute_forecast(
                 )
             });
 
-            crate::state::ForecastDay { date, score: ts.astro_score, label, key_aspect }
+            crate::state::ForecastDay { date, score: ts.astro_score, key_aspect }
         })
         .collect()
 }

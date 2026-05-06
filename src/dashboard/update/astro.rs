@@ -55,6 +55,38 @@ pub(crate) fn handle(state: &mut Dashboard, message: &Message) -> Option<Task<Me
 
         Message::RetroEventsLoaded(Ok(events)) => {
             state.retrograde_events = events.clone();
+
+            // v12.2.5 — emit a Transit pill for each retrograde station
+            // event within ±7 days of today, deduped via transit_pill_keys.
+            // Click → Astrology tab so user can read the implications.
+            let today = chrono::Local::now().date_naive();
+            for ev in events.iter() {
+                let delta = (ev.fetch_date - today).num_days();
+                if delta.abs() > 7 { continue; }
+                let key = format!("retro:{}:{}:{}", ev.planet, ev.station, ev.fetch_date);
+                if state.transit_pill_keys.insert(key) {
+                    let station_label = if ev.station == "Rx" {
+                        "stations retrograde"
+                    } else {
+                        "stations direct"
+                    };
+                    let when = if delta == 0 { "today".to_string() }
+                               else if delta == 1 { "tomorrow".to_string() }
+                               else if delta > 0 { format!("in {delta}d") }
+                               else { format!("{}d ago", -delta) };
+                    let id = state.next_notif_id();
+                    let n = crate::notifications::Notification::new(
+                        id,
+                        crate::notifications::NotificationVariant::Transit,
+                        format!("{station_label} {when}"),
+                    )
+                    .with_emphasis(ev.planet.clone())
+                    .with_click(crate::state::Message::TabSelected(
+                        crate::tabs::Tab::Astrology,
+                    ));
+                    state.push_notification(n);
+                }
+            }
             Some(Task::none())
         }
         Message::RetroEventsLoaded(Err(_)) => Some(Task::none()),

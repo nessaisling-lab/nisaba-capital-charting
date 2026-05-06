@@ -383,7 +383,6 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
 
         // ── Fetch single ticker via scraper subprocess ─────────
         Message::FetchThisTicker => {
-            state.fetch_ticker_error = None;
             let ticker = state.selected_ticker.clone();
 
             // Pre-check: locate scraper binary before spawning
@@ -400,7 +399,6 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
                     "Scraper not found at {}",
                     scraper_path.display()
                 );
-                state.fetch_ticker_error = Some(msg.clone());
                 state.notify_error(msg);
                 return Some(Task::none());
             }
@@ -482,7 +480,6 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
                     }
                 }
                 Err(e) => {
-                    state.fetch_ticker_error = Some(e.clone());
                     state.notify_error(format!("Fetch failed: {e}"));
                     Some(Task::none())
                 }

@@ -505,6 +505,29 @@ impl Dashboard {
                 self.expire_notifications();
                 Task::none()
             }
+            // v12.2.3 — single click handles both dismiss + optional route.
+            Message::NotificationClicked(id) => {
+                let route = self.notifications
+                    .iter()
+                    .find(|n| n.id == id)
+                    .and_then(|n| n.on_click.clone());
+                self.dismiss_notification(id);
+                match route {
+                    Some(msg) => Task::done(msg),
+                    None => Task::none(),
+                }
+            }
+            // v12.2.4 — drawer toggle + clear all.
+            Message::ToggleNotificationDrawer => {
+                self.notifications_drawer_open = !self.notifications_drawer_open;
+                Task::none()
+            }
+            Message::ClearAllNotifications => {
+                self.notifications.clear();
+                self.notification_history.clear();
+                self.notifications_drawer_open = false;
+                Task::none()
+            }
 
             // Catch-all: message was already handled by a domain module
             // or is unknown. This shouldn't happen in practice.

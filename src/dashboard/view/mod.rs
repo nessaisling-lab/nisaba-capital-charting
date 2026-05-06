@@ -373,7 +373,25 @@ impl Dashboard {
 
         // v11.9 (revised) — loading bar reverted to inline (in fetch
         // banner area below nav row); no overlay needed.
-        let main_view: Element<'_, Message> = base_view;
+        // v12.2.4 — drawer overlay layered above base_view via stack!.
+        // Anchored top-right under the bell icon. Position fixed so it
+        // floats over content without affecting layout.
+        let main_view: Element<'_, Message> = if self.notifications_drawer_open {
+            let drawer = crate::notifications::render_drawer(&self.notification_history);
+            let drawer_anchored = container(drawer)
+                .width(Length::Fill)
+                .align_x(iced::alignment::Horizontal::Right)
+                .align_y(iced::alignment::Vertical::Top)
+                .padding(iced::Padding {
+                    top: 60.0, right: 60.0, bottom: 0.0, left: 0.0,
+                });
+            stack![base_view, drawer_anchored]
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into()
+        } else {
+            base_view
+        };
 
         // ── Toast overlay ──────────────────────────────────────
         if self.toasts.is_empty() {
@@ -575,11 +593,54 @@ impl Dashboard {
             self.shader_time,
         );
 
+        // ── v12.2.4: bell icon + drawer toggle ─────────
+        // Click bell → open drawer overlay. Badge count = total entries
+        // in notification_history (capped at MAX_HISTORY).
+        let p_bell = theme::palette();
+        let history_count = self.notification_history.len();
+        let bell_glyph = if history_count > 0 {
+            row![
+                text(icons::BELL.to_string())
+                    .font(icons::PHOSPHOR_BOLD)
+                    .size(theme::text_md())
+                    .color(p_bell.gold),
+                text(format!("{}", history_count.min(99)))
+                    .size(9.0)
+                    .color(Color { r: 0.95, g: 0.90, b: 0.80, a: 1.0 }),
+            ]
+            .spacing(2)
+            .align_y(Alignment::Center)
+        } else {
+            row![text(icons::BELL.to_string())
+                .font(icons::PHOSPHOR_BOLD)
+                .size(theme::text_md())
+                .color(Color { a: 0.55, ..p_bell.gold })]
+        };
+        let bell_btn = button(bell_glyph)
+            .on_press(Message::ToggleNotificationDrawer)
+            .padding([4, 8])
+            .style(|_t: &iced::Theme, status: button::Status| {
+                let p = theme::palette();
+                let bg = match status {
+                    button::Status::Hovered | button::Status::Pressed => Color { a: 0.18, ..p.gold },
+                    _ => Color::TRANSPARENT,
+                };
+                button::Style {
+                    background: Some(iced::Background::Color(bg)),
+                    text_color: Color::TRANSPARENT,
+                    border: iced::Border::default(),
+                    shadow: iced::Shadow::default(),
+                    snap: false,
+                }
+            });
+
         let full_strip = row![
             tab_row,
             Space::new().width(Length::Fill),
             pill_stack,
-            Space::new().width(Length::Fixed(8.0)),
+            Space::new().width(Length::Fixed(6.0)),
+            bell_btn,
+            Space::new().width(Length::Fixed(4.0)),
             gear_btn,
         ]
         .align_y(Alignment::Center);

@@ -1,4 +1,4 @@
-use iced::widget::{button, column, pick_list, row, rule, slider, text, text_input};
+use iced::widget::{button, column, pick_list, row, rule, scrollable, slider, text, text_input};
 use iced::{Alignment, Element, Length};
 
 use crate::font;
@@ -161,21 +161,32 @@ impl Dashboard {
             text(format!("Alerts: {} ({} unread)", self.alerts.len(), self.unread_alert_count)).size(theme::text_sm()),
         ].spacing(4));
 
-        column![
-            eyebrow("APPEARANCE"),
-            appearance_card,
-            section_rule(),
-            eyebrow("DATA & REFRESH"),
-            data_card,
-            section_rule(),
-            eyebrow("API KEYS"),
-            api_keys_card,
-            section_rule(),
-            eyebrow("ALERTS"),
-            alerts_card,
-            section_rule(),
-            eyebrow("DASHBOARD INFO"),
-            info_card,
-        ].spacing(theme::SPACE_SM).padding(8).into()
+        // v12.2.1 — wrap body in scrollable so the Settings tab can scroll
+        // independently when content exceeds viewport. User v8j feedback:
+        // "I'm noticing you can't scroll down the settings menu."
+        scrollable(
+            column![
+                eyebrow("APPEARANCE"),
+                appearance_card,
+                section_rule(),
+                eyebrow("DATA & REFRESH"),
+                data_card,
+                section_rule(),
+                eyebrow("API KEYS"),
+                api_keys_card,
+                section_rule(),
+                eyebrow("ALERTS"),
+                alerts_card,
+                section_rule(),
+                eyebrow("DASHBOARD INFO"),
+                info_card,
+            ]
+            .spacing(theme::SPACE_SM)
+            .padding(iced::Padding {
+                top: 8.0, right: 20.0, bottom: 8.0, left: 8.0,
+            }),
+        )
+        .height(Length::Fill)
+        .into()
     }
 }

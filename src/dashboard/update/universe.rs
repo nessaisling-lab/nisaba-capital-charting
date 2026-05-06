@@ -99,12 +99,8 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
 
             if unread_count > 0 && !state.notifications_fired && state.os_notifications {
                 state.notifications_fired = true;
-                // v11.9 — keep alert_pill_until for migration safety; the
-                // pill it controlled is now superseded by the universal
-                // notification deque, but other code reads this field.
-                state.alert_pill_until = Some(
-                    std::time::Instant::now() + std::time::Duration::from_secs(8),
-                );
+                // v12.2.2 — alert_pill_until removed; per-notification
+                // expires_at handles TTL now (universal pill deque).
                 let unread: Vec<LagrangeAlert> =
                     alerts.iter().filter(|a| !a.is_read).cloned().collect();
                 state.alerts = alerts;

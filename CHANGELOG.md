@@ -6,6 +6,57 @@
 
 ---
 
+## v12.2 — "The Drawer + Polish" (shipped 2026-05-06)
+
+**Theme:** Tighten v12.1 + close quick wins. 5 sub-items polish the pill notification system and clear residual dead code.
+
+### v12.2.1 — Settings tab scrollable
+User flagged in video v8j: *"I'm noticing you can't scroll down the settings menu."* Wrapped `view_settings()` body in `scrollable()` so settings content can scroll independently when it exceeds viewport.
+
+### v12.2.2 — Dead code trim (warnings → 0)
+Removed fields/state that v11.9/v12.1 retired but kept "for migration safety":
+- `alert_pill_until: Option<Instant>` (replaced by per-pill `expires_at`)
+- `fetch_ticker_error: Option<String>` (errors now flow through pill system)
+- `show_settings_modal: bool` (Settings tab is sole entry point)
+- `ForecastDay.label: String` (set but never read; reconstruct band at render time)
+
+`cargo check` now produces **zero warnings** for the dashboard binary.
+
+### v12.2.3 — Click-pill-to-dismiss
+Every pill is now click-actionable. New `Message::NotificationClicked(u64)` handler dismisses the pill, then dispatches the pill's stored `on_click` (if present) via `Task::done(msg)` — single click both routes (e.g. → Universe) and clears chrome. Plain pills (Error/Success/Info) just dismiss.
+
+### v12.2.4 — Notification drawer
+Added bell icon between pill stack and gear in tab strip. Click → drawer overlay (via `stack!`) showing `notification_history` newest-first. Each entry shows variant icon + emphasis + body + relative time-ago ("just now", "5m", "2h ago"). Header has "Clear all" + close X. Bell badge shows total count (capped 99).
+
+State: `notifications_drawer_open: bool`. Messages: `ToggleNotificationDrawer`, `ClearAllNotifications`. Drawer uses same overlay pattern as v11.9 toast (proven non-reflowing layer).
+
+### v12.2.5 — Transit pills emit
+On `RetroEventsLoaded`, scan retrograde station events within ±7 days of today. For each new station signature (`{planet}:{station}:{date}` deduped via `transit_pill_keys: HashSet<String>`), emit a `Transit` pill ("Mars stations retrograde in 3d") with click → Astrology tab. 12s TTL.
+
+---
+
+## Wave 9 — "The Compounding" — PLAN ONLY (planning shipped 2026-05-06)
+
+**Status:** Implementation roadmap delivered, code not yet started. See `docs/wave9-plan.md` for the full 13-day scope.
+
+**Theme:** Deepen the astrology engine from "what aspects fire today" → "where in the corporate lifecycle is today happening." Time-lord systems (Solar Return, Profections, Planetary Returns, Progressions) + narrative depth (Decans, Sabian Symbols) + visual precision (aspect strength gradient, critical degrees, OOB).
+
+**Sub-wave sequence (paired tracks A+B like Wave 6):**
+
+| Wave | Pair | Theme | Days |
+|------|------|-------|------|
+| 9.0 | I1 + B3 | "The Foundation" — declination + aspect strength gradient | 1.5 |
+| 9.1 | A1 + B1 | "The Year" — Solar Return + Decans | 2.5 |
+| 9.2 | A2 + B2 | "The Cycle" — Planetary Returns + Sabian Symbols | 2.5 |
+| 9.3 | A3 + B4 | "The Lord" — Profections + Critical Degrees + OOB | 3 |
+| 9.4 | A4 + I2 | "The Maturation" — Progressions + Backtest extension | 3.5 |
+
+**Out of scope (deferred):** Synastry / composite, Vedic dashas, Lunar mansions, asteroid catalog beyond Chiron, alternative house systems, Vertex / East Point.
+
+**Validation reference:** AAPL chart (IPO 1980-12-12 09:30 EST). All time-lord computations must round-trip without > 0.1° drift. See plan doc for known reference values.
+
+---
+
 ## v12.1 — "The Pill" (shipped 2026-05-06)
 
 **Theme:** Universal pill-based notification system. Replaces the v11.9 ad-hoc `fetching_pill` + `alert_pill` chrome and the inline `fetch_error_banner` that pushed the page header layout down on every fetch. Driven by video review v8j (2026-05-05): *"this keeps some popping down. That's got to stop. If we need notifications, it should pop up here. Just like how this pop up comes to Mars Transit, Aries. That sparkly thing — that could be used for notifications as well."*

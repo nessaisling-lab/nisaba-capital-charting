@@ -21,7 +21,6 @@ use crate::indicators::Indicators;
 pub struct ForecastDay {
     pub date:       chrono::NaiveDate,
     pub score:      f32,
-    pub label:      String,
     pub key_aspect: Option<String>,
 }
 
@@ -238,8 +237,6 @@ pub struct Dashboard {
     pub sort_watchlist_by_score:  bool,
     pub recently_viewed:          Vec<String>,
     pub favorites:                Vec<String>,
-    #[allow(dead_code)] // v11.5.B5 modal flag, retired in v11.9 — kept for migration safety
-    pub show_settings_modal:      bool,
     pub active_tab:               Tab,
     pub status:                   String,
     pub refreshing:               bool,
@@ -298,7 +295,7 @@ pub struct Dashboard {
     pub fetching_ticker:          bool,
     /// Wall-clock instant the current fetch began (v11.3) — drives progress bar fill.
     pub fetch_start_time:         Option<std::time::Instant>,
-    pub fetch_ticker_error:       Option<String>,
+    // v12.2.2 — fetch_ticker_error removed; errors now flow through pill system.
     // LLM agent mode
     pub agent_mode:               AgentMode,
     pub agent_loading:            bool,
@@ -344,10 +341,8 @@ pub struct Dashboard {
     pub os_notifications:         bool,
     pub natal_zoom:               f32,
     pub price_chart_cache:        std::sync::Arc<iced::widget::canvas::Cache>,
-    /// v11.9 (revised) — instant after which alert pill auto-hides.
-    /// Set when AlertsLoaded fires with new unread alerts. Pill renders
-    /// only while Instant::now() < this value.
-    pub alert_pill_until:         Option<std::time::Instant>,
+    // v12.2.2 — alert_pill_until removed. Replaced by per-notification
+    // expires_at in the v12.1 universal pill deque.
     pub wiki_summary:             Option<crate::db::WikiSummary>,
     pub wiki_thumbnail_bytes:     Option<Vec<u8>>,
     /// v12.1 — Universal pill notification deque. Active pills render
@@ -363,9 +358,15 @@ pub struct Dashboard {
     /// Tracks which Lagrange alert IDs already produced a pill so the
     /// AlertsLoaded handler doesn't re-emit on every refresh.
     pub alerted_lagrange_ids:     std::collections::HashSet<i32>,
+    /// v12.2.5 — dedupe set for transit pills. Key format:
+    /// `{planet}:{station}:{date}` so re-loading the same retrograde
+    /// event window doesn't re-emit pills the user already saw.
+    pub transit_pill_keys:        std::collections::HashSet<String>,
     /// v12.1 — id of the sticky sparkly fetch pill so it can be
     /// dismissed on FetchTickerComplete.
     pub fetch_notification_id:    Option<u64>,
+    /// v12.2.4 — drawer open/closed (bell-click reveals notification_history).
+    pub notifications_drawer_open: bool,
 }
 
 impl Default for Dashboard {
@@ -433,7 +434,6 @@ impl Default for Dashboard {
             sort_watchlist_by_score:  true,
             recently_viewed:          vec![],
             favorites:                vec![],
-            show_settings_modal:      false,
             active_tab:               Tab::Astrology,
             status:                   String::new(),
             refreshing:               false,
@@ -479,7 +479,6 @@ impl Default for Dashboard {
             calendar_month:           chrono::Local::now().month(),
             fetching_ticker:          false,
             fetch_start_time:         None,
-            fetch_ticker_error:       None,
             agent_mode:               AgentMode::Template,
             agent_loading:            false,
             agent_llm_error:          None,
@@ -519,14 +518,15 @@ impl Default for Dashboard {
             os_notifications:         true,
             natal_zoom:               1.0,
             price_chart_cache:        std::sync::Arc::new(iced::widget::canvas::Cache::default()),
-            alert_pill_until:         None,
             wiki_summary:             None,
             wiki_thumbnail_bytes:     None,
             notifications:            std::collections::VecDeque::new(),
             notification_history:     Vec::new(),
             next_notification_id:     1,
             alerted_lagrange_ids:     std::collections::HashSet::new(),
+            transit_pill_keys:        std::collections::HashSet::new(),
             fetch_notification_id:    None,
+            notifications_drawer_open: false,
         }
     }
 }
@@ -707,8 +707,16 @@ pub enum Message {
     // Candlestick tooltip size (v11.3)
     SetTooltipSize(TooltipSize),
     // v12.1 — Universal pill notification system
-    #[allow(dead_code)] // wired in v12.2 (click-to-dismiss + drawer)
+    #[allow(dead_code)] // wired in v12.2.4 drawer "clear one" action
     DismissNotification(u64),
     #[allow(dead_code)]
     NotificationsTick, // expire pass driven by Tick
+    /// v12.2.3 — emitted when user clicks a pill. Handler dismisses the
+    /// pill, then dispatches the pill's stored `on_click` message (if any)
+    /// so a single click both routes (e.g. → Universe) and clears chrome.
+    NotificationClicked(u64),
+    /// v12.2.4 — bell icon click → toggle drawer.
+    ToggleNotificationDrawer,
+    /// v12.2.4 — drawer "Clear All" button → wipe history + active deque.
+    ClearAllNotifications,
 }

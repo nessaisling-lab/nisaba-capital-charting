@@ -3,8 +3,10 @@
 **Project:** Pursuit NYC Week 4 Fellowship — Native Rust Desktop Financial Dashboard
 **Stack:** Rust, Iced 0.14, SQLx, PostgreSQL
 **Author:** Aisling Leiva
-**Current version:** v12.1 "The Pill" (shipped 2026-05-06; user confirmed *"Overall huge win, very happy with the progress we made!"*)
+**Current version:** v12.2 "The Drawer + Polish" (shipped 2026-05-06)
 **Next milestones:**
+- **Wave 9 "The Compounding"** (PLAN, ~13 days) — Time-lord systems (Solar Return, Profections, Planetary Returns, Secondary Progressions) + narrative depth (Decans, Sabian Symbols) + visual precision (aspect strength gradient, critical degrees, out-of-bounds). 5 paired sub-waves following Wave 6 A+B pattern. Full plan in `docs/wave9-plan.md`. Engine gap analysis via `Explore` agent confirmed: don't rebuild aspects/patterns/fixed stars/Arabic Parts/eclipses (production); build the Hellenistic + cycle layers astrologers stack on top.
+- **v12.2 "The Drawer + Polish"** (shipped 2026-05-06) — 5 sub-items: (1) settings tab scrollable wrap, (2) dead code trim → 0 warnings, (3) click-pill-to-dismiss with optional route, (4) bell icon + notification drawer overlay (history + Clear All), (5) transit pills emit on retrograde station events with ±7d window dedupe.
 - **v12.1 "The Pill"** (shipped 2026-05-06) — Universal pill notification deque replaces v11.9 ad-hoc fetching_pill + alert_pill chrome AND inline fetch_error_banner. 6 variants (Sparkly, Alert, Transit, Error, Success, Info). New `src/dashboard/notifications.rs` + Dashboard helpers (`push_notification`, `dismiss_notification`, `expire_notifications`, `notify_error/success/info`). Layout never reflows on emit. Confirmed working in screenshots 020627/020645/020657/020725.
 - **v12.0.A** (shipped 2026-05-06) — OS toast HRESULT 0x80070005 fixed via two layers: runtime windows-rs IShellLinkW + IPropertyStore.SetValue(PKEY_AppUserModel_ID), and Inno Setup `[Icons] AppUserModelID:` installer at `installer/pursuit-astro.iss`. Toasts work after installer run.
 - **v12.0.B** (shipped 2026-05-06) — Chart hover full profiling. Found `draw()` recomputed min/max + Decimal→String→f32 over all rows on every bar transition (~127k allocs/sweep). Precomputed `price_min`, `price_max`, `ohlc_f32` fields on `PriceChart` + helpers. Hover redraw now O(1) field reads.

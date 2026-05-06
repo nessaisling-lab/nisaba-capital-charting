@@ -1,45 +1,89 @@
 # TODOS
 
-## Active — none. v12.1 shipped + user-validated 2026-05-06.
+## Active — Wave 9 planning shipped 2026-05-06; implementation pending.
 
-User: *"Overall huge win, very happy with the progress we made!"*
+v12.0 + v12.1 + v12.2 shipped + user-validated. *"Overall huge win, very happy with the progress we made!"*
 
-Next iteration awaits next user video review or backlog target.
+Next: Wave 9 "The Compounding" — full plan at `docs/wave9-plan.md`. 13-day scope, 5 paired sub-waves.
+
+---
 
 ## Open backlog (deferred)
 
 ### Carryover from v12.0 series
-- **Chart hover real-time** — v12.0.B precompute + v12.0.D state-mutation skip both landed. User still flags non-real-time vs gauges/sparkline. Suspect: cosmic-text glyph shaping inside hover `fill_text` per redraw. Bigger lift — needs frame-time instrumentation OR pre-shaped glyph cache. Deferred to v12.3 or later.
-- **OS toast HRESULT** — installer ships AUMID binding (v12.0.A). User reported `[fire_toast] OS notification FAILED: HRESULT(0x80070005)` even after install. Likely Start Menu indexer hasn't picked up the binding yet — recommend sign-out/in OR explorer.exe restart. Pill system covers visibility need; OS toast is bonus.
+- **Chart hover real-time** — v12.0.B precompute + v12.0.D state-mutation skip both landed. User still flags non-real-time vs gauges/sparkline. Suspect: cosmic-text glyph shaping inside hover `fill_text` per redraw. Needs frame-time instrumentation OR pre-shaped glyph cache. Deferred to v12.3.
+- **OS toast HRESULT** — installer ships AUMID binding (v12.0.A). User reported HRESULT 0x80070005 still firing post-install. Likely Start Menu indexer hasn't picked up binding — recommend sign-out/in OR explorer.exe restart. Pill system covers visibility; OS toast is bonus.
 
-### v12.2 — "The Drawer + Polish" (planned, ~2-3 days)
-Batched polish + completing the pill system.
-- [ ] Settings tab scrollable wrap — user flagged in v8j ("can't scroll down the settings menu")
-- [ ] Notification drawer — gear-click reveals 24h history overlay via `stack!`. UI sketched in `mockups/v12.1-pill-notifications.html` Scenario 5.
-- [ ] Click-pill-to-dismiss — `DismissNotification(u64)` Message wired but no UI trigger yet
-- [ ] Transit pills emit — wire astrology-event detection (Mars enters Aries, retrograde station, eclipse window) → `NotificationVariant::Transit`
-- [ ] Toast → pill migration — replace residual `push_toast` calls with `notify_*` shortcuts
-- [ ] Trim dead code — `alert_pill_until`, `fetch_ticker_error`, `show_settings_modal` flags now unused
+### Wave 9 — "The Compounding" (planned, ~13 days)
+**Full plan: `docs/wave9-plan.md`**
 
-### v12.3 — "The Profiling" (planned, ~1-2 days)
+Track A — Time-lord systems (cycle precision):
+- [ ] **9.A1** Solar Return charts (annual birthday-anchored chart, exact Sun-return moment)
+- [ ] **9.A2** Profections (Hellenistic annual time-lord, 12-year house cycle)
+- [ ] **9.A3** Planetary returns (Saturn 29.5y, Jupiter 12y, Mars 2y; return charts)
+- [ ] **9.A4** Secondary progressions (1° = 1 year; progressed Sun/Moon ingresses)
+
+Track B — Narrative + precision:
+- [ ] **9.B1** Decans (3 per sign, 36 total; Egyptian system primary)
+- [ ] **9.B2** Sabian symbols (360 degree-meanings; Marc Edmund Jones 1925)
+- [ ] **9.B3** Aspect strength visual gradient (replace binary green/red with continuous)
+- [ ] **9.B4** Critical degrees + out-of-bounds detection
+
+Infrastructure:
+- [ ] **9.I1** Declination support in Swiss Eph bridge (unlocks OOB + parallels)
+- [ ] **9.I2** Backtest extension — 1y/3y/5y windows + cycle-aligned filtering
+
+Sequencing pairs:
+1. **9.0** "The Foundation" — 9.I1 + 9.B3 (1.5d)
+2. **9.1** "The Year" — 9.A1 + 9.B1 (2.5d)
+3. **9.2** "The Cycle" — 9.A2 + 9.B2 (2.5d)
+4. **9.3** "The Lord" — 9.A3 + 9.B4 (3d)
+5. **9.4** "The Maturation" — 9.A4 + 9.I2 (3.5d)
+
+### v12.3 — "The Profiling" (planned, ~1-2 days, low priority)
 Deeper chart hover investigation + perf instrumentation.
 - [ ] Frame-time instrumentation in `PriceChart::draw()` — log static_geo + hover_frame durations
 - [ ] Test cosmic-text glyph cache hypothesis — measure `fill_text` cost vs strokes
 - [ ] Investigate Iced 0.14 `canvas::Cache` for hover-side too (separate from static cache)
-- [ ] Compare hover redraw rate vs visible cursor sweep speed — confirm whether issue is paint cost OR redraw count
-
-### Wave 9 — "The Compounding" (planned, ~10 days)
-Astrology engine deepening per Wave 6 spec carry-overs + new directions.
-- [ ] Solar return charts (annual birthday-anchored sub-chart with its own transits)
-- [ ] Progressed chart (1° = 1 year secondary progressions)
-- [ ] Planetary returns timing (Saturn return, Jupiter return cycles)
-- [ ] Aspect line color-by-strength (replace binary green/red with strength gradient)
-- [ ] Backtest extension — current Lagrange backtest stops at 90 days, extend to 1+ year for cycle validation
+- [ ] Compare hover redraw rate vs visible cursor sweep speed — confirm paint cost vs count
 
 ### v12.0.E — packaging hardening (deferred)
 - [ ] Code-signing the installer .exe (Windows Defender SmartScreen warning on download)
 - [ ] Auto-update channel
 - [ ] System-wide install option (currently per-user only)
+
+### Wave 9 explicitly out of scope
+Defer indefinitely unless user requests:
+- Synastry / composite charts (chart-to-chart) — niche for financial dashboards
+- Vedic dasha periods — sectarian system clash with Hellenistic
+- Lunar mansions (28-mansion system) — niche audience
+- Asteroid catalog beyond Chiron — needs `.se1` packaging story
+- Placidus/Koch alternative house systems — Whole Sign serves
+- Vertex / East Point secondary angles
+
+---
+
+## Closed — Wave 9 "The Compounding" — PLAN ONLY 2026-05-06
+
+Plan delivered. Implementation not yet started (awaiting user kickoff).
+
+- [x] Engine inventory via `Explore` agent (current state catalogued)
+- [x] Sub-wave decomposition (4 paired tracks A+B + 2 infrastructure tasks)
+- [x] Sequencing (5 ship pairs over 13 days)
+- [x] Risk register
+- [x] AAPL validation reference
+- [x] Out-of-scope register (synastry, Vedic dashas, lunar mansions, asteroids, alt house systems)
+- [x] Plan doc: `docs/wave9-plan.md`
+
+## Closed — v12.2 "The Drawer + Polish" — SHIPPED 2026-05-06
+
+User pre-approval: *"yes lets do that then"* (option A → C plan).
+
+- [x] **12.2.1** Settings tab `scrollable()` wrap — fixes v8j flagged "can't scroll down"
+- [x] **12.2.2** Dead code trim — `alert_pill_until`, `fetch_ticker_error`, `show_settings_modal`, `ForecastDay.label` removed. `cargo check` → 0 warnings.
+- [x] **12.2.3** Click-pill-to-dismiss — `NotificationClicked(u64)` Message + `Task::done(routed_msg)` for combined route+dismiss
+- [x] **12.2.4** Notification drawer — bell icon + drawer overlay via `stack!`, `notification_history` newest-first, "Clear all" + close X, badge count
+- [x] **12.2.5** Transit pills emit on `RetroEventsLoaded` within ±7d window, deduped via `transit_pill_keys: HashSet<String>`
 
 ---
 

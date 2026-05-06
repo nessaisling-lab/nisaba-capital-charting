@@ -17,7 +17,7 @@
 //! View loop renders up to MAX_VISIBLE_PILLS at a time; the rest spill
 //! into history (drawer-ready, future v12.2).
 
-use iced::widget::{button, container, row, text, Canvas, Space};
+use iced::widget::{button, column, container, row, scrollable, text, Canvas, Space};
 use iced::{Alignment, Color, Element, Length};
 use std::time::{Duration, Instant};
 
@@ -162,58 +162,39 @@ pub fn render_pill<'a>(n: &Notification, shader_time: f32) -> Element<'a, Messag
         .spacing(6)
         .align_y(Alignment::Center);
 
-    // ── if clickable → wrap in button with pill style; else container
-    if let Some(msg) = n.on_click.clone() {
-        let pill_style = move |_t: &iced::Theme, status: button::Status| {
-            let _p = theme::palette();
-            let bg_alpha = match status {
-                button::Status::Hovered | button::Status::Pressed => 0.98,
-                _ => 0.92,
-            };
-            button::Style {
-                background: Some(iced::Background::Color(
-                    Color { r: 0.12, g: 0.10, b: 0.08, a: bg_alpha },
-                )),
-                text_color: Color::TRANSPARENT,
-                border: iced::Border {
-                    color: border_color,
-                    width: 1.0,
-                    radius: 12.0.into(),
-                },
-                shadow: iced::Shadow {
-                    color: Color { a: 0.30, ..Color::BLACK },
-                    offset: iced::Vector::new(0.0, 1.5),
-                    blur_radius: 6.0,
-                },
-                snap: false,
-            }
+    // v12.2.3 — every pill is now a button that emits NotificationClicked.
+    // The handler dismisses the pill and dispatches the pill's stored
+    // `on_click` (if any). Click-to-dismiss for plain pills, click-to-
+    // route-and-dismiss for clickable ones — single uniform interaction.
+    let pill_id = n.id;
+    let pill_style = move |_t: &iced::Theme, status: button::Status| {
+        let bg_alpha = match status {
+            button::Status::Hovered | button::Status::Pressed => 0.98,
+            _ => 0.92,
         };
-        button(body)
-            .on_press(msg)
-            .padding([3, 10])
-            .style(pill_style)
-            .into()
-    } else {
-        container(body)
-            .padding([3, 10])
-            .style(move |_t: &iced::Theme| container::Style {
-                background: Some(iced::Background::Color(
-                    Color { r: 0.12, g: 0.10, b: 0.08, a: 0.92 },
-                )),
-                border: iced::Border {
-                    color: border_color,
-                    width: 1.0,
-                    radius: 12.0.into(),
-                },
-                shadow: iced::Shadow {
-                    color: Color { a: 0.30, ..Color::BLACK },
-                    offset: iced::Vector::new(0.0, 1.5),
-                    blur_radius: 6.0,
-                },
-                ..Default::default()
-            })
-            .into()
-    }
+        button::Style {
+            background: Some(iced::Background::Color(
+                Color { r: 0.12, g: 0.10, b: 0.08, a: bg_alpha },
+            )),
+            text_color: Color::TRANSPARENT,
+            border: iced::Border {
+                color: border_color,
+                width: 1.0,
+                radius: 12.0.into(),
+            },
+            shadow: iced::Shadow {
+                color: Color { a: 0.30, ..Color::BLACK },
+                offset: iced::Vector::new(0.0, 1.5),
+                blur_radius: 6.0,
+            },
+            snap: false,
+        }
+    };
+    button(body)
+        .on_press(Message::NotificationClicked(pill_id))
+        .padding([3, 10])
+        .style(pill_style)
+        .into()
 }
 
 /// Render the active pill stack as one row element. Honors
@@ -237,4 +218,180 @@ pub fn render_pill_stack<'a>(
         }
     }
     r.into()
+}
+
+/// v12.2.4 — Format relative time-ago string ("just now", "5m", "2h", "1d ago").
+fn time_ago(created: Instant) -> String {
+    let secs = created.elapsed().as_secs();
+    if secs < 30 { "just now".into() }
+    else if secs < 60 { format!("{secs}s ago") }
+    else if secs < 3600 { format!("{}m ago", secs / 60) }
+    else if secs < 86400 { format!("{}h ago", secs / 3600) }
+    else { format!("{}d ago", secs / 86400) }
+}
+
+/// v12.2.4 — Notification drawer. Overlays via `stack!` in the main view
+/// when `notifications_drawer_open == true`. Shows up to MAX_HISTORY entries
+/// from `notification_history` newest-first. Each row is click-to-dismiss
+/// (or click-to-route if the pill carried an on_click). Footer "Clear All"
+/// wipes both active deque + history.
+pub fn render_drawer<'a>(
+    history: &[Notification],
+) -> Element<'a, Message> {
+    let p = theme::palette();
+
+    let header = row![
+        text(icons::BELL.to_string())
+            .font(icons::PHOSPHOR_BOLD)
+            .size(14.0)
+            .color(p.gold),
+        text("Recent notifications")
+            .size(theme::text_xs())
+            .color(Color { r: 0.95, g: 0.90, b: 0.80, a: 1.0 })
+            .font(crate::font::BODY_BOLD),
+        Space::new().width(Length::Fill),
+        button(
+            text("Clear all")
+                .size(theme::text_xs())
+                .color(Color { a: 0.85, ..p.gold }),
+        )
+        .padding([2, 8])
+        .on_press(Message::ClearAllNotifications)
+        .style(|_t: &iced::Theme, status: button::Status| {
+            let p = theme::palette();
+            let bg_alpha = match status {
+                button::Status::Hovered => 0.18,
+                _ => 0.0,
+            };
+            button::Style {
+                background: Some(iced::Background::Color(Color { a: bg_alpha, ..p.gold })),
+                text_color: Color::TRANSPARENT,
+                border: iced::Border { radius: 4.0.into(), ..Default::default() },
+                ..button::Style::default()
+            }
+        }),
+        button(
+            text(icons::X_LG.to_string())
+                .font(icons::PHOSPHOR_BOLD)
+                .size(11.0)
+                .color(Color { a: 0.7, r: 0.95, g: 0.90, b: 0.80 }),
+        )
+        .padding([2, 6])
+        .on_press(Message::ToggleNotificationDrawer)
+        .style(|_t: &iced::Theme, status: button::Status| {
+            let bg_alpha = match status {
+                button::Status::Hovered => 0.15,
+                _ => 0.0,
+            };
+            button::Style {
+                background: Some(iced::Background::Color(Color { r: 1.0, g: 1.0, b: 1.0, a: bg_alpha })),
+                text_color: Color::TRANSPARENT,
+                border: iced::Border { radius: 4.0.into(), ..Default::default() },
+                ..button::Style::default()
+            }
+        }),
+    ]
+    .spacing(6)
+    .align_y(Alignment::Center);
+
+    let body: Element<'a, Message> = if history.is_empty() {
+        container(
+            text("No notifications yet")
+                .size(theme::text_xs())
+                .color(Color { a: 0.55, r: 0.95, g: 0.90, b: 0.80 }),
+        )
+        .padding(20)
+        .center_x(Length::Fill)
+        .into()
+    } else {
+        let mut col = column![].spacing(2);
+        // Newest first
+        for n in history.iter().rev().take(MAX_HISTORY) {
+            col = col.push(render_drawer_row(n));
+        }
+        scrollable(col).height(Length::Fixed(280.0)).into()
+    };
+
+    let drawer_inner = column![
+        header,
+        iced::widget::rule::horizontal(1),
+        body,
+    ]
+    .spacing(4);
+
+    container(drawer_inner)
+        .width(Length::Fixed(360.0))
+        .padding(8)
+        .style(move |_t: &iced::Theme| container::Style {
+            background: Some(iced::Background::Color(
+                Color { r: 0.10, g: 0.08, b: 0.06, a: 0.97 },
+            )),
+            border: iced::Border {
+                color: Color { a: 0.55, ..p.gold },
+                width: 1.0,
+                radius: 8.0.into(),
+            },
+            shadow: iced::Shadow {
+                color: Color { a: 0.45, ..Color::BLACK },
+                offset: iced::Vector::new(0.0, 4.0),
+                blur_radius: 14.0,
+            },
+            ..Default::default()
+        })
+        .into()
+}
+
+fn render_drawer_row<'a>(n: &Notification) -> Element<'a, Message> {
+    let p = theme::palette();
+    let (icon_char, icon_color) = match n.variant {
+        NotificationVariant::Sparkly | NotificationVariant::Alert | NotificationVariant::Transit => (icons::STAR, p.gold),
+        NotificationVariant::Error => (icons::EXCLAMATION_TRI, Color { r: 0.76, g: 0.35, b: 0.24, a: 1.0 }),
+        NotificationVariant::Success => (icons::CHECK, Color { r: 0.43, g: 0.66, b: 0.42, a: 1.0 }),
+        NotificationVariant::Info => (icons::INFO_CIRCLE, p.gold),
+    };
+    let icon_el = text(icon_char.to_string())
+        .font(icons::PHOSPHOR_BOLD)
+        .size(11.0)
+        .color(icon_color);
+
+    let mut text_col = column![].spacing(1);
+    let mut top_row = row![].spacing(4).align_y(Alignment::Center);
+    if let Some(e) = &n.emphasis {
+        top_row = top_row.push(
+            text(e.clone())
+                .font(crate::font::BODY_BOLD)
+                .size(theme::text_xs())
+                .color(Color { r: 1.0, g: 1.0, b: 1.0, a: 1.0 }),
+        );
+    }
+    top_row = top_row.push(
+        text(n.text.clone())
+            .size(theme::text_xs())
+            .color(Color { r: 0.95, g: 0.90, b: 0.80, a: 1.0 }),
+    );
+    text_col = text_col.push(top_row);
+    text_col = text_col.push(
+        text(time_ago(n.created_at))
+            .size(9.0)
+            .color(Color { r: 0.66, g: 0.60, b: 0.47, a: 1.0 }),
+    );
+
+    let body = row![icon_el, text_col]
+        .spacing(8)
+        .align_y(Alignment::Start);
+
+    container(body)
+        .padding([6, 10])
+        .width(Length::Fill)
+        .style(|_t: &iced::Theme| container::Style {
+            background: Some(iced::Background::Color(
+                Color { r: 0.13, g: 0.11, b: 0.09, a: 0.5 },
+            )),
+            border: iced::Border {
+                radius: 4.0.into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .into()
 }
