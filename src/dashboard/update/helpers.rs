@@ -466,16 +466,17 @@ pub(crate) async fn export_universe_csv(rows: Vec<UniverseRow>) -> Result<(), St
 const APP_USER_MODEL_ID: &str = "PursuitAstro.Dashboard";
 const APP_DISPLAY_NAME: &str = "Pursuit Astro";
 
-/// v11.8.D + v11.8.H + v11.8.I — Bootstrap Windows toast notifications.
+/// v12.0.A — Real fix for Windows toast HRESULT 0x80070005.
 /// Three pieces required:
 ///   1. AppUserModelID registry entry (DisplayName + IconUri)
-///   2. Start Menu shortcut (.lnk) with AUMID property bound to it
-///   3. notify-rust call passes the AUMID via Notification::app_id()
+///   2. Start Menu .lnk shortcut WITH IPropertyStore PKEY_AppUserModel_ID
+///      property bound (this was the missing piece in v11.8.I — PowerShell's
+///      WScript.Shell creates a basic .lnk but does NOT bind the AUMID
+///      property; only IShellLinkW + IPropertyStore can)
+///   3. notify-rust call passes AUMID via Notification::app_id()
 ///
-/// Without (2), Action Center returns HRESULT 0x80070005 "Access is
-/// denied" even when (1) succeeds. We create the .lnk via PowerShell's
-/// WScript.Shell COM + Set-StartApp + IPropertyStore-equivalent script.
-/// One-shot — checks for existing shortcut and skips if present.
+/// We do (2) directly via windows-rs: IShellLinkW.SetPath +
+/// IPropertyStore.SetValue(PKEY_AppUserModel_ID) + IPersistFile.Save.
 #[cfg(windows)]
 pub(crate) fn register_app_user_model_id() {
     let key = format!(r"HKCU\Software\Classes\AppUserModelId\{APP_USER_MODEL_ID}");
@@ -494,9 +495,6 @@ pub(crate) fn register_app_user_model_id() {
     }
     eprintln!("[notifications] AUMID registry registered: {APP_USER_MODEL_ID}");
 
-    // Create Start Menu shortcut with AUMID property. PowerShell script
-    // uses WScript.Shell to make the .lnk, then patches the AUMID via
-    // a tiny WSH/COM trick. Idempotent — overwrites if present.
     let exe_path = match std::env::current_exe() {
         Ok(p) => p,
         Err(e) => {
@@ -504,32 +502,93 @@ pub(crate) fn register_app_user_model_id() {
             return;
         }
     };
-    let exe_str = exe_path.to_string_lossy().replace('\\', "\\\\");
-    let ps_script = format!(r#"
-$ErrorActionPreference = 'SilentlyContinue';
-$lnkPath = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Pursuit Astro.lnk';
-$shell = New-Object -ComObject WScript.Shell;
-$lnk = $shell.CreateShortcut($lnkPath);
-$lnk.TargetPath = '{exe_str}';
-$lnk.Save();
-# Patch AUMID via Set-Item on the .lnk via PropertyStore
-$type = '[Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime]';
-[Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime] | Out-Null;
-"#);
-    let ps_result = std::process::Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-Command", &ps_script])
-        .output();
-    match ps_result {
-        Ok(o) if o.status.success() => {
-            eprintln!("[notifications] Start Menu shortcut created at %APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Pursuit Astro.lnk");
-            eprintln!("[notifications] If toasts still fail, sign out and back in once so Windows indexes the shortcut + AUMID binding.");
+    // %APPDATA%\Microsoft\Windows\Start Menu\Programs\Pursuit Astro.lnk
+    let appdata = match std::env::var("APPDATA") {
+        Ok(p) => p,
+        Err(_) => { eprintln!("[notifications] %APPDATA% not set"); return; }
+    };
+    let lnk_path = std::path::PathBuf::from(appdata)
+        .join("Microsoft").join("Windows").join("Start Menu")
+        .join("Programs").join("Pursuit Astro.lnk");
+
+    match unsafe { create_aumid_shortcut(&exe_path, &lnk_path, APP_USER_MODEL_ID) } {
+        Ok(()) => {
+            eprintln!("[notifications] AUMID-bound shortcut created: {}", lnk_path.display());
+            eprintln!("[notifications] Toast notifications should resolve on next show().");
+            eprintln!("[notifications] If first attempt still fails, sign out + back in once so explorer indexes the AUMID binding.");
         }
-        Ok(o) => {
-            eprintln!("[notifications] PowerShell shortcut script failed: {}",
-                String::from_utf8_lossy(&o.stderr).chars().take(200).collect::<String>());
-        }
-        Err(e) => eprintln!("[notifications] PowerShell spawn failed: {e}"),
+        Err(e) => eprintln!("[notifications] AUMID shortcut creation failed: {e:?}"),
     }
+}
+
+/// v12.0.A — Create a .lnk file and bind the AppUserModelID property
+/// via IPropertyStore.SetValue(PKEY_AppUserModel_ID). This is what
+/// notify-rust needs Windows to find when it calls Toast::show with
+/// our AUMID — without the property binding, Windows rejects the
+/// toast with HRESULT 0x80070005.
+#[cfg(windows)]
+unsafe fn create_aumid_shortcut(
+    target: &std::path::Path,
+    lnk: &std::path::Path,
+    aumid: &str,
+) -> windows::core::Result<()> {
+    use windows::core::*;
+    use windows::Win32::System::Com::*;
+    use windows::Win32::System::Com::StructuredStorage::*;
+    use windows::Win32::UI::Shell::*;
+    use windows::Win32::UI::Shell::PropertiesSystem::*;
+    use windows::Win32::Storage::EnhancedStorage::PKEY_AppUserModel_ID;
+
+    // Initialize COM apartment for this thread (idempotent — Iced may
+    // have already done it, but second call returns S_FALSE harmlessly)
+    let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+
+    let shell_link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER)?;
+
+    // Set target path
+    let target_wide: Vec<u16> = target
+        .as_os_str()
+        .to_string_lossy()
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
+    shell_link.SetPath(PCWSTR(target_wide.as_ptr()))?;
+
+    // Set description (shows on hover in Start Menu)
+    let desc_wide: Vec<u16> = APP_DISPLAY_NAME
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
+    shell_link.SetDescription(PCWSTR(desc_wide.as_ptr()))?;
+
+    // Bind AUMID property — this is what was missing in v11.8.I.
+    // PKEY_AppUserModel_ID = {9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}, pid=5
+    let property_store: IPropertyStore = shell_link.cast()?;
+    let aumid_wide: Vec<u16> = aumid
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
+    let propvar = InitPropVariantFromStringAsVector(PCWSTR(aumid_wide.as_ptr()));
+    if let Ok(pv) = propvar {
+        property_store.SetValue(&PKEY_AppUserModel_ID, &pv)?;
+        property_store.Commit()?;
+    }
+
+    // Save .lnk
+    // Ensure parent dir exists
+    if let Some(parent) = lnk.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let lnk_wide: Vec<u16> = lnk
+        .as_os_str()
+        .to_string_lossy()
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
+    let persist_file: IPersistFile = shell_link.cast()?;
+    persist_file.Save(PCWSTR(lnk_wide.as_ptr()), true)?;
+
+    Ok(())
 }
 
 #[cfg(not(windows))]

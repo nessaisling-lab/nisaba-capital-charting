@@ -33,3 +33,17 @@ rfd = "0.15"
 csv = "1"
 feed-rs = "2"
 bytemuck = { version = "1", features = ["derive"] }
+
+# v12.0.A — Windows toast notification real fix. Creates an AUMID-bound
+# Start Menu shortcut via IShellLinkW + IPropertyStore.SetValue so
+# notify-rust's Toast::show() resolves (HRESULT 0x80070005 fix).
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_UI_Shell",
+    "Win32_UI_Shell_PropertiesSystem",
+    "Win32_Storage_FileSystem",
+    "Win32_Storage_EnhancedStorage",
+] }
