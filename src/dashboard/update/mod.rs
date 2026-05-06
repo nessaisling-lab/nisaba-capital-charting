@@ -371,6 +371,12 @@ impl Dashboard {
                     still_animating |= !self.notifications.is_empty();
                     // Expire pill TTLs (cheap retain, runs every frame).
                     self.expire_notifications();
+                    // v13.0.D1 — also expire toasts on animation ticks.
+                    // Previous bug: toasts only expired on the 30s data-
+                    // refresh tick, so during animation they stuck around
+                    // way past their 4-second TTL. User v95 review:
+                    // "this is not going away."
+                    self.expire_toasts();
 
                     self.animating = still_animating;
                     // During animation, skip expensive data fetches

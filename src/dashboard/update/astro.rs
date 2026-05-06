@@ -18,11 +18,13 @@ pub(crate) fn handle(state: &mut Dashboard, message: &Message) -> Option<Task<Me
 
         Message::NatalChartLoaded(Ok(p)) => {
             state.natal_positions = p.clone();
-            // Wave 9.6.1 — if IPO date already known, scan for upcoming
-            // progressed Sun / Moon ingresses now that positions are set.
+            // Wave 9.6.1 + v13.0.A1 — if IPO date already known, scan for
+            // upcoming progressed Sun/Moon ingresses AND rebuild the
+            // Lifecycle cache (avoids per-render Swiss Eph thrashing).
             if let Some(ipo) = state.natal_ipo_date {
                 if !p.is_empty() {
                     emit_progression_ingress_pills(state, ipo);
+                    rebuild_lifecycle_cache(state, ipo);
                 }
             }
             // v11.0: Trigger 90-day forecast computation
@@ -62,6 +64,7 @@ pub(crate) fn handle(state: &mut Dashboard, message: &Message) -> Option<Task<Me
             state.natal_ipo_date = *d;
             if let (Some(ipo), false) = (*d, state.natal_positions.is_empty()) {
                 emit_progression_ingress_pills(state, ipo);
+                rebuild_lifecycle_cache(state, ipo);
             }
             Some(Task::none())
         }
@@ -184,6 +187,75 @@ pub(crate) fn handle(state: &mut Dashboard, message: &Message) -> Option<Task<Me
 
         _ => None,
     }
+}
+
+/// v13.0.A1 — Build the Lifecycle snapshot ONCE per ticker/data load.
+/// All Swiss Ephemeris-heavy computations (Solar Return Newton search,
+/// 3 planetary return scans, secondary progression cast) happen here
+/// instead of on every view render. View just reads pre-built strings.
+fn rebuild_lifecycle_cache(state: &mut Dashboard, ipo: chrono::NaiveDate) {
+    use pursuit_week4_automation::astrology::ephemeris::Planet;
+
+    let ticker = state.selected_ticker.clone();
+    let natal = pursuit_week4_automation::astrology::natal::NatalChart::compute(&ticker, ipo);
+    let today = chrono::Local::now().date_naive();
+    let target_year = chrono::Datelike::year(&today);
+
+    // Solar Return.
+    let sr_compute = pursuit_week4_automation::astrology::solar_return::compute_solar_return(
+        &natal, target_year,
+    );
+    let sr_line = match &sr_compute {
+        Ok(sr) => pursuit_week4_automation::astrology::solar_return::summary_line(sr),
+        Err(_) => "Solar Return unavailable.".to_string(),
+    };
+    let sr_aspect_lines: Vec<String> = match &sr_compute {
+        Ok(sr) => sr.aspects_to_natal.iter().take(5).map(|a| {
+            format!(
+                "  · SR {} {} natal {} (orb {:.1}°)",
+                a.sr_planet.name(), a.aspect.name(), a.natal_planet.name(), a.orb,
+            )
+        }).collect(),
+        Err(_) => vec![],
+    };
+
+    // Upcoming returns.
+    let format_return = |label: &str, planet: Planet| -> String {
+        match pursuit_week4_automation::astrology::returns::next_return(&natal, planet, today, 60) {
+            Ok(Some(ev)) => {
+                let days = (ev.return_date - today).num_days();
+                let when = if days < 365 {
+                    format!("in {} days", days)
+                } else {
+                    let years = days / 365;
+                    let months = (days % 365) / 30;
+                    format!("in {}y {}mo", years, months)
+                };
+                format!("Next {label}: {} ({when})", ev.return_date)
+            }
+            _ => format!("Next {label}: not in 60y window"),
+        }
+    };
+    let saturn_line = format_return("Saturn return", Planet::Saturn);
+    let jupiter_line = format_return("Jupiter return", Planet::Jupiter);
+    let mars_line = format_return("Mars return", Planet::Mars);
+
+    // Progressed Sun.
+    let prog_line = match pursuit_week4_automation::astrology::progressions::compute_progressed_chart(&natal, today) {
+        Ok(prog) => pursuit_week4_automation::astrology::progressions::summary_line(&prog),
+        Err(_) => "Progressed chart unavailable.".to_string(),
+    };
+
+    state.lifecycle_cache = Some(crate::state::LifecycleSnapshot {
+        ticker,
+        computed_at: today,
+        sr_line,
+        sr_aspect_lines,
+        saturn_line,
+        jupiter_line,
+        mars_line,
+        prog_line,
+    });
 }
 
 /// Wave 9.6.1 — Scan upcoming progressed Sun/Moon sign ingresses within

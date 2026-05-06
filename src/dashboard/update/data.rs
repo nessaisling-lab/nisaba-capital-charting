@@ -39,6 +39,10 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
             state.agent_analysis = None;
             state.lagrange_history = vec![];
             state.sector_peers = vec![];
+            // v13.0.A1 — invalidate Lifecycle cache so stale strings from
+            // previous ticker don't render until fresh data arrives.
+            state.lifecycle_cache = None;
+            state.natal_ipo_date = None;
             // v9.0: reset chart draw-in animation on ticker switch
             state.chart_draw_progress = 0.0;
             state.animating = true;

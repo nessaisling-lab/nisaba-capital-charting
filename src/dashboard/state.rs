@@ -96,6 +96,28 @@ impl std::fmt::Display for BacktestWindowChoice {
     }
 }
 
+/// v13.0.A1 — Pre-rendered strings for the Lifecycle section. All five
+/// underlying engine calls (Solar Return Newton search, three planetary
+/// return scans, secondary progression cast) happen ONCE when this
+/// snapshot is built — not on every view render. Without this cache the
+/// Astrology tab triggers ~6 Swiss Ephemeris computations per redraw,
+/// which user reported as visible lag in the v95 video review.
+#[derive(Debug, Clone)]
+pub struct LifecycleSnapshot {
+    /// Ticker the cache was built for. Used for invalidation.
+    #[allow(dead_code)]
+    pub ticker:           String,
+    /// Date the cache was built. Used to invalidate next-day if needed.
+    #[allow(dead_code)]
+    pub computed_at:      chrono::NaiveDate,
+    pub sr_line:          String,
+    pub sr_aspect_lines:  Vec<String>,
+    pub saturn_line:      String,
+    pub jupiter_line:     String,
+    pub mars_line:        String,
+    pub prog_line:        String,
+}
+
 /// Natal wheel size preference (v11.3 — user setting).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChartSize {
@@ -235,6 +257,12 @@ pub struct Dashboard {
     /// progressions, and solar return computation. Loaded via
     /// `fetch_ipo_date()` on TickerSelected and initial load.
     pub natal_ipo_date:    Option<chrono::NaiveDate>,
+    /// v13.0.A1 — Cached Lifecycle section computations. Recomputing
+    /// Solar Return + 3 planetary returns + progressed chart on every
+    /// view render was the root cause of Astrology tab lag. Cache is
+    /// keyed implicitly by `selected_ticker` — invalidated on
+    /// TickerSelected or fresh natal data load.
+    pub lifecycle_cache:   Option<LifecycleSnapshot>,
     pub daily_transits:    Vec<DailyTransit>,
     pub retrograde_events: Vec<RetroEvent>,
     pub horoscope:         Option<pursuit_week4_automation::astrology::interpretation::HoroscopeReading>,
@@ -442,6 +470,7 @@ impl Default for Dashboard {
             natal_positions: vec![],
             natal_angles:    None,
             natal_ipo_date:  None,
+            lifecycle_cache: None,
             daily_transits:  vec![],
             retrograde_events: vec![],
             horoscope:         None,

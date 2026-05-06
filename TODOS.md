@@ -1,10 +1,13 @@
 # TODOS
 
-## Active — Wave 9 "The Compounding" SHIPPED 2026-05-06.
+## Active — v13.1 polish corrections in flight 2026-05-06.
 
-All 5 sub-waves complete. 132/132 lib tests + 8/8 backtest tests pass. Production-tier financial astrology engine landed.
-
-Next: pause for user direction. Pitch/demo prep + UI integration of new layers (Solar Return badge, Year of [Lord] header, decan/Sabian on planet hover) outstanding.
+v13.0 shipped (8 fixes). User v96 confirmed Astrology perf restored. Several regressions ID'd:
+- Bell codepoint still wrong (visible in 0001/0040/0070 frames)
+- Forecast color was reversed direction (B2)
+- Scrollbar gutter direction wrong (B3 made it worse)
+- Lifecycle text washed out
+- Shooting star fetch animation needs restoration
 
 ---
 
@@ -71,6 +74,19 @@ Defer indefinitely unless user requests:
 - Vertex / East Point secondary angles
 
 ---
+
+## Closed — v13.0 "Polish & Performance" — SHIPPED 2026-05-06
+
+8 fixes from video v95 review. User v96 confirmed Astrology perf restored.
+
+- [x] **13.0.A1** Lifecycle cache — `LifecycleSnapshot` built once on data load, view reads pre-built strings. Eliminated ~360 Swiss Eph calls/sec at 60fps.
+- [x] **13.0.A2** Wheel + transits FillPortion(5/4) split prevents overlap at extreme font scales.
+- [x] **13.0.B1** Bell size up from text_md to text_lg (codepoint still wrong, regressed to v13.1).
+- [x] **13.0.B2** Forecast color: MISALIGNED red → UNFAVORABLE orange (LATER REVERTED — user wanted opposite).
+- [x] **13.0.B3** Right gutter 20→28px (LATER REVERTED — made it worse).
+- [x] **13.0.C1** Year-of-Lord tooltip with profection method + house meaning + lord flavor + Lagrange-weight callout.
+- [x] **13.0.C2** Persistent notification counter badge (active+history total, capped 99).
+- [x] **13.0.D1** Toast expiry on animation tick path (was only on 30s data-refresh tick).
 
 ## Closed — Wave 9.5 "UI integration" — SHIPPED 2026-05-06
 

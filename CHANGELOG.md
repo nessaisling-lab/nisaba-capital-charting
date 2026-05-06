@@ -6,6 +6,54 @@
 
 ---
 
+## v13.0 — "Polish & Performance" (shipped 2026-05-06)
+
+**Theme:** First polish wave after Wave 9 + 9.5 + 9.6 engine completion. Driven by video v95 review (12-min self-review). User confirmed engine is shipped + working — directive: "polish and performance phase."
+
+### v13.0.A1 — Lifecycle cache (biggest perf win)
+Astrology tab was triggering ~6 Swiss Ephemeris computations per render frame because `build_lifecycle_section()` ran the full Solar Return Newton search + 3 planetary return scans + secondary progression cast on every view tick. At 60fps animation that's 360 Swiss Eph calls/sec while the tab is visible — root cause of reported lag.
+
+Fix: new `LifecycleSnapshot` cached in `state.lifecycle_cache: Option<LifecycleSnapshot>`. Built once via `rebuild_lifecycle_cache()` in update/astro.rs when both natal IPO + positions arrive. View reads pre-built strings — zero per-render compute. Invalidated on TickerSelected.
+
+User v96 follow-up: *"the performance on the astrology tab is going really well. Perfect."*
+
+### v13.0.A2 — Wheel + transits FillPortion split
+Wheel column had no width constraint; transits column had Length::Fill. Caused overlapping graphical bugs at certain font scales. Fix: explicit `FillPortion(5)` for wheel, `FillPortion(4)` for transits.
+
+### v13.0.B1 — Bell glyph size up
+Bell button used `text_md` size; per user "I don't know why that's not a bell icon." Bumped to `text_lg` for visual prominence. NOTE: codepoint still wrong — confirmed in v96 video, regressed to v13.1.
+
+### v13.0.B2 — Forecast color logic (LATER REVERTED)
+Changed unfavorable forecast windows from MISALIGNED red to UNFAVORABLE orange. User v96 follow-up: misunderstood — they wanted forecast to STAY red AND extend red marking to calendar. Reverted in v13.1.1.
+
+### v13.0.B3 — Scrollbar gutter 20→28px (LATER REVERTED)
+Tried defensive bump of right padding. User v96 follow-up: made it worse, more sizes broken. Reverted in v13.1.3.
+
+### v13.0.C1 — Year-of-Lord tooltip
+Wrapped the `Year of Venus (10th house · Libra)` badge in a tooltip with full plain-English explanation: profection method, age, house number/sign/ruler, house theme, lord flavor, and the +50% Lagrange weight callout. Renders below the badge on hover, max 420px width.
+
+### v13.0.C2 — Persistent notification counter
+Bell button now always shows a numeric badge (active deque + history total, capped 99). Bright gold-on-black pill when active count > 0, dim cream when only history. Chrome-level signal independent of pill stack TTL.
+
+### v13.0.D1 — Toast expiry on animation ticks
+`expire_toasts()` was only called on the 30-second data-refresh tick path, not the animation tick. So during animation traffic, toasts stuck around far past their 4-second TTL. User v95 review: *"this is not going away."* Fix: added expire_toasts to animation tick.
+
+### Validation
+
+- 132/132 lib tests + 8/8 backtest tests pass
+- Release build clean
+- Astrology tab perf restored (user-confirmed in v96)
+
+### Regressions ID'd (fixed in v13.1)
+
+- Bell codepoint still wrong (v95 + v96 confirmed)
+- Forecast color reversal (B2 misunderstood)
+- Scrollbar gutter direction wrong (B3)
+- Lifecycle text washed out at certain themes (cream-on-cream)
+- Shooting star fetch animation removed in v12.1, user wants it back
+
+---
+
 ## Wave 9.5 — "UI integration" (shipped 2026-05-06)
 
 **Theme:** Surface every Wave 9 engine layer in the dashboard. Engine was callable but invisible. Now visible-by-default in the Astrology tab.

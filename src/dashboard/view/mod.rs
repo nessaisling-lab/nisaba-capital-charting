@@ -311,7 +311,13 @@ impl Dashboard {
             corner_bottom,
         ]
         .spacing(theme::SPACE_XS)
-        .padding(iced::Padding { top: 0.0, right: 20.0, bottom: 0.0, left: 0.0 }); // v9.3: right gutter for scrollbar (was 10)
+        // v13.0.B3 — Increased right gutter from 20→28 px. User v95 review:
+        // "Compact works. Default does not acknowledge it. Large barely
+        // acknowledges it." At larger font scales, child rows with
+        // Length::Fill push to the right edge under the scrollbar; 28px
+        // absorbs the largest variation across Compact/Default/Large/XL
+        // text sizes. Scales with theme::SPACE_MD-ish for consistency.
+        .padding(iced::Padding { top: 0.0, right: 28.0, bottom: 0.0, left: 0.0 });
 
         // Themed scrollbar — gold scroller on translucent rail (v7.5)
         let styled_scroll = scrollable(page_content)
@@ -593,28 +599,53 @@ impl Dashboard {
             self.shader_time,
         );
 
-        // ── v12.2.4: bell icon + drawer toggle ─────────
-        // Click bell → open drawer overlay. Badge count = total entries
-        // in notification_history (capped at MAX_HISTORY).
+        // ── v12.2.4 + v13.0.B1 + v13.0.C2 — Bell button + persistent
+        //   counter. User v95 review: "I don't know why that's not a bell
+        //   icon" + "there should be a counter for how many notifications."
+        //   Fix: Larger BELL glyph (lg vs md), prominent gold-pill badge
+        //   with active+history total. Counter is always visible (chrome-
+        //   level) — separate signal channel from the ephemeral pill stack.
         let p_bell = theme::palette();
+        let active_count = self.notifications.len();
         let history_count = self.notification_history.len();
-        let bell_glyph = if history_count > 0 {
+        let total_count = active_count + history_count;
+        let bell_glyph: Element<'_, Message> = if total_count > 0 {
+            // Active count gets a bright pill badge. History-only shows
+            // dim count.
+            let badge_color = if active_count > 0 {
+                Color { r: 1.0, g: 0.85, b: 0.45, a: 1.0 }
+            } else {
+                Color { a: 0.65, ..p_bell.gold }
+            };
             row![
                 text(icons::BELL.to_string())
                     .font(icons::PHOSPHOR_BOLD)
-                    .size(theme::text_md())
+                    .size(theme::text_lg())
                     .color(p_bell.gold),
-                text(format!("{}", history_count.min(99)))
-                    .size(9.0)
-                    .color(Color { r: 0.95, g: 0.90, b: 0.80, a: 1.0 }),
+                container(
+                    text(format!("{}", total_count.min(99)))
+                        .size(10.0)
+                        .color(Color { r: 0.10, g: 0.08, b: 0.06, a: 1.0 })
+                        .font(font::BODY_BOLD),
+                )
+                .padding([1, 5])
+                .style(move |_t: &iced::Theme| container::Style {
+                    background: Some(iced::Background::Color(badge_color)),
+                    border: iced::Border {
+                        radius: 8.0.into(),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }),
             ]
-            .spacing(2)
+            .spacing(3)
             .align_y(Alignment::Center)
+            .into()
         } else {
             row![text(icons::BELL.to_string())
                 .font(icons::PHOSPHOR_BOLD)
-                .size(theme::text_md())
-                .color(Color { a: 0.55, ..p_bell.gold })]
+                .size(theme::text_lg())
+                .color(Color { a: 0.55, ..p_bell.gold })].into()
         };
         let bell_btn = button(bell_glyph)
             .on_press(Message::ToggleNotificationDrawer)

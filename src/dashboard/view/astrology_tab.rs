@@ -356,9 +356,11 @@ impl Dashboard {
             .spacing(4)
             .align_y(Alignment::Center);
 
-            // Wave 9.5.1 — Year of [Lord] badge. Computes the Hellenistic
-            // annual time-lord from natal IPO date + ascendant. Renders a
-            // gold-outline pill below the chart title.
+            // Wave 9.5.1 + v13.0.C1 — Year of [Lord] badge with tooltip
+            // explanation. User v95 review: "What is that 10th house Libra
+            // supposed to mean to the average person?" Badge now wraps in
+            // a tooltip explaining profections in plain English plus the
+            // specific lord's flavor.
             let year_of_lord_badge: Element<Message> = if let (Some(ipo), Some(angles)) =
                 (self.natal_ipo_date, self.natal_angles.as_ref())
             {
@@ -368,7 +370,7 @@ impl Dashboard {
                 );
                 let line = pursuit_week4_automation::astrology::profections::summary_line(&prof);
                 let p_b = theme::palette();
-                container(
+                let badge_inner = container(
                     text(line)
                         .size(theme::text_sm())
                         .color(Color { r: 1.0, g: 1.0, b: 1.0, a: 1.0 }),
@@ -384,13 +386,92 @@ impl Dashboard {
                         radius: 12.0.into(),
                     },
                     ..Default::default()
-                })
+                });
+
+                // v13.0.C1 — explanation text
+                let lord_flavor = match prof.lord_planet {
+                    pursuit_week4_automation::astrology::ephemeris::Planet::Sun =>
+                        "vitality, leadership, public visibility",
+                    pursuit_week4_automation::astrology::ephemeris::Planet::Moon =>
+                        "emotion, public reception, monthly cycles",
+                    pursuit_week4_automation::astrology::ephemeris::Planet::Mercury =>
+                        "communication, contracts, short-term moves",
+                    pursuit_week4_automation::astrology::ephemeris::Planet::Venus =>
+                        "image, partnership, aesthetic value",
+                    pursuit_week4_automation::astrology::ephemeris::Planet::Mars =>
+                        "drive, competition, aggressive expansion",
+                    pursuit_week4_automation::astrology::ephemeris::Planet::Jupiter =>
+                        "expansion, optimism, growth opportunities",
+                    pursuit_week4_automation::astrology::ephemeris::Planet::Saturn =>
+                        "structure, discipline, restriction or maturity",
+                    _ => "general lifecycle theme",
+                };
+                let house_meaning = match prof.profected_house {
+                    1 => "self / identity",
+                    2 => "wealth / resources",
+                    3 => "communication / siblings",
+                    4 => "foundations / origins",
+                    5 => "creation / risk-taking",
+                    6 => "labor / health / service",
+                    7 => "partnerships / public deals",
+                    8 => "transformations / mergers",
+                    9 => "vision / long journeys",
+                    10 => "career / public reputation",
+                    11 => "alliances / income from career",
+                    12 => "hidden / behind-the-scenes",
+                    _ => "general",
+                };
+                let explanation = format!(
+                    "Hellenistic profection: each year of life advances one house from \
+                     the natal Ascendant. This year (age {}), the company is in the \
+                     {}{} house — sign {}, ruled by {}.\n\n\
+                     House theme: {}.\n\
+                     Lord flavor: {}.\n\n\
+                     Aspects involving {} are weighted +50% in the Lagrange score \
+                     for the duration of this year.",
+                    prof.age,
+                    prof.profected_house,
+                    match prof.profected_house % 10 { 1 if prof.profected_house != 11 => "st", 2 if prof.profected_house != 12 => "nd", 3 if prof.profected_house != 13 => "rd", _ => "th" },
+                    prof.sign,
+                    prof.lord_planet.name(),
+                    house_meaning,
+                    lord_flavor,
+                    prof.lord_planet.name(),
+                );
+                let tip_style = move |_t: &iced::Theme| container::Style {
+                    background: Some(iced::Background::Color(
+                        Color { r: 0.10, g: 0.08, b: 0.06, a: 0.95 },
+                    )),
+                    border: iced::Border {
+                        color: Color { a: 0.55, ..theme::palette().gold },
+                        width: 1.0,
+                        radius: 8.0.into(),
+                    },
+                    ..Default::default()
+                };
+                tooltip(
+                    badge_inner,
+                    container(
+                        text(explanation)
+                            .size(theme::text_xs())
+                            .color(Color { r: 0.95, g: 0.90, b: 0.80, a: 1.0 })
+                    )
+                    .padding([8, 12])
+                    .max_width(420.0)
+                    .style(tip_style),
+                    tooltip::Position::Bottom,
+                )
                 .into()
             } else {
                 iced::widget::Space::new().into()
             };
 
-            // v11.5.B3 — zodiac legend relocated ABOVE natal wheel
+            // v11.5.B3 — zodiac legend relocated ABOVE natal wheel.
+            // v13.0.A2 — explicit FillPortion widths on both columns to
+            // prevent the wheel column from collapsing or overflowing into
+            // the transits text on certain font scales / zoom levels.
+            // User v95 review: "it's overlapping and it's causing graphical
+            // bugs."
             let wheel_col = column![
                 text(format!("{} Birth Chart", self.selected_ticker)).font(font::DISPLAY).size(theme::text_lg()),
                 year_of_lord_badge,
@@ -400,6 +481,7 @@ impl Dashboard {
                 natal_wheel,
             ]
             .spacing(4)
+            .width(Length::FillPortion(5))
             .align_x(Alignment::Center);
 
             let transits_col =
@@ -409,7 +491,7 @@ impl Dashboard {
                     moon_deg,
                     mercury_rx
                 ),]
-                .width(Length::Fill);
+                .width(Length::FillPortion(4));
 
             row![wheel_col, transits_col]
                 .spacing(20)
@@ -826,8 +908,14 @@ impl Dashboard {
                 }
                 i += 1;
             }
+            // v13.0.B2 — Color logic fix. User v95 review: "It can't have
+            // red for unfavorable because we have to sell stock when it's
+            // unfavorable." Red signals "loss/bad" in market context, but
+            // unfavorable astro = SELL signal = good action. Switch to
+            // amber/orange (UNFAVORABLE), reserving MISALIGNED red for the
+            // narrower extreme-misaligned case (score < 25, used elsewhere).
             let window_items: Vec<Element<Message>> = windows.iter().map(|w| {
-                let color = if w.starts_with("Favorable") { theme::ZONE_OPTIMAL } else { theme::ZONE_MISALIGNED };
+                let color = if w.starts_with("Favorable") { theme::ZONE_OPTIMAL } else { theme::ZONE_UNFAVORABLE };
                 text(format!("  \u{2022} {w}")).size(theme::text_sm()).color(color).into()
             }).collect();
             let key_aspects: Vec<Element<Message>> = self.forecast.iter()
@@ -900,70 +988,28 @@ impl Dashboard {
     /// Wave 9.5.3 + 9.5.4 — Build the Lifecycle section.
     /// Combines current-year Solar Return summary, upcoming planetary
     /// returns (Saturn / Jupiter / Mars), and progressed Sun position.
+    ///
+    /// v13.0.A1 — Reads strings from `state.lifecycle_cache` instead of
+    /// recomputing every render. Cache is built once in update/astro.rs
+    /// when both natal IPO + positions arrive. View redraws are now
+    /// near-free for this section.
     fn build_lifecycle_section(&self) -> Element<'_, Message> {
-        use pursuit_week4_automation::astrology::ephemeris::Planet;
         let p = theme::palette();
 
-        let (Some(ipo), Some(_angles)) = (self.natal_ipo_date, self.natal_angles.as_ref()) else {
+        let Some(cache) = self.lifecycle_cache.as_ref() else {
             return text(
                 "Lifecycle data requires natal IPO date + Ascendant. \
                  Run the scraper to populate company_metadata + natal_angles."
             ).size(theme::text_sm()).into();
         };
 
-        // Build a NatalChart from stored positions.
-        let ticker = self.selected_ticker.clone();
-        let natal = pursuit_week4_automation::astrology::natal::NatalChart::compute(&ticker, ipo);
-
-        let today = chrono::Local::now().date_naive();
-        let target_year = chrono::Datelike::year(&today);
-
-        // Solar Return for current calendar year — line + top 5 cross-aspects.
-        let sr_compute = pursuit_week4_automation::astrology::solar_return::compute_solar_return(&natal, target_year);
-        let sr_line: String = match &sr_compute {
-            Ok(sr) => pursuit_week4_automation::astrology::solar_return::summary_line(sr),
-            Err(_) => "Solar Return unavailable.".to_string(),
-        };
-        // Wave 9.6.3 — top 5 SR-to-natal aspects, formatted one per line.
-        let sr_aspect_lines: Vec<String> = match &sr_compute {
-            Ok(sr) => sr.aspects_to_natal.iter().take(5).map(|a| {
-                format!(
-                    "  · SR {} {} natal {} (orb {:.1}°)",
-                    a.sr_planet.name(),
-                    a.aspect.name(),
-                    a.natal_planet.name(),
-                    a.orb,
-                )
-            }).collect(),
-            Err(_) => vec![],
-        };
-
-        // Upcoming returns — first one after `today` for each major.
-        let format_return = |label: &str, planet: Planet| -> String {
-            match pursuit_week4_automation::astrology::returns::next_return(&natal, planet, today, 60) {
-                Ok(Some(ev)) => {
-                    let days = (ev.return_date - today).num_days();
-                    let when = if days < 365 {
-                        format!("in {} days", days)
-                    } else {
-                        let years = days / 365;
-                        let months = (days % 365) / 30;
-                        format!("in {}y {}mo", years, months)
-                    };
-                    format!("Next {label}: {} ({when})", ev.return_date)
-                }
-                _ => format!("Next {label}: not in 60y window"),
-            }
-        };
-        let saturn_line = format_return("Saturn return", Planet::Saturn);
-        let jupiter_line = format_return("Jupiter return", Planet::Jupiter);
-        let mars_line = format_return("Mars return", Planet::Mars);
-
-        // Progressed Sun.
-        let prog_line: String = match pursuit_week4_automation::astrology::progressions::compute_progressed_chart(&natal, today) {
-            Ok(prog) => pursuit_week4_automation::astrology::progressions::summary_line(&prog),
-            Err(_) => "Progressed chart unavailable.".to_string(),
-        };
+        // Read pre-built strings from cache.
+        let sr_line = cache.sr_line.clone();
+        let sr_aspect_lines = cache.sr_aspect_lines.clone();
+        let saturn_line = cache.saturn_line.clone();
+        let jupiter_line = cache.jupiter_line.clone();
+        let mars_line = cache.mars_line.clone();
+        let prog_line = cache.prog_line.clone();
 
         let line_style = move |s: String| -> Element<'_, Message> {
             text(s).size(theme::text_sm())
