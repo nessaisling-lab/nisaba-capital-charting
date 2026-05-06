@@ -1,0 +1,42 @@
+[00:00] So I'm really happy with what I'm seeing so far. I like the
+[00:05] Ah, breast bar here.
+[00:08] So I've been
+[00:13] working around it and I'm seeing school to child review
+[00:20] and yes, perfect. This is great.
+[00:24] This is excellent.
+[00:26] Very happy with this.
+[00:27] So I wonder.
+[00:31] So I don't know what happened.
+[00:33] I realized that you probably
+[00:37] over read the settings tab over I think the knowledge tab.
+[00:43] We still have the wiki as its own tab.
+[00:48] Regardless, there is the setting. This is not a good settings icon.
+[00:53] Have to be honest.
+[00:55] I can't really roll.
+[00:59] Down the settings. So I kind of want to just.
+[01:03] Bring it back like revert this this whatever down this is
+[01:07] because not only that it causes this whole empty space to pop up.
+[01:12] So we're going to regress.
+[01:14] Anything that does this and the settings icon.
+[01:19] And we had a little gear for settings not like as its own tab.
+[01:27] We just have to move it all the way and put it on top.
+[01:32] Of here.
+[01:34] And just.
+[01:36] Create spacing here that's more.
+[01:39] Clean.
+[01:41] So the settings tab will be literally right where my mouse is at.
+[01:47] We're reverting this change just doesn't work for me.
+[01:51] It's very crude and ugly.
+[01:54] I will also say that.
+[01:59] What I was going to say.
+[02:03] Yeah, the progress bar perfect love it.
+[02:07] Awesome.
+[02:10] Yeah.
+[02:12] The feed.
+[02:14] Not loading again.
+[02:17] So we got to figure out what performance or some way to make that more just as responsive as.
+[02:23] These.
+[02:24] This is super responsive.
+[02:25] So let's make that.
+[02:27] The same.
+[02:28] All right, I think I've heard what I wanted to say.

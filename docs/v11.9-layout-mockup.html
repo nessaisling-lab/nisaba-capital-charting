@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>v11.9 — layout fixes mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
+<style>
+  :root {
+    --bg:        #f4ecd8;
+    --surface:   #ebdfb8;
+    --rule:      #c9b074;
+    --gold:      #b08a2e;
+    --gold-soft: #d4a94c;
+    --ink:       #2c2418;
+    --ink-soft:  #5b4d36;
+    --green:     #4a8a3a;
+    --red:       #a83a2c;
+  }
+  *  { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #1a140d; padding: 24px; font-family: "Inter", system-ui, sans-serif; color: var(--ink); }
+  h1 { color: #e5d8a8; font: 600 22px Fraunces; max-width: 1280px; margin: 0 auto 6px; }
+  .subtitle { color: #b89e58; font: 400 13px Inter; max-width: 1280px; margin: 0 auto 20px; font-style: italic; }
+
+  .scene {
+    max-width: 1280px; margin: 0 auto 28px;
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    box-shadow: 0 6px 36px rgba(0,0,0,.45);
+    position: relative;
+    min-height: 380px;
+  }
+  .scene-label {
+    position: absolute; top: 8px; right: 16px;
+    color: var(--gold); font: 700 10px Inter; letter-spacing: .15em; text-transform: uppercase;
+    background: rgba(176,138,46,.10); padding: 2px 8px; border-radius: 3px;
+  }
+
+  /* ─── Loading bar overlay (absolute, no layout shift) ─── */
+  .loading-overlay {
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 3px;
+    background: rgba(176,138,46,.18);
+    overflow: hidden;
+    z-index: 4;
+  }
+  .loading-overlay .fill {
+    position: absolute; top: 0; left: 0; height: 100%;
+    width: 38%;
+    background: var(--gold);
+    transition: width .3s linear;
+  }
+  .loading-overlay .star {
+    position: absolute; top: -6px; left: 38%;
+    transform: translateX(-50%);
+    color: var(--gold);
+    font-size: 14px;
+    font-weight: 700;
+    text-shadow: 0 0 4px rgba(212,169,76,.7);
+    animation: twinkle 1.4s ease-in-out infinite;
+  }
+  @keyframes twinkle {
+    0%, 100% { opacity: .55; transform: translateX(-50%) scale(1); }
+    50% { opacity: 1; transform: translateX(-50%) scale(1.2); }
+  }
+
+  /* ─── Tab strip with notification pill + gear at right ─── */
+  .tab-strip {
+    display: flex;
+    border-bottom: 1px solid var(--rule);
+    padding: 0 14px;
+    background: linear-gradient(to bottom, rgba(176,138,46,.06), transparent);
+    align-items: center;
+  }
+  .tabs-left {
+    display: flex; gap: 2px; flex: 1;
+  }
+  .tab {
+    padding: 9px 14px 8px;
+    font: 500 13px Fraunces;
+    color: var(--ink);
+    border: 1px solid transparent;
+    border-bottom: 0;
+    border-radius: 5px 5px 0 0;
+    opacity: .76;
+    display: flex; align-items: center; gap: 5px;
+    margin-top: 4px;
+    cursor: pointer;
+  }
+  .tab.active {
+    border-color: var(--gold);
+    border-width: 2px;
+    color: var(--gold);
+    font-weight: 700;
+    opacity: 1;
+    background: var(--bg);
+    margin-bottom: -1px;
+  }
+  .tab i { font-size: 14px; }
+  .strip-right {
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  /* ─── Notification popup ─── */
+  .notif-pill {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(18,16,12,.93);
+    border: 1px solid var(--gold-soft);
+    border-radius: 14px;
+    padding: 5px 12px;
+    color: #f3e7b8;
+    font: 500 12px Inter;
+    box-shadow: 0 4px 14px rgba(0,0,0,.35);
+  }
+  .notif-pill .sparkle {
+    width: 12px; height: 12px;
+    color: var(--gold-soft);
+    font-weight: 700;
+    animation: sparkle-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes sparkle-pulse {
+    0%, 100% { transform: rotate(0deg) scale(1); opacity: .7; }
+    50% { transform: rotate(180deg) scale(1.3); opacity: 1; }
+  }
+  .notif-pill .body { line-height: 1.2; }
+  .notif-pill .ticker { color: var(--gold-soft); font-weight: 700; }
+
+  /* ─── Gear button ─── */
+  .gear-btn {
+    width: 30px; height: 30px;
+    display: grid; place-items: center;
+    color: var(--gold);
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 18px;
+  }
+  .gear-btn:hover { background: rgba(176,138,46,.18); }
+
+  /* ─── Header (rest of body, just for reference) ─── */
+  .body-header {
+    padding: 16px 22px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .ticker-name { font: 700 30px Fraunces; color: var(--gold); }
+  .price { font: 600 22px Fraunces; }
+  .hl { font-size: 11px; color: var(--ink-soft); }
+  .hl b { font-weight: 600; }
+  .hl .high b { color: var(--green); }
+  .hl .low b { color: var(--red); }
+
+  /* ─── Settings tab content (full page) ─── */
+  .settings-content {
+    padding: 24px;
+    color: var(--ink);
+  }
+  .settings-content h2 { font: 600 20px Fraunces; color: var(--gold); margin-bottom: 14px; }
+  .settings-card {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 14px 18px;
+    margin-bottom: 12px;
+  }
+  .settings-card h3 { font: 600 14px Inter; color: var(--gold); margin-bottom: 6px; letter-spacing: .03em; text-transform: uppercase; }
+  .settings-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; font-size: 13px; }
+  .settings-row label { font-weight: 500; min-width: 200px; color: var(--ink); }
+  .settings-row .ctl { background: var(--bg); border: 1px solid var(--rule); padding: 4px 10px; border-radius: 3px; font-size: 12px; }
+
+  /* ─── Annotations ─── */
+  .anno {
+    display: flex; gap: 10px;
+    padding: 10px 14px;
+    background: rgba(255,255,255,.06);
+    border-left: 2px solid var(--gold-soft);
+    color: #e5d8a8;
+    font: 400 13px Inter;
+    margin: 0 auto 6px;
+    max-width: 1280px;
+    line-height: 1.5;
+    border-radius: 0 3px 3px 0;
+  }
+  .anno b { color: #f3e7b8; min-width: 70px; }
+
+  .scene-title {
+    color: #b89e58; max-width: 1280px; margin: 0 auto 8px;
+    font: 600 13px Fraunces; letter-spacing: .04em; text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<h1>v11.9 — three layout fixes</h1>
+<div class="subtitle">Loading bar overlay (no push-down) · Notification popup left of gear · Settings as its own panel (not modal)</div>
+
+<!-- ─── Scene 1: top header during fetch ─── -->
+<div class="scene-title">Scene 1 — fetch in progress, alert just fired</div>
+<div class="scene">
+  <span class="scene-label">FETCHING + ALERT</span>
+  <!-- Loading bar overlay (absolute, doesn't push) -->
+  <div class="loading-overlay">
+    <div class="fill"></div>
+    <span class="star">✦</span>
+  </div>
+
+  <!-- Tab strip -->
+  <div class="tab-strip">
+    <div class="tabs-left">
+      <div class="tab active"><i class="ph-bold ph-star-four"></i> Astrology</div>
+      <div class="tab"><i class="ph ph-speedometer"></i> Overview</div>
+      <div class="tab"><i class="ph ph-globe"></i> Universe</div>
+      <div class="tab"><i class="ph ph-chart-bar"></i> Fundamentals</div>
+      <div class="tab"><i class="ph ph-newspaper"></i> Research</div>
+      <div class="tab"><i class="ph ph-briefcase"></i> Portfolio</div>
+      <div class="tab"><i class="ph ph-target"></i> Paper Trail</div>
+      <div class="tab"><i class="ph ph-gear"></i> Settings</div>
+    </div>
+    <div class="strip-right">
+      <div class="notif-pill">
+        <span class="sparkle">✦</span>
+        <span class="body"><span class="ticker">AAPL</span> → Optimal · 1h ago</span>
+      </div>
+      <div class="gear-btn"><i class="ph-bold ph-gear"></i></div>
+    </div>
+  </div>
+
+  <!-- Body header (no shift) -->
+  <div class="body-header">
+    <i class="ph ph-star" style="color: var(--gold-soft); font-size: 18px;"></i>
+    <i class="ph ph-info" style="color: var(--gold); font-size: 16px;"></i>
+    <span class="ticker-name">AAPL</span>
+    <span class="price">$278.78</span>
+    <div class="hl">
+      <div class="high">H <b>$279.75</b></div>
+      <div class="low">L <b>$276.44</b></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Scene 2: Settings as its own tab content ─── -->
+<div class="scene-title">Scene 2 — Settings panel (own page, not modal)</div>
+<div class="scene">
+  <span class="scene-label">SETTINGS PANEL</span>
+  <div class="tab-strip">
+    <div class="tabs-left">
+      <div class="tab"><i class="ph ph-star-four"></i> Astrology</div>
+      <div class="tab"><i class="ph ph-speedometer"></i> Overview</div>
+      <div class="tab"><i class="ph ph-globe"></i> Universe</div>
+      <div class="tab"><i class="ph ph-chart-bar"></i> Fundamentals</div>
+      <div class="tab"><i class="ph ph-newspaper"></i> Research</div>
+      <div class="tab"><i class="ph ph-briefcase"></i> Portfolio</div>
+      <div class="tab"><i class="ph ph-target"></i> Paper Trail</div>
+      <div class="tab active"><i class="ph-bold ph-gear"></i> Settings</div>
+    </div>
+    <div class="strip-right">
+      <div class="gear-btn" style="background: rgba(176,138,46,.20);"><i class="ph-bold ph-gear"></i></div>
+    </div>
+  </div>
+  <div class="settings-content">
+    <h2>Settings</h2>
+    <div class="settings-card">
+      <h3>Appearance</h3>
+      <div class="settings-row"><label>Theme</label><span class="ctl">Parchment</span><span class="ctl">Leather</span></div>
+      <div class="settings-row"><label>Font scale</label><span class="ctl">Compact</span><span class="ctl">Default</span><span class="ctl">Large</span></div>
+      <div class="settings-row"><label>Natal wheel size</label><span class="ctl">Default ▾</span></div>
+    </div>
+    <div class="settings-card">
+      <h3>Data &amp; Refresh</h3>
+      <div class="settings-row"><label>Refresh interval (sec)</label><span class="ctl">30</span><span class="ctl">Save</span></div>
+    </div>
+    <div class="settings-card">
+      <h3>Alerts</h3>
+      <div class="settings-row"><label>OS notifications</label><span class="ctl">On</span><span class="ctl">★ Send Test</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Annotations -->
+<div class="anno"><b>Loading bar</b> Absolute-positioned 3px overlay at the very top of the page, with a twinkling star at the moving fill tip. Sits ABOVE the tab strip, OUTSIDE the column layout, so it never shifts content down. The fetching state is visible without consuming a row's worth of vertical space.</div>
+<div class="anno"><b>Notification pill</b> Sparkle-glyph pill on the right side of the tab strip, immediately to the LEFT of the gear icon. Same shape as the v11.8.F shooting-star pill but anchored in the chrome rather than floating. Shows the latest alert ("AAPL → Optimal · 1h ago") and dismisses on click. Multiple alerts cycle through on a 4s rotation.</div>
+<div class="anno"><b>Gear placement</b> Unchanged. Right end of tab strip, just to the right of the notification pill. User explicitly: "Keep the icon exactly where it belongs. That's exactly where it needs to be."</div>
+<div class="anno"><b>Settings panel</b> Reverts from modal overlay (v11.5.B5) back to a full tab content area. Settings becomes a regular tab with content scrollable like every other tab. User: "The settings menu should have its own panel, no overlay or pop, just like how it worked before the iced 0.14 update." Tab::Settings restored to Tab::all().</div>
+<div class="anno"><b>Approve?</b> Reply with the letter — A approve all three / B drop notification pill / C keep settings as modal / etc — or describe a different direction. OS notification work is parked per your instruction: "the window notifications can wait for now."</div>
+
+</body>
+</html>

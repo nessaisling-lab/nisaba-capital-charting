@@ -269,6 +269,89 @@ impl canvas::Program<Message> for PageBorderCorner {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ShootingStar — v11.8.F. Streaking comet with fading trail. Replaces the
+// particle-puff sparkles inside the fetching pill per user request: "Like
+// a shooting star kind of motif. Something of that nature."
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub struct ShootingStar {
+    pub time: f32,
+}
+
+impl canvas::Program<Message> for ShootingStar {
+    type State = ();
+
+    fn draw(
+        &self,
+        _state: &(),
+        renderer: &iced::Renderer,
+        _theme: &iced::Theme,
+        bounds: Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> Vec<canvas::Geometry> {
+        let mut frame = canvas::Frame::new(renderer, bounds.size());
+        let p = theme::palette();
+        let w = bounds.width;
+        let h = bounds.height;
+
+        // Two stars phased 0.5 cycle apart so there's always at least one
+        // streak visible. Each completes a left→right pass over 1.6s,
+        // then dwells off-screen briefly before re-entering.
+        let cycle = 1.6_f32;
+        for phase_offset in [0.0_f32, cycle * 0.5] {
+            let local = ((self.time + phase_offset) % cycle) / cycle; // 0..1
+            // Star x slides 0..1.2 (extra 0.2 so trail can exit cleanly)
+            let star_x = local * 1.2 * w;
+            // Slight downward arc — y dips through the bar
+            let arc = ((local - 0.5) * 4.0).powi(2) - 1.0; // parabola, min -1 at 0.5
+            let star_y = h * 0.5 + arc * h * 0.15;
+
+            // Trail: 8 segments fading from full alpha back along travel
+            let trail_segments = 8;
+            let trail_len = w * 0.18;
+            for seg in 0..trail_segments {
+                let t = seg as f32 / trail_segments as f32;
+                let seg_x = star_x - t * trail_len;
+                let seg_y = star_y; // trail follows the head's y
+                let seg_alpha = (1.0 - t) * 0.85;
+                if seg_x < 0.0 || seg_x > w { continue; }
+                let dot = canvas::Path::circle(
+                    Point::new(seg_x, seg_y),
+                    1.4 - 1.0 * t,
+                );
+                frame.fill(&dot, Color { a: seg_alpha, ..p.gold });
+            }
+
+            // Bright head
+            if star_x >= 0.0 && star_x <= w {
+                let head_color = Color { r: 1.0, g: 0.97, b: 0.85, a: 1.0 };
+                let head = canvas::Path::circle(
+                    Point::new(star_x, star_y),
+                    1.8,
+                );
+                frame.fill(&head, head_color);
+                // 4-point cross-flare for sparkle
+                let r = 4.0;
+                let cross = canvas::Path::new(|b| {
+                    b.move_to(Point::new(star_x - r, star_y));
+                    b.line_to(Point::new(star_x + r, star_y));
+                    b.move_to(Point::new(star_x, star_y - r));
+                    b.line_to(Point::new(star_x, star_y + r));
+                });
+                frame.stroke(&cross, canvas::Stroke {
+                    style: canvas::Style::Solid(Color { a: 0.7, ..head_color }),
+                    width: 1.0,
+                    line_cap: canvas::LineCap::Round,
+                    ..Default::default()
+                });
+            }
+        }
+
+        vec![frame.into_geometry()]
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // TabSparkle — gold particle burst on tab hover (20×16px)
 // v9.0: 8 particles, varied sizes, gravity drift, faster burst + longer fade
 // ═══════════════════════════════════════════════════════════════════════════

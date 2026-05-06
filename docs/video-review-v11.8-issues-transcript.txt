@@ -1,0 +1,86 @@
+[00:00] So I'm realizing something.
+[00:05] Where's the settings button?
+[00:09] Am I tripping? Am I not seeing it?
+[00:16] Yeah, I'm not seeing that paper trail,
+[00:21] portfolios there,
+[00:23] researchers there,
+[00:25] Fundamentals are there,
+[00:26] University is there,
+[00:28] Eastern.
+[00:30] Yeah, you...
+[00:32] There's no settings.
+[00:37] There's no settings, so that's not great.
+[00:39] Let's resolve that.
+[00:41] This is little ugly,
+[00:44] so we just could have, you know,
+[00:46] move it a little bit closer.
+[00:48] We're going to move everything more towards the right in order for it to look more
+[00:54] prettier or more readable,
+[00:56] just more professional-looking, not messy.
+[00:58] Terri, at least that's working.
+[01:04] Yeah, we need to get the settings menu here.
+[01:06] I'm a little surprised by that.
+[01:08] That needs to be resolved.
+[01:14] Yeah, that's what...
+[01:37] Huh?
+[01:39] I think like...
+[01:41] And when it comes to the icon,
+[01:47] this... I wasn't talking about icon.
+[01:49] I was talking about this particular
+[01:53] thing here.
+[01:55] I don't know the right word for it.
+[01:57] I don't like it there.
+[01:59] It should be somewhere here.
+[02:01] And actually, I want to explore a different item or icon or animation or something different.
+[02:15] This feels a little too just out of nowhere.
+[02:19] Let me test the fetching feature.
+[02:23] Because I didn't check that last time.
+[02:27] I didn't check that last time.
+[02:29] I... seen.
+[02:35] Yeah, and the desktop thing is not showing up.
+[02:39] I haven't received a notification.
+[02:41] So, I got to work that.
+[02:43] I would say seeing that this is optimal.
+[02:53] Let's look at this company.
+[03:00] Let's see if this does anything.
+[03:02] Let's fetch.
+[03:04] I don't like this.
+[03:08] This needs to go.
+[03:11] The only fetching indication should be from here.
+[03:19] Nothing else.
+[03:25] So, we'll wait.
+[03:27] But yeah, it's just so ugly.
+[03:29] It pulls down the whole thing.
+[03:33] We should just be focused.
+[03:35] This is the only thing we should use the fetching.
+[03:37] Make the font bigger too.
+[03:39] So, it's like more easier to see.
+[03:41] I also am not seeing like a glitter or sparkling to the progress.
+[03:57] Like, maybe like a shooting star kind of motif.
+[04:01] Something of that nature is what I'm looking towards.
+[04:05] Or looking to see.
+[04:07] I'm sorry.
+[04:09] What does that mean?
+[04:11] Yeah.
+[04:13] There's a bunch around.
+[04:17] Oh, but yeah.
+[04:27] Maybe the settings button should be here.
+[04:29] I think we should put it here right on top.
+[04:32] That sounds like a good place to start.
+[04:36] All right.
+[04:37] The pricing is accurate.
+[04:44] Okay.
+[04:47] Bullish.
+[04:50] Bullish.
+[04:52] Let's see if anything.
+[04:54] Every time we fetch, we need to be able to fetch Wikipedia summaries for here.
+[05:00] This has to be included with included with the fetch button.
+[05:04] And let's see what Buffett has to say about things.
+[05:11] Hmm.
+[05:23] And this is interesting.
+[05:59] Okay.
+[06:00] It matches the technicals are just not for it.
+[06:05] Let's see what the astrology says in a few days.
+[06:23] Okay.
+[06:24] All right.
+[06:26] Let's continue.

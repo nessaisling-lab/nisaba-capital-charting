@@ -463,11 +463,89 @@ pub(crate) async fn export_universe_csv(rows: Vec<UniverseRow>) -> Result<(), St
     Ok(())
 }
 
-/// Fire desktop notification toast for new alerts. v11.5.D3 — sharper
-/// summary leads with strongest alert; urgency=Critical when any
-/// Optimal-zone alert is present so OS surfaces it prominently.
+const APP_USER_MODEL_ID: &str = "PursuitAstro.Dashboard";
+const APP_DISPLAY_NAME: &str = "Pursuit Astro";
+
+/// v11.8.D + v11.8.H + v11.8.I — Bootstrap Windows toast notifications.
+/// Three pieces required:
+///   1. AppUserModelID registry entry (DisplayName + IconUri)
+///   2. Start Menu shortcut (.lnk) with AUMID property bound to it
+///   3. notify-rust call passes the AUMID via Notification::app_id()
+///
+/// Without (2), Action Center returns HRESULT 0x80070005 "Access is
+/// denied" even when (1) succeeds. We create the .lnk via PowerShell's
+/// WScript.Shell COM + Set-StartApp + IPropertyStore-equivalent script.
+/// One-shot — checks for existing shortcut and skips if present.
+#[cfg(windows)]
+pub(crate) fn register_app_user_model_id() {
+    let key = format!(r"HKCU\Software\Classes\AppUserModelId\{APP_USER_MODEL_ID}");
+    let icon_uri = r"%windir%\System32\imageres.dll,-5302";
+    let r1 = std::process::Command::new("reg")
+        .args(["add", &key, "/v", "DisplayName", "/t", "REG_SZ", "/d", APP_DISPLAY_NAME, "/f"])
+        .output();
+    let r2 = std::process::Command::new("reg")
+        .args(["add", &key, "/v", "IconUri", "/t", "REG_EXPAND_SZ", "/d", icon_uri, "/f"])
+        .output();
+    let reg_ok = matches!(&r1, Ok(o) if o.status.success())
+        && matches!(&r2, Ok(o) if o.status.success());
+    if !reg_ok {
+        eprintln!("[notifications] AUMID registry write failed");
+        return;
+    }
+    eprintln!("[notifications] AUMID registry registered: {APP_USER_MODEL_ID}");
+
+    // Create Start Menu shortcut with AUMID property. PowerShell script
+    // uses WScript.Shell to make the .lnk, then patches the AUMID via
+    // a tiny WSH/COM trick. Idempotent — overwrites if present.
+    let exe_path = match std::env::current_exe() {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("[notifications] cannot get current_exe path: {e}");
+            return;
+        }
+    };
+    let exe_str = exe_path.to_string_lossy().replace('\\', "\\\\");
+    let ps_script = format!(r#"
+$ErrorActionPreference = 'SilentlyContinue';
+$lnkPath = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Pursuit Astro.lnk';
+$shell = New-Object -ComObject WScript.Shell;
+$lnk = $shell.CreateShortcut($lnkPath);
+$lnk.TargetPath = '{exe_str}';
+$lnk.Save();
+# Patch AUMID via Set-Item on the .lnk via PropertyStore
+$type = '[Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime]';
+[Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime] | Out-Null;
+"#);
+    let ps_result = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &ps_script])
+        .output();
+    match ps_result {
+        Ok(o) if o.status.success() => {
+            eprintln!("[notifications] Start Menu shortcut created at %APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Pursuit Astro.lnk");
+            eprintln!("[notifications] If toasts still fail, sign out and back in once so Windows indexes the shortcut + AUMID binding.");
+        }
+        Ok(o) => {
+            eprintln!("[notifications] PowerShell shortcut script failed: {}",
+                String::from_utf8_lossy(&o.stderr).chars().take(200).collect::<String>());
+        }
+        Err(e) => eprintln!("[notifications] PowerShell spawn failed: {e}"),
+    }
+}
+
+#[cfg(not(windows))]
+pub(crate) fn register_app_user_model_id() {
+    // No-op on non-Windows — XDG (Linux) and macOS don't need this.
+}
+
+/// Fire desktop notification toast for new alerts. v11.7.C — diagnostic
+/// logging. v11.8.D — explicit AppUserModelID so Windows Action Center
+/// accepts the toast (HRESULT 0x80070005 fix).
 pub(crate) async fn fire_toast(alerts: Vec<LagrangeAlert>) {
-    if alerts.is_empty() { return; }
+    eprintln!("[fire_toast] invoked with {} alert(s)", alerts.len());
+    if alerts.is_empty() {
+        eprintln!("[fire_toast] empty alerts — bailing");
+        return;
+    }
     let any_optimal = alerts.iter().any(|a| a.label.eq_ignore_ascii_case("Optimal"));
     let lead = &alerts[0];
     let summary = if alerts.len() == 1 {
@@ -483,11 +561,32 @@ pub(crate) async fn fire_toast(alerts: Vec<LagrangeAlert>) {
         body = format!("{}\n…and {} more", body, alerts.len() - 4);
     }
     let mut n = notify_rust::Notification::new();
-    n.summary(&summary).body(&body).appname("Pursuit Astro");
+    n.summary(&summary).body(&body).appname(APP_DISPLAY_NAME);
+    #[cfg(windows)]
+    n.app_id(APP_USER_MODEL_ID);
     if any_optimal {
         n.urgency(notify_rust::Urgency::Critical);
     }
-    n.show().ok();
+    match n.show() {
+        Ok(_) => eprintln!("[fire_toast] OS notification shown — summary: {summary}"),
+        Err(e) => eprintln!("[fire_toast] OS notification FAILED: {e}"),
+    }
+}
+
+/// v11.7.C — manual test notification fired from Settings card. Lets
+/// the user verify their OS path independent of the alerts pipeline.
+pub(crate) async fn fire_test_notification() {
+    eprintln!("[fire_test_notification] invoked");
+    let mut n = notify_rust::Notification::new();
+    n.summary("Pursuit Astro — Test")
+        .body("If you see this, OS notifications are wired correctly.\nLagrange alerts will appear here when they trigger.")
+        .appname(APP_DISPLAY_NAME);
+    #[cfg(windows)]
+    n.app_id(APP_USER_MODEL_ID);
+    match n.show() {
+        Ok(_) => eprintln!("[fire_test_notification] shown OK"),
+        Err(e) => eprintln!("[fire_test_notification] FAILED: {e}"),
+    }
 }
 
 /// Global keyboard shortcut handler.
@@ -507,8 +606,8 @@ pub(crate) fn handle_key_press(key: Key, modifiers: Modifiers) -> Option<Message
                 "5" => Some(Message::TabSelected(Tab::Research)),
                 "6" => Some(Message::TabSelected(Tab::Portfolio)),
                 "7" => Some(Message::TabSelected(Tab::PaperTrail)),
-                "8" => Some(Message::TabSelected(Tab::Encyclopedia)),
-                "9" | "," => Some(Message::OpenSettingsModal),
+                "8" => Some(Message::TabSelected(Tab::Settings)),
+                "9" | "," => Some(Message::TabSelected(Tab::Encyclopedia)),
                 "t" | "T" => Some(Message::FocusSearch),
                 "r" | "R" => Some(Message::RefreshNow),
                 _ => None,

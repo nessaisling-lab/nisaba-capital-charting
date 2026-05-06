@@ -431,6 +431,14 @@ async fn fetch_single_ticker(
     println!("[{ticker}] Phase 6: Lagrange score...");
     lagrange::compute_all_scores(Arc::clone(&pool)).await;
 
+    // v11.8.G — 7. Wikipedia summary (per-ticker fetch). Per user feedback:
+    // "Every time we fetch, we need to be able to fetch Wikipedia summaries
+    // for here. This has to be included with the fetch button."
+    println!("[{ticker}] Phase 7: Wikipedia summary...");
+    if let Err(e) = wikipedia::fetch_one(Arc::clone(&pool), Arc::clone(&client), ticker).await {
+        eprintln!("[{ticker}] Wikipedia fetch error: {e:#}");
+    }
+
     log_fetch(&pool, "dashboard", Some(ticker), "single_ticker_fetch", "ok", None).await;
     Ok(())
 }

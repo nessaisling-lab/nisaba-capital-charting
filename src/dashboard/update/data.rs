@@ -405,7 +405,10 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
 
             state.fetching_ticker = true;
             state.fetch_start_time = Some(std::time::Instant::now());
-            state.push_toast(format!("Fetching data for {}...", ticker));
+            // v11.9 (revised) — no push_toast here. Chrome fetching pill
+            // (built in build_tab_bar) is the visible indicator while
+            // fetching_ticker = true. Toast was causing layout shift +
+            // expired before fetch completed.
             // v11.6.J — 90-second hard timeout. Without this, an unresponsive
             // child process leaves the UI stuck on "Fetching..." forever.
             // User feedback: "When I fetched, this ended up being stuck."

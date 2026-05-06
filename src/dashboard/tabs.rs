@@ -25,6 +25,8 @@ pub enum Tab {
     PaperTrail,
     /// v11.5.E — Wikipedia summaries per ticker
     Encyclopedia,
+    /// v11.9 — Settings panel restored to own-tab (was modal in v11.5.B5)
+    Settings,
 }
 
 impl Tab {
@@ -54,6 +56,7 @@ impl Tab {
             Tab::Portfolio    => "Portfolio",
             Tab::PaperTrail   => "Paper Trail",
             Tab::Encyclopedia => "Encyclopedia",
+            Tab::Settings     => "Settings",
         }
     }
 
@@ -71,8 +74,9 @@ impl Tab {
             Tab::Fundamentals => icons::BAR_CHART,
             Tab::Research     => icons::NEWSPAPER,
             Tab::Portfolio    => icons::BRIEFCASE,
-            Tab::PaperTrail   => icons::RECEIPT,
+            Tab::PaperTrail   => icons::TARGET,
             Tab::Encyclopedia => icons::BOOK_OPEN,
+            Tab::Settings     => icons::GEAR,
         }
     }
 }

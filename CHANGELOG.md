@@ -6,7 +6,55 @@
 
 ---
 
-## v11.7 Plan — "The Resolution" (in-progress, 2026-05-05)
+## v11.9 — "The Convergence" (shipped 2026-05-05)
+
+Long iteration arc: 4 video reviews + 1 HTML mockup + 1 written research-plan post collapsed v11.7→v11.8→v11.9 into a final layout where every chrome element is in the right place. User confirmed: *"working and is exactly how I wanted!"*
+
+### Final v11.9 layout
+
+- **Tab strip (right side)**: tabs → spacer → alert_pill → fetching_pill → gear icon
+- **Loading bar**: thin gold bar (4px) inline below header, twinkling tip-star at fill seam, "Loading… N%" label. Inside the column flow but small enough not to feel intrusive.
+- **Toast overlay**: rendered as `stack![main_view, toast_overlay]` (was `column![]` — caused the white-strip-pushes-content-down bug across multiple reviews). Toasts now float above page without consuming layout.
+- **Fetching pill**: chrome-anchored left of gear, ShootingStar canvas + "Fetching {ticker} ({s}s)" text. Lives only while `fetching_ticker == true`. Replaces the old `push_toast("Fetching data for…")` call which expired before fetch completed AND caused layout shift.
+- **Alert pill**: 8s TTL via `alert_pill_until: Option<Instant>` field. Set on AlertsLoaded with new unread > 0; pill renders only while `Instant::now() < alert_pill_until`. Auto-dismisses without user action — same ephemeral pattern as fetching pill.
+- **Settings**: Tab::Settings variant retained for view dispatch + gear-button click target, but NOT in `Tab::all()` so doesn't render as 8th tab. Single entry point via gear icon.
+- **OS notifications**: parked as installer-deferred. AUMID registration + Start Menu shortcut creation via PowerShell ships, but HRESULT 0x80070005 persists for unpackaged Rust apps. In-app toasts are the primary alert path.
+
+### v11.9 iteration history (5 mockup/code rounds, ~60min total feedback)
+
+1. **v11.9 plan** — three-fix layout mockup (loading-bar overlay, alert pill left of gear, settings own panel) → user approved all three
+2. **v11.9 implementation** — settings restored as 8th tab, loading bar absolute overlay, alert pill in chrome → user revisions: drop settings tab (gear only), revert loading bar to inline
+3. **v11.9 revisions** — Tab::Settings out of all(), loading bar back inline → user "everything working" with two remaining issues: top-pushes-down still happening, alert pill not animated/ephemeral
+4. **v11.9 research-plan post** — investigated toast `column!` layout shift root cause, planned `stack!` fix + chrome fetch pill with ShootingStar + alert pill alongside → user approved + asked alert pill alongside fetch pill
+5. **v11.9 final** — toast `column! → stack!`, redundant push_toast removed, fetch_pill (ShootingStar) + alert_pill coexist with TTL → final user verdict: *"working and exactly how I wanted!"*
+
+Mockup artifact: `docs/v11.9-layout-mockup.html`
+Transcripts: `docs/video-review-v11.{7,8-issues,8.H-corrections,8.I-corrections,9-mockup-request}-transcript.txt`
+
+---
+
+## v11.8 — "The Persistence" (shipped 2026-05-05)
+
+Eight sub-waves A-I shipped from post-v11.6 video review, then layered iterative corrections across three follow-up reviews.
+
+### v11.8 sub-waves
+
+- **8.A** — Settings prominence (later revised in 8.I)
+- **8.B** — Header right-side polish + tighter spacing
+- **8.C** — Paper Trail icon mockup round 3 — user picked TARGET (concentric circles, harmonizes with natal-wheel motif). RECEIPT (round 2) rejected as "out of nowhere."
+- **8.D** — Windows AppUserModelID registration via reg.exe at boot (DisplayName + IconUri)
+- **8.E** — Drop inline loading bar (later reversed in 8.H)
+- **8.F** — Shooting star animation (replaced sparkle puffs with streaking comet trail)
+- **8.G** — Per-ticker fetch button now triggers Wikipedia phase 7 in scraper single-ticker flow
+- **8.H** — Restored inline loading bar with tip-star + dropped popup pill per "I want this gone"; in-app toast fallback for alerts
+- **8.I** — PowerShell Start Menu shortcut creation alongside AUMID registry; gear glyph (no label) at right end of tab strip; settings was modal still
+
+Mockup: `docs/v11.7.a-paper-trail-icon-mockup.html` (round 1: GRAPH_UP/RECEIPT/NOTEBOOK/COINS/TROPHY/GAME), `docs/v11.8.c-paper-trail-icon-mockup-round3.html` (round 2: RECEIPT/CARDS/STRATEGY/MEDAL/TARGET/TREE)
+Transcript: `docs/video-review-v11.8-issues-transcript.txt`
+
+---
+
+## v11.7 — "The Resolution" (shipped 2026-05-05)
 
 Triggered by 6.5-min v11.6 production review (`docs/video-review-v11.6-transcript.txt`). User: *"Overall, huge improvement. Proper circling."* Council de-astro confirmed working — *"all the usables are getting hit differently. Much more diverse and much more meaningful."* Hero header silently approved (no comments). 6 issues + 1 mockup request:
 

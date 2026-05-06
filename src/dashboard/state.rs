@@ -238,6 +238,7 @@ pub struct Dashboard {
     pub sort_watchlist_by_score:  bool,
     pub recently_viewed:          Vec<String>,
     pub favorites:                Vec<String>,
+    #[allow(dead_code)] // v11.5.B5 modal flag, retired in v11.9 — kept for migration safety
     pub show_settings_modal:      bool,
     pub active_tab:               Tab,
     pub status:                   String,
@@ -343,6 +344,10 @@ pub struct Dashboard {
     pub os_notifications:         bool,
     pub natal_zoom:               f32,
     pub price_chart_cache:        std::sync::Arc<iced::widget::canvas::Cache>,
+    /// v11.9 (revised) — instant after which alert pill auto-hides.
+    /// Set when AlertsLoaded fires with new unread alerts. Pill renders
+    /// only while Instant::now() < this value.
+    pub alert_pill_until:         Option<std::time::Instant>,
     pub wiki_summary:             Option<crate::db::WikiSummary>,
     pub wiki_thumbnail_bytes:     Option<Vec<u8>>,
 }
@@ -498,6 +503,7 @@ impl Default for Dashboard {
             os_notifications:         true,
             natal_zoom:               1.0,
             price_chart_cache:        std::sync::Arc::new(iced::widget::canvas::Cache::default()),
+            alert_pill_until:         None,
             wiki_summary:             None,
             wiki_thumbnail_bytes:     None,
         }
@@ -565,9 +571,10 @@ pub enum Message {
     RecentlyViewedLoaded(Result<Vec<String>, String>),
     FavoritesLoaded(Result<Vec<String>, String>),
     ToggleFavorite(String),
-    OpenSettingsModal,
-    CloseSettingsModal,
+    // v11.9 — Settings reverted to own-tab. Modal Messages retired.
     ToggleOsNotifications(bool),
+    TestNotification,
+    NotificationTestComplete,
     NatalWheelZoom(f32),
     NatalWheelZoomReset,
     WikiSummaryLoaded(Result<Option<crate::db::WikiSummary>, String>),

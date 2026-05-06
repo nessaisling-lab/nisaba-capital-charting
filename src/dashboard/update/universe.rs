@@ -82,8 +82,24 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
             state.unread_alert_count = unread_count;
             if unread_count > 0 && !state.notifications_fired && state.os_notifications {
                 state.notifications_fired = true;
+                // v11.9 (revised) — set 8s TTL on chrome alert pill.
+                state.alert_pill_until = Some(
+                    std::time::Instant::now() + std::time::Duration::from_secs(8),
+                );
                 let unread: Vec<LagrangeAlert> =
                     alerts.iter().filter(|a| !a.is_read).cloned().collect();
+                // v11.8.H — also push in-app toast as fallback. Windows
+                // toast (fire_toast) often fails with HRESULT 0x80070005
+                // until the user installs a Start Menu shortcut. The
+                // in-app toast guarantees the alert is visible regardless.
+                let lead = &unread[0];
+                let in_app = if unread.len() == 1 {
+                    format!("\u{2605} Alert: {} → {}", lead.ticker, lead.label)
+                } else {
+                    format!("\u{2605} {} new alerts (lead: {} → {})",
+                        unread.len(), lead.ticker, lead.label)
+                };
+                state.push_toast(in_app);
                 state.alerts = alerts;
                 Some(Task::perform(
                     async move { fire_toast(unread).await },

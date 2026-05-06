@@ -74,7 +74,31 @@ impl canvas::Program<Message> for PriceChart {
     ) -> Option<Action<Message>> {
         match event {
             canvas::Event::Mouse(mouse::Event::CursorMoved { .. }) => {
-                *state = cursor.position_in(bounds);
+                // v11.7.D — only invalidate when cursor crosses into a
+                // new candle. Root cause of hover lag: every pixel-level
+                // mouse move was triggering Action::capture() and an
+                // entire-window redraw. With 1000Hz mice the window was
+                // redrawing 1000× per second while sweeping the chart.
+                // Snap to bar index — at most n redraws per pass instead.
+                let new_pos = cursor.position_in(bounds);
+                let bar_idx = |p: Option<Point>| -> Option<usize> {
+                    let pos = p?;
+                    let pad_left = 55.0_f32;
+                    let pad_right = 15.0_f32;
+                    let w = bounds.width - pad_left - pad_right;
+                    if pos.x < pad_left || pos.x > pad_left + w { return None; }
+                    let n = self.data.len();
+                    if n < 2 { return None; }
+                    let frac = ((pos.x - pad_left) / w).clamp(0.0, 1.0);
+                    Some(((frac * (n - 1) as f32).round() as usize).min(n - 1))
+                };
+                let prev_bar = bar_idx(*state);
+                let next_bar = bar_idx(new_pos);
+                if prev_bar == next_bar {
+                    *state = new_pos;
+                    return None;
+                }
+                *state = new_pos;
                 Some(Action::capture())
             }
             canvas::Event::Mouse(mouse::Event::CursorLeft) => {

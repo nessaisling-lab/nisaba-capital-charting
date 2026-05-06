@@ -1,6 +1,53 @@
 # TODOS
 
-## Active — v11.7 "The Resolution" (~3 days remaining, video review 2026-05-05)
+## Active — none. v11.9 shipped + user-validated 2026-05-05.
+
+Next iteration awaits user-flagged issue. Open backlog (deferred):
+
+- **OS notifications** — HRESULT 0x80070005 persists despite AUMID registry + Start Menu shortcut creation. Real fix requires MSIX/MSI installer that registers COM CLSIDs. Parked until packaging story is decided.
+- **Chart hover lag** — bar-index snap (v11.7.D) + Cache split (v11.6.K) shipped, user still flags lag occasionally vs gauges. Possibly `chart_draw_progress` animation forcing cache invalidation; profile in v11.10.
+- **Sign-out/back-in** — recommended after AUMID shortcut creation for Windows to index the binding. Not enforced.
+
+---
+
+## Closed — v11.9 "The Convergence" — SHIPPED 2026-05-05
+
+User: *"working and exactly how I wanted!"*
+
+- [x] Toast layout shift — `column![toast, main]` → `stack![main, toast]` overlay
+- [x] Drop redundant `push_toast("Fetching data for…")` on FetchThisTicker
+- [x] Fetching pill with ShootingStar canvas, anchored left of gear in tab strip
+- [x] Alert pill with 8s TTL via `alert_pill_until: Option<Instant>` field
+- [x] Both pills coexist; ordering tabs → spacer → alert_pill → fetching_pill → gear
+- [x] Tab::Settings dropped from `Tab::all()`; gear icon is sole entry point
+- [x] Loading bar restored to inline below header (was overlay attempt then push-down) with tip-star + percentage label
+- [x] Mockup artifact: `docs/v11.9-layout-mockup.html`
+- [x] Transcripts: `docs/video-review-v11.{7,8-issues,8.H,8.I,9-mockup-request}-transcript.txt`
+
+## Closed — v11.8 "The Persistence" — SHIPPED 2026-05-05
+
+- [x] **8.A** Settings prominence (revised in 8.I)
+- [x] **8.B** Header right-side spacing tightened
+- [x] **8.C** Paper Trail icon mockup round 3 — TARGET (concentric circles)
+- [x] **8.D** Windows AUMID registry write at boot
+- [x] **8.E** Loading bar dropped (reverted in 8.H)
+- [x] **8.F** ShootingStar canvas animation
+- [x] **8.G** Wikipedia phase 7 in scraper single-ticker fetch
+- [x] **8.H** Loading bar restored with tip-star + drop pop-up pill
+- [x] **8.I** PowerShell Start Menu shortcut + gear-only tab strip right
+
+## Closed — v11.7 "The Resolution" — SHIPPED 2026-05-05
+
+- [x] **7.A** Paper Trail icon RECEIPT (later replaced TARGET in 8.C)
+- [x] **7.B** Munger Sell/StrongSell variants — 6 each, ticker-hash rotation
+- [x] **7.C** OS notification diagnostic logging + Test Notification button
+- [x] **7.D** Chart hover bar-index snap (1000Hz mouse polling → ~n redraws)
+- [x] **7.E** Sparkle visibility audit
+- [x] **7.F** Blinking root cause — re-seed 8Hz → 1.5Hz with sinusoidal alpha
+
+---
+
+## Closed — v11.6 "The Persistence" — COMPLETED 2026-05-05
 
 **Source:** 6.5-min v11.6 production review (`docs/video-review-v11.6-transcript.txt`). User: *"Overall, huge improvement. Proper circling."* Council de-astro validated. 6 issues + 1 mockup request.
 
@@ -11,49 +58,31 @@
 - [x] New const `icons::RECEIPT` (\u{e3aa})
 - [x] `Tab::PaperTrail` icon swapped from GRAPH_UP
 
-### v11.7.B — "Munger phrase variance" (~0.5d, next)
+### v11.7.B — "Munger phrase variance" — SHIPPED
 
-User [02:48-03:25]: *"Munger keeps on saying stuff like 'doesn't meet my quality bar.' He has not changed."*
+- [x] **B1** Sell/StrongSell got 6 variants each (was 1) with ticker-hash rotation
+- [x] **B2** Density now matches Buffett/Graham/Lynch
+- [ ] **B3** Munger narrative expansion — deferred to future polish
 
-- [ ] **B1** Audit Munger headline match arms in `agents.rs` — currently 5-6 variants per verdict, but the closing/sell verdicts feel repetitive across tickers
-- [ ] **B2** Add ticker-hash + score-band based phrase rotation (8+ variants for Sell/StrongSell since user complaint focused there)
-- [ ] **B3** Munger narrative sometimes only emits 1-2 paragraphs — add more sector + metric branching
+### v11.7.C — "OS notifications debug" — SHIPPED (parked)
 
-### v11.7.C — "OS notifications debug" (~0.5d)
+- [x] **C1** Diagnostic logging on fire_toast invocation + show() result
+- [x] **C2** notifications_fired reset on MarkAllAlertsRead verified
+- [x] **C3** notify-rust on Windows 11 fails with HRESULT 0x80070005 (AUMID/shortcut limitation, parked for installer)
+- [x] **C4** "Send Test Notification" button added to Settings → Alerts card
 
-User [01:50]: *"We have yet to get a notification on any of these. That's clearly broken."*
+### v11.7.D — "Chart hover lag" — SHIPPED (improved)
 
-- [ ] **C1** Log fire_toast invocation: print every time it's called + every condition that gates it
-- [ ] **C2** Verify `state.notifications_fired` flag isn't stuck true across boots
-- [ ] **C3** Test notify-rust on Windows 11 — confirm permissions, app registration
-- [ ] **C4** Add a manual "Test notification" button in Settings → Alerts card
+- [x] **D1** Bar-index snap on CursorMoved — only invalidate when crossing into new candle (1000Hz mouse → ~n redraws per pass)
+- [ ] **D2** chart_draw_progress cache invalidation — deferred profiling
+- [ ] **D3** Animation/static layer separation — deferred
+- [ ] **D4** Hover frame cost profiling — deferred
 
-### v11.7.D — "Chart hover lag" (~1d)
+### v11.7.E + 7.F — "Sparkle blinking" — SHIPPED
 
-User [00:43]: *"Still keeps on lagging. Used to change literally real time. So that's something to be resolved."*
-
-6.K Cache split shipped but didn't resolve.
-- [ ] **D1** Profile cache.draw — confirm geometry is reused across hover frames (add `eprintln!` inside the closure)
-- [ ] **D2** Check if `chart_draw_progress` animation is forcing cache.clear() on every tick (likely culprit)
-- [ ] **D3** If draw_progress invalidates: separate the candle draw-in animation from static layers — animate only with overlay frame, keep candles in cache
-- [ ] **D4** Profile hover frame cost — should be <1ms; if higher, investigate fill_text bottleneck
-
-### v11.7.E — "Sparkles visibility audit" (~0.5d)
-
-User [00:32]: *"There was a little animation for the sparkles. Oh."*
-
-- [ ] **E1** Confirm sparkles fire only during fetch (currently true — only renders when `fetching_ticker`)
-- [ ] **E2** Decide: ambient sparkles always-on (subtle) vs only-during-fetch
-- [ ] **E3** If keeping fetch-only, increase visibility — bigger particles, tighter cluster, brighter alpha during the first 5s of fetch
-- [ ] **E4** Add ambient star-twinkle to the page header ornament rule (independent surface)
-
-### v11.7.F — "Blinking element" (~0.5d)
-
-User [05:50, 06:07]: *"Don't know why he does that blinking. Got to find out how come it does that."*
-
-- [ ] **F1** Identify which element blinks — likely the loading sparkle re-seed (every 0.125s the seed changes → particles re-position)
-- [ ] **F2** Confirm v11.6.G `sparkle_seed = (elapsed * 8.0).floor() as u32` is the source — 8Hz re-seed = 8 visible "blinks" per second
-- [ ] **F3** Slow re-seed to 2-3Hz OR animate particles smoothly between seeds
+Same root cause: 8Hz seed re-roll teleporting particles. Fix:
+- [x] Slowed sparkle re-seed 8Hz → 1.5Hz
+- [x] Added sinusoidal alpha pulse for smooth visibility
 
 ---
 

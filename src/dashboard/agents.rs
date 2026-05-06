@@ -674,9 +674,27 @@ fn analyze_munger(ctx: &AgentContext) -> AgentAnalysis {
             4 => format!("{} — not bad, not wonderful. Quality compounders are rare.", ctx.ticker),
             _ => format!("Hold {} if you must. I'd rather wait for a fat pitch.", ctx.ticker),
         },
-        AgentVerdict::Sell => format!("{} doesn't meet my quality bar. I'd rather own a wonderful business at a fair price.", ctx.ticker),
-        AgentVerdict::StrongSell => format!("{} shows multiple quality red flags. Invert: what would make this fail? Too much.", ctx.ticker),
-        AgentVerdict::InsufficientData => format!("I need to see the economics of {} before I can form a judgment.", ctx.ticker),
+        // v11.7.B — Sell/StrongSell variants. User feedback: "Munger has
+        // not changed. Doesn't meet my quality bar." That ONE phrase was
+        // hitting every sub-quality ticker. Now 6 variants per verdict +
+        // ticker-hash rotation matches Buffett/Graham/Lynch density.
+        AgentVerdict::Sell => match v {
+            0 => format!("{} is in the too-hard pile. Quality compounders are rare; I won't pretend to find one here.", ctx.ticker),
+            1 => format!("Three things ruin smart people: liquor, ladies, leverage. {} has the third in spades.", ctx.ticker),
+            2 => match om { Some(m) if m < 10.0 => format!("{} runs at {:.0}% operating margin. That's not a moat — that's a treadmill.", ctx.ticker, m), _ => format!("Owning {} would keep me up at night. That's the only test that matters.", ctx.ticker) },
+            3 => format!("Mediocre business, mediocre returns. {} is the world's most expensive way to underperform.", ctx.ticker),
+            4 => format!("If you can't predict the cash flows of {} ten years out, you don't own it — you're renting it.", ctx.ticker),
+            _ => format!("Knowing what you don't know matters more than being brilliant. I don't know {}, and I won't pretend I do.", ctx.ticker),
+        },
+        AgentVerdict::StrongSell => match v {
+            0 => format!("Invert, always invert: what would make {} fail? Too many things, all at once.", ctx.ticker),
+            1 => format!("{} fails the 'is this even a real business' question. Capital allocated here is capital wasted.", ctx.ticker),
+            2 => format!("There are worse situations than not owning {}. Far worse. Stay away.", ctx.ticker),
+            3 => format!("Show me the incentive and I'll show you the outcome. {} pays everyone except the shareholder.", ctx.ticker),
+            4 => format!("It's remarkable how much long-term advantage people get by trying to be consistently not stupid. Avoiding {} qualifies.", ctx.ticker),
+            _ => format!("{} is what economists call a 'wealth-destroying enterprise.' I prefer wealth-creating ones.", ctx.ticker),
+        },
+        AgentVerdict::InsufficientData => format!("I need to see the economics of {} before I can form a judgment. Show me the numbers.", ctx.ticker),
     };
 
     assemble_analysis(ctx, AgentPersona::Munger, metrics, score, astro_take, headline, verdict,

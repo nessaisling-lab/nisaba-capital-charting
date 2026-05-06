@@ -35,6 +35,7 @@ use crate::db::{
 use crate::state::{Dashboard, Message};
 
 pub(crate) use helpers::handle_key_press;
+pub(crate) use helpers::register_app_user_model_id;
 
 /// Stable ID for the ticker search text_input, used for programmatic focus.
 pub const SEARCH_INPUT_ID: &str = "ticker-search";
@@ -246,18 +247,18 @@ impl Dashboard {
                 let _ = open::that_detached(&url);
                 Task::none()
             }
-            Message::OpenSettingsModal => {
-                self.show_settings_modal = true;
-                Task::none()
-            }
-            Message::CloseSettingsModal => {
-                self.show_settings_modal = false;
-                Task::none()
-            }
             Message::ToggleOsNotifications(enabled) => {
                 self.os_notifications = enabled;
                 Task::none()
             }
+            Message::TestNotification => {
+                self.push_toast("Firing test notification…");
+                Task::perform(
+                    async { crate::update::helpers::fire_test_notification().await },
+                    |_| Message::NotificationTestComplete,
+                )
+            }
+            Message::NotificationTestComplete => Task::none(),
             Message::NatalWheelZoom(delta) => {
                 let next = (self.natal_zoom + delta).clamp(0.6, 2.4);
                 self.natal_zoom = next;
@@ -269,9 +270,6 @@ impl Dashboard {
             }
             Message::FocusSearch => operation::focus(SEARCH_INPUT_ID),
             Message::EscapePressed => {
-                if self.show_settings_modal {
-                    self.show_settings_modal = false;
-                }
                 self.ticker_search_input = String::new();
                 self.autocomplete_suggestions = vec![];
                 self.autocomplete_dismissed = true;

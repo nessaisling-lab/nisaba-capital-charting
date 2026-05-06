@@ -28,6 +28,9 @@ mod view;
 use state::Dashboard;
 
 pub fn main() -> iced::Result {
+    // v11.8.D — Register Windows AppUserModelID before any UI loads so
+    // toast notifications work without HRESULT 0x80070005 access denied.
+    update::register_app_user_model_id();
     iced::application(Dashboard::new, Dashboard::update, Dashboard::view)
         .title("Financial Dashboard")
         .subscription(Dashboard::subscription)

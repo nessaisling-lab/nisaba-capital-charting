@@ -12,7 +12,7 @@ mod encyclopedia;
 use iced::widget::{button, column, container, mouse_area, pick_list, row, rule, scrollable, stack, text, text_input, Canvas, Column, Row, Shader, Space};
 use iced::{Alignment, Color, Element, Length};
 
-use crate::ornaments::{BookSpine, Corner, PageBorderCorner, PageHeaderOrnament, TabSparkle};
+use crate::ornaments::{BookSpine, Corner, PageBorderCorner, PageHeaderOrnament, ShootingStar, TabSparkle};
 
 use crate::animation;
 use crate::font;
@@ -86,13 +86,12 @@ impl Dashboard {
             text(icons::MOON_STARS.to_string()).font(icons::PHOSPHOR).size(theme::text_md()),
         ).on_press(Message::ToggleTheme);
 
-        // v11.5.B5 — gear button opens settings modal
-        let settings_btn = button(
-            text(icons::GEAR.to_string()).font(icons::PHOSPHOR).size(theme::text_md()),
-        ).on_press(Message::OpenSettingsModal);
-
-        let action_icons = row![refresh_btn, fetch_btn, theme_btn, settings_btn]
-            .spacing(4)
+        // v11.8.H — Settings moved to corner_top (top edge of page chrome).
+        // User couldn't find gear icon among 4 small action icons even with
+        // v11.8.A bold + label. Placing in the page edge above the tab
+        // strip makes it the highest-contrast button on screen.
+        let action_icons = row![refresh_btn, fetch_btn, theme_btn]
+            .spacing(6)
             .align_y(Alignment::Center);
 
         // ── v11.6.A v2 — Hero ticker block ───────────────────────
@@ -271,60 +270,62 @@ impl Dashboard {
             })
             .into()
         } else if self.fetching_ticker {
-            // v11.3 → v11.5.F3+F4+F5: determinate progress bar + numeric %
-            // + sparkle overlay + 85%→92% recovery once primary phase ends.
+            // v11.9 (revised) — inline loading bar restored to v11.8.H
+            // position per user "revert the loading bar back to where it
+            // was in the previous build." Yellow fill + twinkling tip
+            // star + label percentage.
             let p_load = theme::palette();
             let elapsed = self.fetch_start_time
                 .map(|s| s.elapsed().as_secs_f32())
                 .unwrap_or(0.0);
-            // Phase A: 0..30s → 0..0.85 linear.
-            // Phase B: 30..50s → 0.85..0.92 logarithmic (advances to bust the
-            // illusion of a stuck bar without overpromising completion).
             let progress: f32 = if elapsed <= 30.0 {
                 (elapsed / 30.0) * 0.85
             } else {
                 let extra = (elapsed - 30.0).min(20.0) / 20.0;
                 0.85 + 0.07 * extra
             };
-            let phase_label = if elapsed <= 30.0 {
-                "Fetching..."
-            } else {
-                "Finalizing..."
-            };
+            let phase_label = if elapsed <= 30.0 { "Loading…" } else { "Finalizing…" };
             let fill_pct = (progress * 100.0).round() as u16;
             let rest_pct = 100u16.saturating_sub(fill_pct);
             let fill_bar = container(Space::new())
                 .width(Length::FillPortion(fill_pct.max(1)))
-                .height(Length::Fixed(3.0))
-                .style(move |_theme: &iced::Theme| container::Style {
+                .height(Length::Fixed(4.0))
+                .style(move |_t: &iced::Theme| container::Style {
                     background: Some(iced::Background::Color(p_load.gold)),
+                    border: iced::Border { radius: 2.0.into(), ..Default::default() },
                     ..Default::default()
                 });
+            let twinkle_phase = (elapsed * 4.0).sin().abs();
+            let twinkle_alpha = 0.55 + 0.45 * twinkle_phase;
+            let tip_star = container(
+                text(icons::STAR.to_string())
+                    .font(icons::PHOSPHOR_BOLD)
+                    .size(14.0)
+                    .color(Color { a: twinkle_alpha, ..p_load.gold }),
+            )
+            .width(Length::Fixed(14.0))
+            .height(Length::Fixed(14.0))
+            .center_x(Length::Fixed(14.0))
+            .center_y(Length::Fixed(14.0));
             let track_rest = container(Space::new())
                 .width(Length::FillPortion(rest_pct.max(1)))
-                .height(Length::Fixed(3.0))
-                .style(move |_theme: &iced::Theme| container::Style {
+                .height(Length::Fixed(4.0))
+                .style(move |_t: &iced::Theme| container::Style {
                     background: Some(iced::Background::Color(
-                        Color { a: 0.15, ..p_load.gold },
+                        Color { a: 0.18, ..p_load.gold },
                     )),
+                    border: iced::Border { radius: 2.0.into(), ..Default::default() },
                     ..Default::default()
                 });
-            let bar_row = row![fill_bar, track_rest].width(Length::Fill);
-            // F4+G — sparkle overlay boosted: alpha 0.45→0.85, taller layer,
-            // animated seed so particles re-position each frame instead of
-            // sitting at fixed dots. User: "make it more visible."
-            let sparkle_seed = (elapsed * 8.0).floor() as u32;
-            let sparkle_overlay = Canvas::new(TabSparkle {
-                alpha: 0.85,
-                seed: sparkle_seed,
-            })
-            .width(Length::Fill)
-            .height(Length::Fixed(14.0));
-            let bar_with_sparkle = stack![bar_row, sparkle_overlay];
-            let percent_text = text(format!("{phase_label}  {}%", fill_pct))
-                .size(theme::text_xs())
-                .color(Color { a: 0.85, ..p_load.gold });
-            column![bar_with_sparkle, percent_text]
+            let bar_row = row![fill_bar, tip_star, track_rest]
+                .align_y(Alignment::Center)
+                .width(Length::Fill);
+            let label_row = row![
+                text(format!("{phase_label}  {}%", fill_pct))
+                    .size(theme::text_xs())
+                    .color(Color { a: 0.75, ..p_load.gold }),
+            ];
+            column![bar_row, label_row]
                 .spacing(2)
                 .into()
         } else {
@@ -341,6 +342,7 @@ impl Dashboard {
             Tab::Portfolio    => self.view_portfolio(),
             Tab::PaperTrail   => self.view_paper_trail(),
             Tab::Encyclopedia => self.view_encyclopedia(),
+            Tab::Settings     => self.view_settings(),
         };
 
         // ── Page transition: layered stagger (v9.0) ────────────
@@ -355,6 +357,10 @@ impl Dashboard {
         };
 
         // ── Book page content area with ornaments ──────────────
+        // v11.8.I — corner_top reverted to original spec. Settings gear
+        // moved into tab_bar row instead (per video review: "use a gear
+        // icon for that button and place it in the top right corner in
+        // the same row as the main tabs").
         let corner_top = row![
             Canvas::new(PageBorderCorner { corner: Corner::TopLeft })
                 .width(Length::Fixed(20.0)).height(Length::Fixed(20.0)),
@@ -447,65 +453,9 @@ impl Dashboard {
             .height(Length::Fill)
             .into();
 
-        // ── v11.5.B5 — Settings modal overlay ─────────────────
-        let main_view: Element<'_, Message> = if self.show_settings_modal {
-            let settings_panel = self.view_settings();
-            let header = row![
-                text("Settings").font(font::DISPLAY).size(theme::text_lg()),
-                Space::new().width(Length::Fill),
-                button(
-                    text(icons::X_LG.to_string()).font(icons::PHOSPHOR).size(theme::text_md()),
-                )
-                .on_press(Message::CloseSettingsModal)
-                .padding(2),
-            ]
-            .align_y(Alignment::Center);
-            let modal_body = container(
-                column![header, rule::horizontal(1), settings_panel].spacing(8),
-            )
-            .padding(theme::SPACE_MD as u16)
-            .max_width(720.0)
-            .style(|_t: &iced::Theme| {
-                let p = theme::palette();
-                container::Style {
-                    background: Some(iced::Background::Color(p.surface)),
-                    border: iced::Border {
-                        color: p.gold,
-                        width: 1.5,
-                        radius: 4.0.into(),
-                    },
-                    shadow: iced::Shadow {
-                        color: Color { a: 0.45, ..Color::BLACK },
-                        offset: iced::Vector::new(0.0, 4.0),
-                        blur_radius: 18.0,
-                    },
-                    ..Default::default()
-                }
-            });
-            // Scrim — click outside to dismiss
-            let scrim = mouse_area(
-                container(Space::new())
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .style(|_t: &iced::Theme| container::Style {
-                        background: Some(iced::Background::Color(Color { a: 0.55, ..Color::BLACK })),
-                        ..Default::default()
-                    }),
-            )
-            .on_press(Message::CloseSettingsModal);
-            let centered_panel = container(modal_body)
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .center_x(Length::Fill)
-                .center_y(Length::Fill)
-                .padding(theme::SPACE_LG as u16);
-            stack![base_view, scrim, centered_panel]
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .into()
-        } else {
-            base_view
-        };
+        // v11.9 (revised) — loading bar reverted to inline (in fetch
+        // banner area below nav row); no overlay needed.
+        let main_view: Element<'_, Message> = base_view;
 
         // ── Toast overlay ──────────────────────────────────────
         if self.toasts.is_empty() {
@@ -546,12 +496,20 @@ impl Dashboard {
                     )
                 },
             );
+            // v11.9 (revised) — toast as stack overlay (was column[toast,
+            // main]) so it never pushes content down. User flagged the
+            // top-whitespace bug: toasts in a column flow consume layout
+            // space; stack overlay floats them above main_view instead.
             let toast_overlay = container(toast_col)
                 .width(Length::Fill)
                 .align_x(iced::alignment::Horizontal::Right)
-                .padding([10, 20]);
+                .align_y(iced::alignment::Vertical::Top)
+                .padding([12, 18]);
 
-            column![toast_overlay, main_view].into()
+            stack![main_view, toast_overlay]
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into()
         }
     }
 
@@ -663,8 +621,153 @@ impl Dashboard {
             },
         );
 
-        // Wrap in container — full width under header ornament
-        container(tab_row)
+        // v11.9 — Settings gear in tab row clicks to switch tab (panel,
+        // not modal). User: "no overlay or pop, just like before iced 0.14."
+        let p_gear = theme::palette();
+        let gear_btn = button(
+            text(icons::GEAR.to_string())
+                .font(icons::PHOSPHOR_BOLD)
+                .size(theme::text_md())
+                .color(p_gear.gold),
+        )
+        .on_press(Message::TabSelected(Tab::Settings))
+        .padding([4, 8])
+        .style(|_t: &iced::Theme, status: button::Status| {
+            let p = theme::palette();
+            let bg = match status {
+                button::Status::Hovered | button::Status::Pressed => Color { a: 0.18, ..p.gold },
+                _ => Color::TRANSPARENT,
+            };
+            button::Style {
+                background: Some(iced::Background::Color(bg)),
+                text_color: Color::TRANSPARENT,
+                border: iced::Border::default(),
+                shadow: iced::Shadow::default(),
+                snap: false,
+            }
+        });
+
+        // v11.9 (revised) — two coexisting chrome pills, both with motion:
+        //   1. fetching_pill — sparkly ShootingStar canvas, lives only
+        //      during self.fetching_ticker (Step 3 of plan).
+        //   2. alert_pill — pulsing star glyph for the most-recent unread
+        //      Lagrange alert. Click → Universe tab.
+        // Order: tabs → spacer → alert_pill → fetching_pill → gear.
+        let pill_btn_style = |_t: &iced::Theme, status: button::Status| {
+            let p = theme::palette();
+            let bg_alpha = match status {
+                button::Status::Hovered | button::Status::Pressed => 0.98,
+                _ => 0.92,
+            };
+            button::Style {
+                background: Some(iced::Background::Color(
+                    Color { r: 0.12, g: 0.10, b: 0.08, a: bg_alpha },
+                )),
+                text_color: Color::TRANSPARENT,
+                border: iced::Border {
+                    color: Color { a: 0.55, ..p.gold },
+                    width: 1.0,
+                    radius: 12.0.into(),
+                },
+                shadow: iced::Shadow {
+                    color: Color { a: 0.30, ..Color::BLACK },
+                    offset: iced::Vector::new(0.0, 1.5),
+                    blur_radius: 6.0,
+                },
+                snap: false,
+            }
+        };
+
+        // ── Alert pill ────────────────────────────────────────
+        // v11.9 (revised) — TTL gate. Pill shows only while
+        // Instant::now() < alert_pill_until (set on AlertsLoaded).
+        // After 8s it auto-hides regardless of unread count, matching
+        // the fetch pill's ephemeral behavior.
+        let alert_pill_active = self.alert_pill_until
+            .map(|until| std::time::Instant::now() < until)
+            .unwrap_or(false);
+        let alert_pill: Element<'_, Message> = if alert_pill_active {
+            if let Some(alert) = self.alerts.iter().find(|a| !a.is_read) {
+                let p_n = theme::palette();
+                let phase = (self.shader_time * 2.6).sin().abs();
+                let sparkle_alpha = 0.65 + 0.35 * phase;
+                button(
+                    row![
+                        text(icons::STAR.to_string())
+                            .font(icons::PHOSPHOR_BOLD)
+                            .size(12.0)
+                            .color(Color { a: sparkle_alpha, ..p_n.gold }),
+                        text(format!("{} \u{2192} {}", alert.ticker, alert.label))
+                            .size(theme::text_xs())
+                            .color(Color { r: 0.95, g: 0.90, b: 0.80, a: 1.0 }),
+                    ]
+                    .spacing(6)
+                    .align_y(Alignment::Center),
+                )
+                .on_press(Message::TabSelected(Tab::Universe))
+                .padding([3, 10])
+                .style(pill_btn_style)
+                .into()
+            } else {
+                Space::new().into()
+            }
+        } else {
+            Space::new().into()
+        };
+
+        // ── Fetch pill (sparkly animated, ephemeral) ─────────
+        let fetching_pill: Element<'_, Message> = if self.fetching_ticker {
+            let p_n = theme::palette();
+            let elapsed_s = self.fetch_start_time
+                .map(|s| s.elapsed().as_secs())
+                .unwrap_or(0);
+            let star_canvas = Canvas::new(ShootingStar { time: self.shader_time })
+                .width(Length::Fixed(56.0))
+                .height(Length::Fixed(18.0));
+            container(
+                row![
+                    star_canvas,
+                    text(format!("Fetching {} ({}s)", self.selected_ticker, elapsed_s))
+                        .size(theme::text_xs())
+                        .color(Color { r: 0.95, g: 0.90, b: 0.80, a: 1.0 }),
+                ]
+                .spacing(6)
+                .align_y(Alignment::Center),
+            )
+            .padding([3, 10])
+            .style(move |_t: &iced::Theme| container::Style {
+                background: Some(iced::Background::Color(
+                    Color { r: 0.12, g: 0.10, b: 0.08, a: 0.92 },
+                )),
+                border: iced::Border {
+                    color: Color { a: 0.65, ..p_n.gold },
+                    width: 1.0,
+                    radius: 12.0.into(),
+                },
+                shadow: iced::Shadow {
+                    color: Color { a: 0.30, ..Color::BLACK },
+                    offset: iced::Vector::new(0.0, 1.5),
+                    blur_radius: 6.0,
+                },
+                ..Default::default()
+            })
+            .into()
+        } else {
+            Space::new().into()
+        };
+
+        let full_strip = row![
+            tab_row,
+            Space::new().width(Length::Fill),
+            alert_pill,
+            Space::new().width(Length::Fixed(6.0)),
+            fetching_pill,
+            Space::new().width(Length::Fixed(8.0)),
+            gear_btn,
+        ]
+        .align_y(Alignment::Center);
+
+        container(full_strip)
             .width(Length::Fill)
             .padding([0, theme::SPACE_XS as u16])
             .into()
