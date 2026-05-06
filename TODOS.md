@@ -1,12 +1,96 @@
 # TODOS
 
-## Active — none. v11.9 shipped + user-validated 2026-05-05.
+## Active — none. v12.1 shipped + user-validated 2026-05-06.
 
-Next iteration awaits user-flagged issue. Open backlog (deferred):
+User: *"Overall huge win, very happy with the progress we made!"*
 
-- **OS notifications** — HRESULT 0x80070005 persists despite AUMID registry + Start Menu shortcut creation. Real fix requires MSIX/MSI installer that registers COM CLSIDs. Parked until packaging story is decided.
-- **Chart hover lag** — bar-index snap (v11.7.D) + Cache split (v11.6.K) shipped, user still flags lag occasionally vs gauges. Possibly `chart_draw_progress` animation forcing cache invalidation; profile in v11.10.
-- **Sign-out/back-in** — recommended after AUMID shortcut creation for Windows to index the binding. Not enforced.
+Next iteration awaits next user video review or backlog target.
+
+## Open backlog (deferred)
+
+### Carryover from v12.0 series
+- **Chart hover real-time** — v12.0.B precompute + v12.0.D state-mutation skip both landed. User still flags non-real-time vs gauges/sparkline. Suspect: cosmic-text glyph shaping inside hover `fill_text` per redraw. Bigger lift — needs frame-time instrumentation OR pre-shaped glyph cache. Deferred to v12.3 or later.
+- **OS toast HRESULT** — installer ships AUMID binding (v12.0.A). User reported `[fire_toast] OS notification FAILED: HRESULT(0x80070005)` even after install. Likely Start Menu indexer hasn't picked up the binding yet — recommend sign-out/in OR explorer.exe restart. Pill system covers visibility need; OS toast is bonus.
+
+### v12.2 — "The Drawer + Polish" (planned, ~2-3 days)
+Batched polish + completing the pill system.
+- [ ] Settings tab scrollable wrap — user flagged in v8j ("can't scroll down the settings menu")
+- [ ] Notification drawer — gear-click reveals 24h history overlay via `stack!`. UI sketched in `mockups/v12.1-pill-notifications.html` Scenario 5.
+- [ ] Click-pill-to-dismiss — `DismissNotification(u64)` Message wired but no UI trigger yet
+- [ ] Transit pills emit — wire astrology-event detection (Mars enters Aries, retrograde station, eclipse window) → `NotificationVariant::Transit`
+- [ ] Toast → pill migration — replace residual `push_toast` calls with `notify_*` shortcuts
+- [ ] Trim dead code — `alert_pill_until`, `fetch_ticker_error`, `show_settings_modal` flags now unused
+
+### v12.3 — "The Profiling" (planned, ~1-2 days)
+Deeper chart hover investigation + perf instrumentation.
+- [ ] Frame-time instrumentation in `PriceChart::draw()` — log static_geo + hover_frame durations
+- [ ] Test cosmic-text glyph cache hypothesis — measure `fill_text` cost vs strokes
+- [ ] Investigate Iced 0.14 `canvas::Cache` for hover-side too (separate from static cache)
+- [ ] Compare hover redraw rate vs visible cursor sweep speed — confirm whether issue is paint cost OR redraw count
+
+### Wave 9 — "The Compounding" (planned, ~10 days)
+Astrology engine deepening per Wave 6 spec carry-overs + new directions.
+- [ ] Solar return charts (annual birthday-anchored sub-chart with its own transits)
+- [ ] Progressed chart (1° = 1 year secondary progressions)
+- [ ] Planetary returns timing (Saturn return, Jupiter return cycles)
+- [ ] Aspect line color-by-strength (replace binary green/red with strength gradient)
+- [ ] Backtest extension — current Lagrange backtest stops at 90 days, extend to 1+ year for cycle validation
+
+### v12.0.E — packaging hardening (deferred)
+- [ ] Code-signing the installer .exe (Windows Defender SmartScreen warning on download)
+- [ ] Auto-update channel
+- [ ] System-wide install option (currently per-user only)
+
+---
+
+## Closed — v12.1 "The Pill" — SHIPPED 2026-05-06
+
+User: *"Overall huge win, very happy with the progress we made!"*
+
+Source: video review v8j 2026-05-05 (`transcript-v8j.txt`) + screenshots 020627/020645/020657/020725.
+
+- [x] Mockup-first artifact: `mockups/v12.1-pill-notifications.html` — 5 scenarios + pill catalog
+- [x] New `src/dashboard/notifications.rs` (~210 lines) — Notification struct, 6 variants, render_pill, render_pill_stack
+- [x] State fields: `notifications: VecDeque`, `notification_history: Vec`, `next_notification_id`, `alerted_lagrange_ids`, `fetch_notification_id`
+- [x] Helpers: `push_notification`, `next_notif_id`, `dismiss_notification`, `expire_notifications`, `notify_error/success/info`
+- [x] Messages: `DismissNotification(u64)`, `NotificationsTick`
+- [x] **KILLED** push-down `fetch_error_banner` from main column flow
+- [x] **KILLED** v11.9 ad-hoc fetching_pill + alert_pill blocks (~115 lines), replaced with `render_pill_stack`
+- [x] FetchThisTicker → sparkly sticky pill; FetchTickerComplete → success/error pill
+- [x] AlertsLoaded → Alert pill per new unread Lagrange (deduped via alerted_lagrange_ids), click → Universe
+- [x] Tick keeps animation subscription active while pills exist (twinkle stays smooth)
+
+## Closed — v12.0 series — SHIPPED 2026-05-06
+
+### v12.0.A — OS toast real fix
+- [x] Runtime: windows-rs IShellLinkW + IPropertyStore.SetValue(PKEY_AppUserModel_ID) on Start Menu .lnk at boot
+- [x] Installer: Inno Setup `[Icons] AppUserModelID:` parameter binding (`installer/pursuit-astro.iss`)
+- [x] Cargo dep: `windows = "0.58"` Win32_UI_Shell + Win32_UI_Shell_PropertiesSystem + Win32_Storage_EnhancedStorage
+- [ ] Confirmed working post-install — user reported HRESULT 0x80070005 still firing on next session, deferred (Start Menu indexer)
+
+### v12.0.B — Chart hover full profiling
+- [x] Profiled hover redraw path — found O(n) min/max + 4n Decimal→String→f32 per cursor pixel
+- [x] Added `price_min`, `price_max`, `ohlc_f32` fields to PriceChart
+- [x] Helpers: `precompute_ohlc()`, `compute_price_range()`
+- [x] Wired in `view/overview.rs` — runs once per chart construction
+- [x] Hover redraw now O(1) field reads
+- [ ] Real-time goal not met — see v12.3 / v12.0.D follow-up
+
+### v12.0.C — Munger narrative expansion
+- [x] Sector mental model: 6 → 11 sectors with Munger aphorism quotes
+- [x] ROE: 1 → 5 bands
+- [x] Operating margin: 2 → 3 bands
+- [x] EV/EBITDA: 0 → 4 bands
+- [x] Debt/equity: 0 → 4 bands
+- [x] FCF: 0 → 3 bands
+- [x] News tone: 2 → 4 cases
+- [x] Astro angle: 0 → 2 bands
+- [x] Score-band closer: 2 → 6 bands
+
+### v12.0.D — Chart hover state-mutation skip
+- [x] Found Iced 0.14 redraws on canvas state mutation alone (v11.7.D bar-snap missed half)
+- [x] Skip `*state = new_pos` when prev_bar == next_bar
+- [ ] Real-time still not achieved — deferred to v12.3 with cosmic-text profiling
 
 ---
 
@@ -62,7 +146,7 @@ User: *"working and exactly how I wanted!"*
 
 - [x] **B1** Sell/StrongSell got 6 variants each (was 1) with ticker-hash rotation
 - [x] **B2** Density now matches Buffett/Graham/Lynch
-- [ ] **B3** Munger narrative expansion — deferred to future polish
+- [x] **B3** Munger narrative expansion — shipped in v12.0.C 2026-05-06
 
 ### v11.7.C — "OS notifications debug" — SHIPPED (parked)
 

@@ -80,26 +80,33 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
         Message::AlertsLoaded(Ok(alerts)) => {
             let unread_count = alerts.iter().filter(|a| !a.is_read).count();
             state.unread_alert_count = unread_count;
+
+            // v12.1 — emit one Alert pill per *newly seen* unread Lagrange
+            // alert (deduped via state.alerted_lagrange_ids). Click → Universe.
+            for a in alerts.iter().filter(|a| !a.is_read) {
+                if state.alerted_lagrange_ids.insert(a.id) {
+                    let id = state.next_notif_id();
+                    let n = crate::notifications::Notification::new(
+                        id,
+                        crate::notifications::NotificationVariant::Alert,
+                        format!("→ {}", a.label),
+                    )
+                    .with_emphasis(a.ticker.clone())
+                    .with_click(Message::TabSelected(crate::tabs::Tab::Universe));
+                    state.push_notification(n);
+                }
+            }
+
             if unread_count > 0 && !state.notifications_fired && state.os_notifications {
                 state.notifications_fired = true;
-                // v11.9 (revised) — set 8s TTL on chrome alert pill.
+                // v11.9 — keep alert_pill_until for migration safety; the
+                // pill it controlled is now superseded by the universal
+                // notification deque, but other code reads this field.
                 state.alert_pill_until = Some(
                     std::time::Instant::now() + std::time::Duration::from_secs(8),
                 );
                 let unread: Vec<LagrangeAlert> =
                     alerts.iter().filter(|a| !a.is_read).cloned().collect();
-                // v11.8.H — also push in-app toast as fallback. Windows
-                // toast (fire_toast) often fails with HRESULT 0x80070005
-                // until the user installs a Start Menu shortcut. The
-                // in-app toast guarantees the alert is visible regardless.
-                let lead = &unread[0];
-                let in_app = if unread.len() == 1 {
-                    format!("\u{2605} Alert: {} → {}", lead.ticker, lead.label)
-                } else {
-                    format!("\u{2605} {} new alerts (lead: {} → {})",
-                        unread.len(), lead.ticker, lead.label)
-                };
-                state.push_toast(in_app);
                 state.alerts = alerts;
                 Some(Task::perform(
                     async move { fire_toast(unread).await },

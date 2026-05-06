@@ -29,3 +29,13 @@ skills-lock.json
 
 # Generated design extraction output
 design-extract-output/
+
+# Video review scratch (frame extraction + audio for Whisper)
+frames_v*/
+audio.mp3
+audio.wav
+*.original.md
+temp_*.txt
+
+# Installer build output (large binaries; ship via release artifacts)
+installer/Output/

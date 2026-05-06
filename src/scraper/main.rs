@@ -26,6 +26,16 @@ mod ticker_seed;
 mod tiingo;
 mod wikidata_enrich;
 mod wikipedia;
+mod world_bank;
+mod coingecko;
+mod treasury_direct;
+mod imf;
+mod ecb;
+mod bls;
+mod eia;
+mod cftc_cot;
+mod ofr;
+mod sec_recent;
 
 use anyhow::{Context, Result};
 use governor::{Quota, RateLimiter};
@@ -678,6 +688,48 @@ async fn run_all_fetches(
     println!("3.13 Enriching Wikipedia summaries (REST API)...");
     if let Err(e) = wikipedia::enrich_all(Arc::clone(&pool), Arc::clone(&client)).await {
         eprintln!("[wikipedia] enrich_all error: {e}");
+    }
+
+    // ── Wave 7 — native Rust providers ─────────────────────────────────
+    println!("3.14 World Bank — economic indicators (free, no key)...");
+    if let Err(e) = world_bank::fetch_all(Arc::clone(&pool), Arc::clone(&client)).await {
+        eprintln!("[world_bank] error: {e:#}");
+    }
+    println!("3.15 CoinGecko — crypto market data (free tier)...");
+    if let Err(e) = coingecko::fetch_all(Arc::clone(&pool), Arc::clone(&client)).await {
+        eprintln!("[coingecko] error: {e:#}");
+    }
+    println!("3.16 Treasury Direct — daily yield curve...");
+    if let Err(e) = treasury_direct::fetch_all(Arc::clone(&pool), Arc::clone(&client)).await {
+        eprintln!("[treasury_direct] error: {e:#}");
+    }
+    println!("3.17 IMF — World Economic Outlook...");
+    if let Err(e) = imf::fetch_all(Arc::clone(&pool), Arc::clone(&client)).await {
+        eprintln!("[imf] error: {e:#}");
+    }
+    println!("3.18 ECB — Eurozone rates + FX...");
+    if let Err(e) = ecb::fetch_all(Arc::clone(&pool), Arc::clone(&client)).await {
+        eprintln!("[ecb] error: {e:#}");
+    }
+    println!("3.19 BLS — US labor + CPI detail...");
+    if let Err(e) = bls::fetch_all(Arc::clone(&pool), Arc::clone(&client)).await {
+        eprintln!("[bls] error: {e:#}");
+    }
+    println!("3.20 EIA — energy spot prices...");
+    if let Err(e) = eia::fetch_all(Arc::clone(&pool), Arc::clone(&client)).await {
+        eprintln!("[eia] error: {e:#}");
+    }
+    println!("3.21 CFTC COT — large-trader positioning...");
+    if let Err(e) = cftc_cot::fetch_all(Arc::clone(&pool), Arc::clone(&client)).await {
+        eprintln!("[cftc_cot] error: {e:#}");
+    }
+    println!("3.22 OFR — Financial Stress Index...");
+    if let Err(e) = ofr::fetch_all(Arc::clone(&pool), Arc::clone(&client)).await {
+        eprintln!("[ofr] error: {e:#}");
+    }
+    println!("3.23 SEC EDGAR — recent-filings firehose...");
+    if let Err(e) = sec_recent::fetch_all(Arc::clone(&pool), Arc::clone(&client)).await {
+        eprintln!("[sec_recent] error: {e:#}");
     }
 
     // =========================================================================

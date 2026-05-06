@@ -12,7 +12,7 @@ mod encyclopedia;
 use iced::widget::{button, column, container, mouse_area, pick_list, row, rule, scrollable, stack, text, text_input, Canvas, Column, Row, Shader, Space};
 use iced::{Alignment, Color, Element, Length};
 
-use crate::ornaments::{BookSpine, Corner, PageBorderCorner, PageHeaderOrnament, ShootingStar, TabSparkle};
+use crate::ornaments::{BookSpine, Corner, PageBorderCorner, PageHeaderOrnament, TabSparkle};
 
 use crate::animation;
 use crate::font;
@@ -246,91 +246,10 @@ impl Dashboard {
         let compact_nav = column![header_body]
             .spacing(theme::SPACE_XS);
 
-        // ── Fetch error banner (v7.5) ──────────────────────────
-        let fetch_error_banner: Element<Message> = if let Some(err) = &self.fetch_ticker_error {
-            let _p_err = theme::palette();
-            container(
-                text(format!("\u{26A0} {err}")).size(theme::text_sm())
-                    .color(Color { r: 0.95, g: 0.6, b: 0.2, a: 1.0 }),
-            )
-            .padding([4, 8])
-            .width(Length::Fill)
-            .style(move |_theme: &iced::Theme| {
-                container::Style {
-                    background: Some(iced::Background::Color(
-                        Color { r: 0.3, g: 0.15, b: 0.0, a: 0.25 },
-                    )),
-                    border: iced::Border {
-                        color: Color { r: 0.6, g: 0.3, b: 0.0, a: 0.4 },
-                        width: 1.0,
-                        radius: 4.0.into(),
-                    },
-                    ..Default::default()
-                }
-            })
-            .into()
-        } else if self.fetching_ticker {
-            // v11.9 (revised) — inline loading bar restored to v11.8.H
-            // position per user "revert the loading bar back to where it
-            // was in the previous build." Yellow fill + twinkling tip
-            // star + label percentage.
-            let p_load = theme::palette();
-            let elapsed = self.fetch_start_time
-                .map(|s| s.elapsed().as_secs_f32())
-                .unwrap_or(0.0);
-            let progress: f32 = if elapsed <= 30.0 {
-                (elapsed / 30.0) * 0.85
-            } else {
-                let extra = (elapsed - 30.0).min(20.0) / 20.0;
-                0.85 + 0.07 * extra
-            };
-            let phase_label = if elapsed <= 30.0 { "Loading…" } else { "Finalizing…" };
-            let fill_pct = (progress * 100.0).round() as u16;
-            let rest_pct = 100u16.saturating_sub(fill_pct);
-            let fill_bar = container(Space::new())
-                .width(Length::FillPortion(fill_pct.max(1)))
-                .height(Length::Fixed(4.0))
-                .style(move |_t: &iced::Theme| container::Style {
-                    background: Some(iced::Background::Color(p_load.gold)),
-                    border: iced::Border { radius: 2.0.into(), ..Default::default() },
-                    ..Default::default()
-                });
-            let twinkle_phase = (elapsed * 4.0).sin().abs();
-            let twinkle_alpha = 0.55 + 0.45 * twinkle_phase;
-            let tip_star = container(
-                text(icons::STAR.to_string())
-                    .font(icons::PHOSPHOR_BOLD)
-                    .size(14.0)
-                    .color(Color { a: twinkle_alpha, ..p_load.gold }),
-            )
-            .width(Length::Fixed(14.0))
-            .height(Length::Fixed(14.0))
-            .center_x(Length::Fixed(14.0))
-            .center_y(Length::Fixed(14.0));
-            let track_rest = container(Space::new())
-                .width(Length::FillPortion(rest_pct.max(1)))
-                .height(Length::Fixed(4.0))
-                .style(move |_t: &iced::Theme| container::Style {
-                    background: Some(iced::Background::Color(
-                        Color { a: 0.18, ..p_load.gold },
-                    )),
-                    border: iced::Border { radius: 2.0.into(), ..Default::default() },
-                    ..Default::default()
-                });
-            let bar_row = row![fill_bar, tip_star, track_rest]
-                .align_y(Alignment::Center)
-                .width(Length::Fill);
-            let label_row = row![
-                text(format!("{phase_label}  {}%", fill_pct))
-                    .size(theme::text_xs())
-                    .color(Color { a: 0.75, ..p_load.gold }),
-            ];
-            column![bar_row, label_row]
-                .spacing(2)
-                .into()
-        } else {
-            Space::new().height(Length::Fixed(0.0)).into()
-        };
+        // ── v12.1: push-down banner removed ───────────────────
+        // Errors + fetch progress now render as pills in the tab strip
+        // via the universal notification system (see build_tab_bar).
+        // The page header layout no longer reflows on fetch.
 
         // ── Tab content dispatch ───────────────────────────────
         let tab_content: Element<Message> = match self.active_tab {
@@ -385,7 +304,6 @@ impl Dashboard {
             tab_bar,
             rule::horizontal(1),
             compact_nav,
-            fetch_error_banner,
             autocomplete,
             Canvas::new(PageHeaderOrnament)
                 .width(Length::Fill).height(Length::Fixed(20.0)),
@@ -647,121 +565,20 @@ impl Dashboard {
             }
         });
 
-        // v11.9 (revised) — two coexisting chrome pills, both with motion:
-        //   1. fetching_pill — sparkly ShootingStar canvas, lives only
-        //      during self.fetching_ticker (Step 3 of plan).
-        //   2. alert_pill — pulsing star glyph for the most-recent unread
-        //      Lagrange alert. Click → Universe tab.
-        // Order: tabs → spacer → alert_pill → fetching_pill → gear.
-        let pill_btn_style = |_t: &iced::Theme, status: button::Status| {
-            let p = theme::palette();
-            let bg_alpha = match status {
-                button::Status::Hovered | button::Status::Pressed => 0.98,
-                _ => 0.92,
-            };
-            button::Style {
-                background: Some(iced::Background::Color(
-                    Color { r: 0.12, g: 0.10, b: 0.08, a: bg_alpha },
-                )),
-                text_color: Color::TRANSPARENT,
-                border: iced::Border {
-                    color: Color { a: 0.55, ..p.gold },
-                    width: 1.0,
-                    radius: 12.0.into(),
-                },
-                shadow: iced::Shadow {
-                    color: Color { a: 0.30, ..Color::BLACK },
-                    offset: iced::Vector::new(0.0, 1.5),
-                    blur_radius: 6.0,
-                },
-                snap: false,
-            }
-        };
-
-        // ── Alert pill ────────────────────────────────────────
-        // v11.9 (revised) — TTL gate. Pill shows only while
-        // Instant::now() < alert_pill_until (set on AlertsLoaded).
-        // After 8s it auto-hides regardless of unread count, matching
-        // the fetch pill's ephemeral behavior.
-        let alert_pill_active = self.alert_pill_until
-            .map(|until| std::time::Instant::now() < until)
-            .unwrap_or(false);
-        let alert_pill: Element<'_, Message> = if alert_pill_active {
-            if let Some(alert) = self.alerts.iter().find(|a| !a.is_read) {
-                let p_n = theme::palette();
-                let phase = (self.shader_time * 2.6).sin().abs();
-                let sparkle_alpha = 0.65 + 0.35 * phase;
-                button(
-                    row![
-                        text(icons::STAR.to_string())
-                            .font(icons::PHOSPHOR_BOLD)
-                            .size(12.0)
-                            .color(Color { a: sparkle_alpha, ..p_n.gold }),
-                        text(format!("{} \u{2192} {}", alert.ticker, alert.label))
-                            .size(theme::text_xs())
-                            .color(Color { r: 0.95, g: 0.90, b: 0.80, a: 1.0 }),
-                    ]
-                    .spacing(6)
-                    .align_y(Alignment::Center),
-                )
-                .on_press(Message::TabSelected(Tab::Universe))
-                .padding([3, 10])
-                .style(pill_btn_style)
-                .into()
-            } else {
-                Space::new().into()
-            }
-        } else {
-            Space::new().into()
-        };
-
-        // ── Fetch pill (sparkly animated, ephemeral) ─────────
-        let fetching_pill: Element<'_, Message> = if self.fetching_ticker {
-            let p_n = theme::palette();
-            let elapsed_s = self.fetch_start_time
-                .map(|s| s.elapsed().as_secs())
-                .unwrap_or(0);
-            let star_canvas = Canvas::new(ShootingStar { time: self.shader_time })
-                .width(Length::Fixed(56.0))
-                .height(Length::Fixed(18.0));
-            container(
-                row![
-                    star_canvas,
-                    text(format!("Fetching {} ({}s)", self.selected_ticker, elapsed_s))
-                        .size(theme::text_xs())
-                        .color(Color { r: 0.95, g: 0.90, b: 0.80, a: 1.0 }),
-                ]
-                .spacing(6)
-                .align_y(Alignment::Center),
-            )
-            .padding([3, 10])
-            .style(move |_t: &iced::Theme| container::Style {
-                background: Some(iced::Background::Color(
-                    Color { r: 0.12, g: 0.10, b: 0.08, a: 0.92 },
-                )),
-                border: iced::Border {
-                    color: Color { a: 0.65, ..p_n.gold },
-                    width: 1.0,
-                    radius: 12.0.into(),
-                },
-                shadow: iced::Shadow {
-                    color: Color { a: 0.30, ..Color::BLACK },
-                    offset: iced::Vector::new(0.0, 1.5),
-                    blur_radius: 6.0,
-                },
-                ..Default::default()
-            })
-            .into()
-        } else {
-            Space::new().into()
-        };
+        // ── v12.1: Universal pill notification stack ─────────
+        // Replaces v11.9 fetching_pill + alert_pill ad-hoc chrome with
+        // a single deque-driven pill row. Fetch progress, Lagrange
+        // alerts, transit events, errors, success — all render here.
+        // The page header layout never reflows on emit.
+        let pill_stack = crate::notifications::render_pill_stack(
+            &self.notifications,
+            self.shader_time,
+        );
 
         let full_strip = row![
             tab_row,
             Space::new().width(Length::Fill),
-            alert_pill,
-            Space::new().width(Length::Fixed(6.0)),
-            fetching_pill,
+            pill_stack,
             Space::new().width(Length::Fixed(8.0)),
             gear_btn,
         ]

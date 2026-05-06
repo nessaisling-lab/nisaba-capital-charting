@@ -110,6 +110,13 @@ impl Dashboard {
             .padding([40, 20])
             .into()
         } else {
+            // v12.0.B — precompute OHLC f32s + price range once per
+            // construction so the hover redraw path becomes O(1) field
+            // reads instead of O(n) Decimal→String→f32 parses.
+            let ohlc_f32 = crate::charts::PriceChart::precompute_ohlc(&visible_rows);
+            let (price_min, price_max) = crate::charts::PriceChart::compute_price_range(
+                &chart_data, &ohlc_f32, &bb_upper, &bb_lower,
+            );
             Canvas::new(PriceChart {
                 data: chart_data.clone(),
                 ticker: self.selected_ticker.clone(),
@@ -123,6 +130,9 @@ impl Dashboard {
                 draw_progress: self.chart_draw_progress,
                 tooltip_dims: self.tooltip_size.dims(),
                 cache: std::sync::Arc::clone(&self.price_chart_cache),
+                price_min,
+                price_max,
+                ohlc_f32,
             })
             .width(Length::Fill)
             .height(Length::Fixed(300.0))

@@ -350,6 +350,22 @@ pub struct Dashboard {
     pub alert_pill_until:         Option<std::time::Instant>,
     pub wiki_summary:             Option<crate::db::WikiSummary>,
     pub wiki_thumbnail_bytes:     Option<Vec<u8>>,
+    /// v12.1 — Universal pill notification deque. Active pills render
+    /// between right spacer and gear in tab strip. Replaces the v11.9
+    /// fetching_pill / alert_pill ad-hoc chrome and the inline
+    /// fetch_error_banner that used to push the page header down.
+    pub notifications:            std::collections::VecDeque<crate::notifications::Notification>,
+    /// v12.1 — Append-only history (capped at MAX_HISTORY) for future
+    /// notification drawer / audit log.
+    pub notification_history:     Vec<crate::notifications::Notification>,
+    /// Monotonic counter for notification ids.
+    pub next_notification_id:     u64,
+    /// Tracks which Lagrange alert IDs already produced a pill so the
+    /// AlertsLoaded handler doesn't re-emit on every refresh.
+    pub alerted_lagrange_ids:     std::collections::HashSet<i32>,
+    /// v12.1 — id of the sticky sparkly fetch pill so it can be
+    /// dismissed on FetchTickerComplete.
+    pub fetch_notification_id:    Option<u64>,
 }
 
 impl Default for Dashboard {
@@ -506,6 +522,11 @@ impl Default for Dashboard {
             alert_pill_until:         None,
             wiki_summary:             None,
             wiki_thumbnail_bytes:     None,
+            notifications:            std::collections::VecDeque::new(),
+            notification_history:     Vec::new(),
+            next_notification_id:     1,
+            alerted_lagrange_ids:     std::collections::HashSet::new(),
+            fetch_notification_id:    None,
         }
     }
 }
@@ -685,4 +706,9 @@ pub enum Message {
     SetChartSize(ChartSize),
     // Candlestick tooltip size (v11.3)
     SetTooltipSize(TooltipSize),
+    // v12.1 — Universal pill notification system
+    #[allow(dead_code)] // wired in v12.2 (click-to-dismiss + drawer)
+    DismissNotification(u64),
+    #[allow(dead_code)]
+    NotificationsTick, // expire pass driven by Tick
 }

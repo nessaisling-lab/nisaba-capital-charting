@@ -2,7 +2,183 @@
 
 **Author:** Aisling Leiva
 **Stack:** Rust, Iced 0.14, SQLx, PostgreSQL
-**Development:** 2026-04-07 to 2026-05-04
+**Development:** 2026-04-07 to 2026-05-06
+
+---
+
+## v12.1 — "The Pill" (shipped 2026-05-06)
+
+**Theme:** Universal pill-based notification system. Replaces the v11.9 ad-hoc `fetching_pill` + `alert_pill` chrome and the inline `fetch_error_banner` that pushed the page header layout down on every fetch. Driven by video review v8j (2026-05-05): *"this keeps some popping down. That's got to stop. If we need notifications, it should pop up here. Just like how this pop up comes to Mars Transit, Aries. That sparkly thing — that could be used for notifications as well."*
+
+### What shipped
+
+- New module `src/dashboard/notifications.rs` (~210 lines) with `Notification` struct + 6 variants (`Sparkly` · `Alert` · `Transit` · `Error` · `Success` · `Info`) + `render_pill` + `render_pill_stack`.
+- New state fields: `notifications: VecDeque<Notification>`, `notification_history: Vec<Notification>`, `next_notification_id`, `alerted_lagrange_ids`, `fetch_notification_id`.
+- New helpers on Dashboard: `push_notification`, `next_notif_id`, `dismiss_notification`, `expire_notifications`, plus `notify_error` / `notify_success` / `notify_info` shortcuts.
+- New Messages: `DismissNotification(u64)`, `NotificationsTick`.
+- `Tick` now calls `expire_notifications` + keeps the 60fps subscription active while pills exist (so sparkly + alert glyph keep twinkling).
+
+### Layout impact
+
+- **Killed** `fetch_error_banner` from main column flow — page header no longer reflows on fetch.
+- **Killed** v11.9 `fetching_pill` + `alert_pill` ad-hoc blocks (~115 lines) — replaced with one `render_pill_stack(&self.notifications, shader_time)` call between right spacer and gear.
+- Tab strip layout unchanged. Chart, header, ornaments untouched.
+
+### Emit sites wired
+
+- `FetchThisTicker` → sticky `Sparkly` pill. Replaced on `FetchTickerComplete`.
+- `FetchTickerComplete(Ok)` → `Success` pill (4s TTL).
+- `FetchTickerComplete(Err)` → `Error` pill (15s TTL). Replaces old push-down banner.
+- `AlertsLoaded` → `Alert` pill per *new* unread Lagrange alert (deduped via `alerted_lagrange_ids`). Click → Universe tab.
+
+### Variant TTLs
+
+| Variant | Default TTL | Use |
+|---|---|---|
+| Sparkly | none (sticky) | Fetch in progress, celebratory |
+| Alert | 8s | Lagrange unread |
+| Transit | 12s | Astrology event (wired in v12.2) |
+| Error | 15s | Fetch failure, rate limit |
+| Success | 4s | Fetch complete, save confirm |
+| Info | 8s | General info |
+
+### Caps
+
+`MAX_VISIBLE_PILLS = 3` (deque cap), `MAX_HISTORY = 50` (audit log cap).
+
+### Confirmed working
+
+User screenshots 020627 / 020645 / 020657 / 020725 — 3 alert pills stacking, fetch sparkly mid-fetch, success post-fetch, layout staying put across all 4 frames. *"Overall huge win, very happy with the progress we made."*
+
+---
+
+## v12.0.C — Munger narrative expansion (shipped 2026-05-06)
+
+**Theme:** Deferred B3 from v11.7. v11.7.B added 6 headline variants per Sell/StrongSell verdict but `build_munger_narrative` was thinner than peers — mid-range tickers got short, sparse paragraphs. v12.0.C makes Munger combinatorially deep so different tickers exercise different code paths.
+
+### Coverage expanded
+
+| Section | Before | After |
+|---|---|---|
+| Sector mental model | 6 sectors, keyword-only | 11 sectors, each with a Munger aphorism quote |
+| ROE | 1 band (>25%) | 5 bands: exceptional / good / mediocre / poor / negative |
+| Operating margin | 2 bands | 3 bands |
+| EV/EBITDA | absent | 4 bands (negative / cheap / fair / premium) |
+| Debt/equity | absent | 4 bands (extreme / heavy / fortress / mid-ignored) |
+| Free cash flow | absent | 3 bands |
+| News tone | 2 cases | 4 cases (Bullish / Somewhat-Bullish / Bearish / Somewhat-Bearish) |
+| Astro angle | absent | 2 bands (agreement / divergence) |
+| Score-band closer | 2 bands | 6 bands |
+
+Voice preserved: mental models, inversion, terse wit. Quotes retained — *"three things ruin smart people"*, *"voting machine vs weighing machine"*, *"treadmill that pays in pennies"*, *"charity not investment"*.
+
+---
+
+## v12.0.B — Chart hover full profiling (shipped 2026-05-06)
+
+**Theme:** v11.6.K cache split + v11.7.D bar-snap improved chart hover but user kept flagging lag (v11.6 review *"still keeps on lagging"* + v94 review *"not real-time yet"*). Profiled the redraw path. Found two hot spots in `draw()`:
+
+1. Hover-frame path recomputed `min`/`max` over entire data + ALL `rows_chrono.high.to_string().parse::<f32>()` + BB bands on every bar transition. ~127k Decimal→String→f32 allocations per cursor sweep.
+2. Cache-side candle paint did the same Decimal→f32 string roundtrip per row per data load.
+
+### Fix
+
+Two new fields on `PriceChart`:
+- `price_min: f32`, `price_max: f32` — precomputed range
+- `ohlc_f32: Vec<(f32, f32, f32, f32)>` — precomputed OHLC tuples
+
+Two new helpers: `PriceChart::precompute_ohlc()` + `PriceChart::compute_price_range()`. Wired in `view/overview.rs` → run once per chart construction → hover redraw becomes O(1) field reads.
+
+### Result
+
+User confirmed (v94 video): chart hover *"more responsive"* but not yet real-time. Universal perf win regardless. Real-time follow-up deferred (suspect: cosmic-text glyph shaping cost in `fill_text` per redraw).
+
+---
+
+## v12.0.D — Chart hover real-time fix attempt 2 (shipped 2026-05-06)
+
+**Theme:** v11.7.D bar-snap returned `None` on intra-bar moves but still mutated `*state = new_pos`. In Iced 0.14, canvas state mutation alone triggers redraw — so 1000Hz mouse events still produced 1000 redraws/sec on intra-bar travel.
+
+### Fix
+
+One-line change in `update()` handler — skip state mutation when `prev_bar == next_bar`. Crosshair already snaps to `bar_x = x_of(bar_i)` so state precision below bar resolution is irrelevant.
+
+### Result
+
+User confirmed (v94 follow-up): still not real-time vs gauges/sparkline. Deferred for prioritization. Both v12.0.B + v12.0.D fixes retained — universal perf wins, no regression.
+
+---
+
+## Wave 8 — "The Showcase" (shipped 2026-05-06)
+
+Rust axum sidecar — third binary alongside dashboard + scraper. Exposes the same data surface via REST so external clients (OpenBB Workspace, browser dashboards, custom integrations) consume what the desktop dashboard sees.
+
+### Endpoints
+
+- `GET /health` — service + DB liveness
+- `GET /widgets.json` — OpenBB Workspace widget manifest (7 widgets)
+- `GET /providers` — distinct providers populated in `provider_observations`
+- `GET /providers/:p` — series under one provider
+- `GET /series/:p/:s?region=X&limit=N` — observations for a series
+- `GET /tickers` — active tickers
+- `GET /tickers/:t/prices?limit=N` — OHLCV history
+- `GET /tickers/:t/lagrange` — Lagrange composite + sub-scores
+- `GET /tickers/:t/astro` — astrology score snapshot
+- `GET /tickers/:t/fundamentals` — latest fundamentals
+
+### Configuration
+
+- `SIDECAR_PORT` env (default `8765`)
+- `SIDECAR_API_KEY` env (optional X-API-Key header check; `/health` and `/widgets.json` always public)
+- CORS open for browser-based OpenBB Workspace consumption
+
+### OpenBB Workspace widgets (7)
+
+Lagrange Composite Score, Astrology Score, Pursuit OHLCV, World Bank Indicators, Treasury Yield Curve, OFR Financial Stress Index, CoinGecko Crypto.
+
+Run: `cargo run --bin sidecar` → `http://localhost:8765/widgets.json` is the OpenBB Workspace registration URL.
+
+---
+
+## Wave 7 — "The Library" (shipped 2026-05-05/06)
+
+10 native Rust provider scrapers — OpenBB-tier data depth without the Python runtime. All routed into `provider_observations` (one unified table, one schema). ~6500 new datapoints per scraper run.
+
+### Providers shipped
+
+| # | Module | Source | Key needed | Indicators |
+|---|--------|--------|------------|------------|
+| 7.1 | `world_bank.rs` | api.worldbank.org | no | 10 × 12 countries (GDP, CPI, unemployment, debt/GDP, FDI, exports/imports, population, industry/GDP) |
+| 7.2 | `coingecko.rs` | api.coingecko.com | no (free tier) | top-20 coins (price, market cap, volume, 24h %) + global stats (BTC/ETH dominance, total mcap) |
+| 7.3 | `treasury_direct.rs` | home.treasury.gov | no | 13 maturities (1mo, 2mo, 3mo, 4mo, 6mo, 1yr, 2yr, 3yr, 5yr, 7yr, 10yr, 20yr, 30yr) daily |
+| 7.4 | `imf.rs` | datamapper API | no | 5 × 11 countries (real GDP growth, inflation, unemployment, debt/GDP, current account) |
+| 7.5 | `ecb.rs` | data-api.ecb.europa.eu (SDMX) | no | Euribor 3M, ECB MRR, EUR/USD, EUR/GBP, EUR/CHF, EUR/JPY |
+| 7.6 | `bls.rs` | api.bls.gov v2 | optional `BLS_API_KEY` | unemployment, nonfarm, CPI All-Urban + Food/Housing/Gasoline |
+| 7.7 | `eia.rs` | api.eia.gov v2 | required `EIA_API_KEY` (skip if absent) | WTI, Brent, Henry Hub, US gasoline |
+| 7.8 | `cftc_cot.rs` | cftc.gov/dea | no | non-commercial net positioning on E-mini S&P, Nasdaq, DXY, gold, WTI |
+| 7.9 | `ofr.rs` | financialresearch.gov | no | OFR Financial Stress Index (33-component daily composite) |
+| 7.10 | `sec_recent.rs` | sec.gov/cgi-bin/browse-edgar | no | filing pulse (8-K, 10-K, 10-Q, S-1, 13D, 13G, Form 4 daily counts) |
+
+### Architecture
+
+`provider_observations` table — composite key `(provider, series_id, region, observation_date)`. Stores any time-series from any source. Cross-source queries via `WHERE provider IN (...) AND series_id LIKE ...`.
+
+Migration: `0046_wave7_providers.sql`.
+
+Scraper main.rs phases 3.14–3.23 wire each provider into the regular pipeline. All providers fail-soft: errors logged + pipeline continues.
+
+---
+
+## v12.0.A — OS toast notification real fix (shipped 2026-05-06)
+
+Resolved HRESULT 0x80070005 via two layers:
+
+1. **Runtime fallback** (`update/helpers.rs`) — windows-rs IShellLinkW + IPropertyStore.SetValue(PKEY_AppUserModel_ID) on a Start Menu `.lnk` at boot. Works for `cargo run` dev workflow.
+2. **Installer** (`installer/pursuit-astro.iss`) — Inno Setup .exe installer. `[Icons] AppUserModelID:` parameter binds the AUMID property natively during install. Triggers shell-cache refresh via standard installer SHChangeNotify. Output: `installer/Output/PursuitAstro-Setup.exe` (user-mode install to `%APPDATA%\Pursuit Astro\`).
+
+Cargo dep added (Windows-only target): `windows = "0.58"` with Win32_UI_Shell + Win32_UI_Shell_PropertiesSystem + Win32_Storage_EnhancedStorage features.
+
+Toast notifications work after running the installer once (no manual sign-out/in required).
 
 ---
 

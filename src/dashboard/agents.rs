@@ -704,41 +704,203 @@ fn analyze_munger(ctx: &AgentContext) -> AgentAnalysis {
 fn build_munger_narrative(ctx: &AgentContext, score: i32) -> String {
     let Some(f) = ctx.fundamentals.as_ref() else { return String::new() };
     let mut parts = Vec::new();
-    // Sector-specific mental models
+
+    // ── Sector mental model — expanded v12.0.C with Munger-voice quote
     if let Some(ref sector) = ctx.sector {
-        let model = match sector.as_str() {
-            "Technology" => "network effects and switching costs",
-            "Financial Services" => "leverage and trust",
-            "Healthcare" => "regulatory moats and patent cliffs",
-            "Energy" => "commodity cycles and capital intensity",
-            "Consumer Defensive" => "brand loyalty and habitual consumption",
-            "Industrials" => "scale economics and installed base",
-            _ => "competitive dynamics and durable advantages",
+        let (model, quote) = match sector.as_str() {
+            "Technology" =>
+                ("network effects and switching costs",
+                 "The best businesses scale without proportional cost. Software at its best does this; commodity hardware does not."),
+            "Financial Services" =>
+                ("leverage and trust",
+                 "Banking is a wonderful business unless you do dumb things. The trouble is, the temptation to do dumb things is constant."),
+            "Healthcare" =>
+                ("regulatory moats and patent cliffs",
+                 "A patent is a finite moat. The best healthcare companies build a *second* moat — distribution, data, or trust — before the first one expires."),
+            "Energy" =>
+                ("commodity cycles and capital intensity",
+                 "Capital-intensive commodity businesses are usually a slow way to lose money. The exceptions are spectacular but rare."),
+            "Consumer Defensive" =>
+                ("brand loyalty and habitual consumption",
+                 "Habitual consumption is the cheapest form of customer acquisition ever invented. People don't think — they reach."),
+            "Consumer Cyclical" =>
+                ("aspirational pricing and discretionary timing",
+                 "Selling things people *want* but don't *need* is treacherous in a downturn. Quality cyclicals survive; junk ones disappear."),
+            "Industrials" =>
+                ("scale economics and installed base",
+                 "An installed base of equipment generates decades of high-margin parts and service. That's where industrials make real money."),
+            "Communication Services" =>
+                ("attention economics and platform effects",
+                 "If you control where attention flows, you can charge tolls forever. If you don't, you're just another middleman."),
+            "Real Estate" =>
+                ("location, capital structure, and rent escalators",
+                 "Real estate rewards patience and good leverage; it punishes impatience and bad leverage. Same buildings, very different outcomes."),
+            "Utilities" =>
+                ("regulated returns and capital recovery",
+                 "Regulated utilities are bond-like. Don't expect surprises — that's the deal."),
+            "Basic Materials" =>
+                ("commodity prices and operating leverage",
+                 "If your input cost is the spot price of a global commodity, you don't have a business — you have a bet on a commodity."),
+            _ =>
+                ("competitive dynamics and durable advantages",
+                 "Every business eventually answers one question: who took the customer's last dollar, and why?"),
         };
-        parts.push(format!("In this sector, the key mental model is {model}. Let me evaluate {} through that lens.", ctx.ticker));
+        parts.push(format!(
+            "Mental model for this sector: {model}. {quote} Let me apply that to {}.",
+            ctx.ticker
+        ));
     }
+
+    // ── ROE — full band coverage (v12.0.C added mid + low bands)
     if let Some(roe) = f.roe {
         let pct = roe * 100.0;
-        if pct > 25.0 { parts.push(format!("ROE of {pct:.0}% is exceptional. When you see this consistently, there's usually a moat.")); }
+        if pct > 25.0 {
+            parts.push(format!(
+                "ROE of {pct:.0}% is exceptional. Sustained over a decade, that's almost always a moat — though I'd want to see what funds it: pricing power, scale, or just leverage."
+            ));
+        } else if pct > 15.0 {
+            parts.push(format!(
+                "ROE of {pct:.0}% is comfortably above cost of capital. The business is at least earning its keep."
+            ));
+        } else if pct > 8.0 {
+            parts.push(format!(
+                "ROE of {pct:.0}% is mediocre — about what you'd get from a Treasury ladder with less drama. Not the kind of compounder I get out of bed for."
+            ));
+        } else if pct > 0.0 {
+            parts.push(format!(
+                "ROE of {pct:.0}% is below cost of capital. This business is destroying shareholder value while management collects salaries. Invert: why would I own this?"
+            ));
+        } else {
+            parts.push(
+                "Negative ROE. The business is shrinking the owners' capital. That's not investing — that's a slow-motion liquidation."
+                    .to_string(),
+            );
+        }
     }
+
+    // ── Operating margin — three bands
     if let Some(om) = f.operating_margin {
         let pct = om * 100.0;
-        if pct > 30.0 { parts.push(format!("Operating margin of {pct:.0}% shows real pricing power. Competitors can't touch this.")); }
-        else if pct < 5.0 { parts.push("Thin operating margin suggests a commoditized business. No pricing power.".to_string()); }
+        if pct > 30.0 {
+            parts.push(format!(
+                "Operating margin of {pct:.0}% reveals real pricing power. Competitors who try to undercut this end up bleeding."
+            ));
+        } else if pct > 15.0 {
+            parts.push(format!(
+                "Operating margin of {pct:.0}% is reasonable. Not exceptional, but not commoditized either."
+            ));
+        } else if pct < 5.0 {
+            parts.push(format!(
+                "Operating margin of {pct:.0}% says commodity. No pricing power, no moat — just a treadmill that pays in pennies."
+            ));
+        }
     }
-    // News as signal vs noise
+
+    // ── EV/EBITDA — Munger uses it as a sanity check (v12.0.C added)
+    if let Some(ev) = f.ev_ebitda {
+        if ev < 0.0 {
+            parts.push(
+                "Negative EV/EBITDA. The capital structure is broken or earnings are. Either way: not investable."
+                    .to_string(),
+            );
+        } else if ev < 8.0 {
+            parts.push(format!(
+                "EV/EBITDA of {ev:.1} is cheap by any measure. Cheap and good is rare — usually one is wrong. I'd want to know which."
+            ));
+        } else if ev > 25.0 {
+            parts.push(format!(
+                "EV/EBITDA of {ev:.1} is priced for perfection. The quality has to be exceptional to justify this — and exceptional quality is rarer than markets pretend."
+            ));
+        }
+    }
+
+    // ── Debt/equity — leverage warnings (v12.0.C expanded)
+    if let Some(de) = f.debt_equity {
+        if de > 3.0 {
+            parts.push(format!(
+                "Debt-to-equity of {de:.1} is dangerous. Three things ruin smart people: liquor, ladies, and leverage. This one has the third in spades."
+            ));
+        } else if de > 1.5 {
+            parts.push(format!(
+                "Debt-to-equity of {de:.1} is heavier than I prefer. Leverage works wonderfully until the cycle turns — and the cycle always turns."
+            ));
+        } else if de < 0.3 {
+            parts.push(
+                "The balance sheet is essentially debt-free. That's optionality — they can buy when others can't."
+                    .to_string(),
+            );
+        }
+    }
+
+    // ── FCF — Munger checks if business funds itself (v12.0.C added)
+    if let Some(fcf) = f.fcf {
+        if fcf > 5_000_000_000 {
+            parts.push(format!(
+                "Free cash flow of {} means the owner is being paid in real money — not promises, not adjusted EBITDA, not story stocks.",
+                format_large_number(fcf)
+            ));
+        } else if fcf < 0 {
+            parts.push(
+                "Negative free cash flow. The business consumes more than it produces. That's a charity, not an investment."
+                    .to_string(),
+            );
+        }
+    }
+
+    // ── News tone — expanded with Munger weighing-machine line
     if !ctx.recent_headlines.is_empty() {
         if let Some(ref tone_label) = ctx.rss_tone_label {
             match tone_label.as_str() {
-                "Bearish" | "Somewhat-Bearish" => parts.push("The news cycle is negative. Remember: in the short run, the market is a voting machine. In the long run, a weighing machine. I weigh.".to_string()),
-                "Bullish" => parts.push("Positive sentiment is nice, but I've seen enthusiasm destroy more wealth than pessimism. The question remains: what is the quality of this business?".to_string()),
+                "Bearish" => parts.push(
+                    "The news cycle is sharply negative. Short run, the market is a voting machine; long run, a weighing machine. I weigh — and I sometimes find a wonderful business mispriced because the herd is busy panicking."
+                        .to_string(),
+                ),
+                "Somewhat-Bearish" => parts.push(
+                    "Headlines lean negative. That's often when patient capital gets paid — if the business itself is sound."
+                        .to_string(),
+                ),
+                "Bullish" => parts.push(
+                    "Sentiment is enthusiastic. I've watched enthusiasm destroy more wealth than pessimism ever has. Enthusiasm pays a price; quality earns a return."
+                        .to_string(),
+                ),
+                "Somewhat-Bullish" => parts.push(
+                    "Mildly positive coverage. Useful as crowd-mood data, but the business is still the business."
+                        .to_string(),
+                ),
                 _ => {}
             }
         }
     }
-    if score >= 8 { parts.push("This is the kind of quality business I want to own forever. The key question is price.".to_string()); }
-    else if score <= -2 { parts.push("Invert, always invert. What would destroy this investment? Too many things. Pass.".to_string()); }
-    if parts.is_empty() { "The quality picture is mixed. I'd keep watching but not act.".to_string() } else { parts.join(" ") }
+
+    // ── Astro acknowledgment — Munger as skeptic-but-pragmatist (v12.0.C added)
+    if let Some(astro) = ctx.astro_score {
+        if astro > 75.0 {
+            parts.push(format!(
+                "Astro reads {astro:.0}, which I'd call 'the universe agrees with the fundamentals.' I don't worship it, but it's one data point and it's pointing the same way."
+            ));
+        } else if astro < 30.0 {
+            parts.push(format!(
+                "Astro reads {astro:.0} — the timing inputs disagree with the fundamentals. When two independent lenses disagree, I slow down."
+            ));
+        }
+    }
+
+    // ── Score-band closer — five bands (v12.0.C expanded from two)
+    let closer = match score {
+        s if s >= 8 => "Take a simple idea seriously: quality + reasonable price + competent management. This one has all three. I'd own it forever — the only question is *price*, and at the wrong price even a wonderful business is a poor investment.",
+        s if s >= 5 => "A good business at a fair price. Not the home run, but the singles compound nicely over decades. The question is whether you have the patience to let them.",
+        s if s >= 1 => "Mixed signal. Some quality markers, some flags. Munger's first rule: if you don't have an edge, you don't have a position. I don't see an edge here.",
+        s if s >= -1 => "The numbers don't form a coherent investment thesis. 'Acceptable' isn't a verdict — it's a way of saying 'I haven't decided.' Decide.",
+        s if s >= -3 => "Multiple quality markers fail. Inversion: what would make this business win? I'd need a long list, and I don't have one.",
+        _ => "Invert, always invert. What would destroy this investment? Too many things, all at once. The answer is simple: don't go there.",
+    };
+    parts.push(closer.to_string());
+
+    if parts.is_empty() {
+        "The quality picture is mixed. I'd keep watching but not act — patience compounds, action without conviction does not.".to_string()
+    } else {
+        parts.join(" ")
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -283,6 +283,78 @@ impl Dashboard {
         let now = std::time::Instant::now();
         self.toasts.retain(|(_, expiry)| *expiry > now);
     }
+
+    /// v12.1 — Push a notification onto the active deque and append a
+    /// copy to history. Caller responsible for variant choice + TTL.
+    pub(crate) fn push_notification(
+        &mut self,
+        notif: crate::notifications::Notification,
+    ) {
+        // Same-id replace (idempotent re-push, e.g. fetch progress
+        // ticking).  Otherwise append.
+        if let Some(pos) = self.notifications.iter().position(|n| n.id == notif.id) {
+            self.notifications[pos] = notif.clone();
+        } else {
+            self.notifications.push_back(notif.clone());
+        }
+        // Cap history.
+        self.notification_history.push(notif);
+        if self.notification_history.len() > crate::notifications::MAX_HISTORY {
+            let drop = self.notification_history.len() - crate::notifications::MAX_HISTORY;
+            self.notification_history.drain(0..drop);
+        }
+    }
+
+    /// Allocate the next monotonic notification id.
+    pub(crate) fn next_notif_id(&mut self) -> u64 {
+        let id = self.next_notification_id;
+        self.next_notification_id = self.next_notification_id.wrapping_add(1).max(1);
+        id
+    }
+
+    /// Remove a notification by id (click-to-dismiss / external trigger).
+    pub(crate) fn dismiss_notification(&mut self, id: u64) {
+        self.notifications.retain(|n| n.id != id);
+    }
+
+    /// Expire pass — runs on each Tick. Drops notifications whose TTL
+    /// has elapsed. Sticky pills (expires_at = None) are untouched.
+    pub(crate) fn expire_notifications(&mut self) {
+        let now = std::time::Instant::now();
+        self.notifications.retain(|n| !n.is_expired(now));
+    }
+
+    /// v12.1 — Convenience emitters for the common pill types.
+    pub(crate) fn notify_error(&mut self, text: impl Into<String>) {
+        let id = self.next_notif_id();
+        let n = crate::notifications::Notification::new(
+            id,
+            crate::notifications::NotificationVariant::Error,
+            text,
+        );
+        self.push_notification(n);
+    }
+
+    pub(crate) fn notify_success(&mut self, text: impl Into<String>) {
+        let id = self.next_notif_id();
+        let n = crate::notifications::Notification::new(
+            id,
+            crate::notifications::NotificationVariant::Success,
+            text,
+        );
+        self.push_notification(n);
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn notify_info(&mut self, text: impl Into<String>) {
+        let id = self.next_notif_id();
+        let n = crate::notifications::Notification::new(
+            id,
+            crate::notifications::NotificationVariant::Info,
+            text,
+        );
+        self.push_notification(n);
+    }
 }
 
 // ---------------------------------------------------------------------------

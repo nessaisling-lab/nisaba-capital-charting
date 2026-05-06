@@ -11,6 +11,10 @@ path = "src/scraper/main.rs"
 name = "dashboard"
 path = "src/dashboard/main.rs"
 
+[[bin]]
+name = "sidecar"
+path = "src/sidecar/main.rs"
+
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.13", default-features = false, features = ["json", "form", "native-tls", "charset", "http2"] }
@@ -33,6 +37,13 @@ rfd = "0.15"
 csv = "1"
 feed-rs = "2"
 bytemuck = { version = "1", features = ["derive"] }
+
+# Wave 8 — sidecar HTTP API
+axum = "0.7"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+tower = "0.5"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # v12.0.A — Windows toast notification real fix. Creates an AUMID-bound
 # Start Menu shortcut via IShellLinkW + IPropertyStore.SetValue so

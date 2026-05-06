@@ -36,11 +36,58 @@ pub struct PriceChart {
     /// load instead of on every cursor move. Hover overlay still paints
     /// fresh each tick.
     pub cache:         std::sync::Arc<canvas::Cache>,
+    /// v12.0.B — precomputed price range (min, max). Hover redraw used
+    /// to recompute these every bar transition via O(n) iteration plus
+    /// `Decimal::to_string().parse::<f32>()` per row, which is the root
+    /// cause of remaining hover lag despite v11.6.K cache split + v11.7.D
+    /// bar-index snap. Compute once at construction → field reads.
+    pub price_min:     f32,
+    pub price_max:     f32,
+    /// v12.0.B — precomputed (open,high,low,close) f32 quads to avoid
+    /// per-redraw Decimal→String→f32 string roundtrips during candlestick
+    /// painting (also amortizes the cache-side cost on first draw).
+    pub ohlc_f32:      Vec<(f32, f32, f32, f32)>,
 }
 
 impl PriceChart {
     fn price_to_y(price: f32, min: f32, range: f32, pad_top: f32, h: f32) -> f32 {
         pad_top + h - ((price - min) / range) * h
+    }
+
+    /// v12.0.B — Convert OHLC Decimal rows to f32 once. Use at chart
+    /// construction time to populate `ohlc_f32`. Caller-side helper so
+    /// the perf fix is opt-in without forcing every PriceChart user to
+    /// reimplement the parse.
+    pub fn precompute_ohlc(rows: &[PriceRow]) -> Vec<(f32, f32, f32, f32)> {
+        rows.iter().map(|r| (
+            r.open.to_string().parse::<f32>().unwrap_or(0.0),
+            r.high.to_string().parse::<f32>().unwrap_or(0.0),
+            r.low.to_string().parse::<f32>().unwrap_or(f32::INFINITY),
+            r.close.to_string().parse::<f32>().unwrap_or(0.0),
+        )).collect()
+    }
+
+    /// v12.0.B — Compute global price (min, max) over data + OHLC + BB
+    /// bands. Single source of truth for both cache + hover paths.
+    pub fn compute_price_range(
+        data: &[f32],
+        ohlc_f32: &[(f32, f32, f32, f32)],
+        bb_upper: &[Option<f32>],
+        bb_lower: &[Option<f32>],
+    ) -> (f32, f32) {
+        let mut min = data.iter().cloned().fold(f32::INFINITY, f32::min);
+        let mut max = data.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+        for &(_, h_f, l_f, _) in ohlc_f32 {
+            if h_f > max { max = h_f; }
+            if l_f < min { min = l_f; }
+        }
+        for &v in bb_upper.iter().filter_map(|x| x.as_ref()) {
+            if v > max { max = v; }
+        }
+        for &v in bb_lower.iter().filter_map(|x| x.as_ref()) {
+            if v < min { min = v; }
+        }
+        (min, max)
     }
 
     fn draw_series(frame: &mut canvas::Frame, pts: &[Option<Point>], color: Color, width: f32) {
@@ -74,12 +121,13 @@ impl canvas::Program<Message> for PriceChart {
     ) -> Option<Action<Message>> {
         match event {
             canvas::Event::Mouse(mouse::Event::CursorMoved { .. }) => {
-                // v11.7.D — only invalidate when cursor crosses into a
-                // new candle. Root cause of hover lag: every pixel-level
-                // mouse move was triggering Action::capture() and an
-                // entire-window redraw. With 1000Hz mice the window was
-                // redrawing 1000× per second while sweeping the chart.
-                // Snap to bar index — at most n redraws per pass instead.
+                // v11.7.D — bar-index snap to skip redraws on intra-bar
+                // moves. v12.0.D — also skip *state mutation* when bar
+                // unchanged. In Iced 0.14, mutating canvas state triggers
+                // a redraw even when `update()` returns None. The crosshair
+                // already snaps to `bar_x = x_of(bar_i)` so state precision
+                // below bar resolution is irrelevant. Skipping the mutation
+                // turns 1000Hz pixel events into ~n events per chart sweep.
                 let new_pos = cursor.position_in(bounds);
                 let bar_idx = |p: Option<Point>| -> Option<usize> {
                     let pos = p?;
@@ -95,7 +143,7 @@ impl canvas::Program<Message> for PriceChart {
                 let prev_bar = bar_idx(*state);
                 let next_bar = bar_idx(new_pos);
                 if prev_bar == next_bar {
-                    *state = new_pos;
+                    // Bar unchanged → skip BOTH state mutation and redraw.
                     return None;
                 }
                 *state = new_pos;
@@ -141,18 +189,10 @@ impl canvas::Program<Message> for PriceChart {
         let static_geo = self.cache.draw(renderer, bounds.size(), |frame| {
             frame.fill_rectangle(Point::ORIGIN, bounds.size(), theme::canvas_bg(_theme));
 
-        // Price range — expand to fit OHLC wicks + BB bands
-        let mut min = self.data.iter().cloned().fold(f32::INFINITY, f32::min);
-        let mut max = self.data.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-        // Include high/low from OHLC data so candlestick wicks don't clip
-        for row in &self.rows_chrono {
-            let h_f = row.high.to_string().parse::<f32>().unwrap_or(0.0);
-            let l_f = row.low.to_string().parse::<f32>().unwrap_or(f32::INFINITY);
-            if h_f > max { max = h_f; }
-            if l_f < min { min = l_f; }
-        }
-        for &v in self.bb_upper.iter().filter_map(|x| x.as_ref()) { if v > max { max = v; } }
-        for &v in self.bb_lower.iter().filter_map(|x| x.as_ref()) { if v < min { min = v; } }
+        // v12.0.B — read precomputed range + ohlc instead of O(n) loop +
+        // Decimal→String→f32 per row.
+        let min = self.price_min;
+        let max = self.price_max;
         let range = max - min;
         if range == 0.0 { return; }
 
@@ -225,12 +265,7 @@ impl canvas::Program<Message> for PriceChart {
         let price_pts: Vec<Point> = self.data.iter().enumerate()
             .map(|(i, &p)| Point::new(x_of(i), y_of(p))).collect();
 
-        for (i, row) in self.rows_chrono.iter().enumerate() {
-            let open_f  = row.open.to_string().parse::<f32>().unwrap_or(0.0);
-            let high_f  = row.high.to_string().parse::<f32>().unwrap_or(0.0);
-            let low_f   = row.low.to_string().parse::<f32>().unwrap_or(0.0);
-            let close_f = row.close.to_string().parse::<f32>().unwrap_or(0.0);
-
+        for (i, &(open_f, high_f, low_f, close_f)) in self.ohlc_f32.iter().enumerate() {
             let cx = x_of(i);
             let bullish = close_f >= open_f;
             let color = if bullish { theme::bullish(_theme) } else { theme::bearish(_theme) };
@@ -398,7 +433,9 @@ impl canvas::Program<Message> for PriceChart {
         }); // close cache.draw closure (v11.6.K)
 
         // ── Hover overlay — fresh frame each tick (cheap) ─────────
-        // Recompute layout vars used by hover (cache closure consumed them)
+        // v12.0.B — read precomputed range. Old code recomputed min/max
+        // here on every bar transition, including ~252 Decimal→String
+        // →f32 string allocs per redraw. Field reads now: O(1) per pass.
         let mut hover_frame = canvas::Frame::new(renderer, bounds.size());
         let pad_left   = 55.0_f32;
         let pad_right  = 15.0_f32;
@@ -408,17 +445,8 @@ impl canvas::Program<Message> for PriceChart {
         let w = bounds.width  - pad_left - pad_right;
         let h = bounds.height - pad_top  - pad_bottom - vol_height;
         let n = self.data.len();
-        let mut min = f32::INFINITY;
-        let mut max = f32::NEG_INFINITY;
-        for &v in &self.data { if v < min { min = v; } if v > max { max = v; } }
-        for row in &self.rows_chrono {
-            let h_f = row.high.to_string().parse::<f32>().unwrap_or(0.0);
-            let l_f = row.low.to_string().parse::<f32>().unwrap_or(f32::INFINITY);
-            if h_f > max { max = h_f; }
-            if l_f < min { min = l_f; }
-        }
-        for &v in self.bb_upper.iter().filter_map(|x| x.as_ref()) { if v > max { max = v; } }
-        for &v in self.bb_lower.iter().filter_map(|x| x.as_ref()) { if v < min { min = v; } }
+        let min = self.price_min;
+        let max = self.price_max;
         let range = max - min;
         if range > 0.0 {
         let x_of = |i: usize| pad_left + (i as f32 / (n - 1) as f32) * w;

@@ -14,6 +14,7 @@ mod heatmap;
 mod helpers;
 mod icons;
 mod indicators;
+mod notifications;
 mod ornaments;
 mod patterns;
 mod shaders;

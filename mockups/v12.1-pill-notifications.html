@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>v12.1 — Pill Notification System Mockup</title>
+<style>
+  :root {
+    --parchment: #f1ead7;
+    --ink: #2a1f15;
+    --gold: #c9a44a;
+    --gold-soft: rgba(201,164,74,.55);
+    --bubble-bg: rgba(31,26,20,.92);
+    --bubble-text: #f3ecd8;
+    --shadow: 0 1.5px 6px rgba(0,0,0,.30);
+    --bad: #c25a3c;
+    --good: #6fa86b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #1a1410;
+    color: var(--ink);
+    font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+    padding: 24px;
+  }
+  h1 { color: var(--gold); margin: 0 0 4px; font-size: 22px; }
+  h2 { color: var(--gold-soft); margin: 24px 0 8px; font-size: 14px; letter-spacing: 2px; text-transform: uppercase; font-weight: normal; }
+  .caption { color: #a89878; font-size: 12px; margin: 0 0 14px; }
+
+  /* dashboard chrome */
+  .dashboard {
+    background: var(--parchment);
+    border-radius: 6px;
+    padding: 8px 12px;
+    box-shadow: 0 4px 24px rgba(0,0,0,.4);
+    margin-bottom: 24px;
+  }
+
+  .tab-strip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    position: relative;
+  }
+  .tab {
+    padding: 4px 10px;
+    border-radius: 4px;
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .tab.active { background: rgba(42,31,21,.10); border: 1px solid var(--gold-soft); }
+  .spacer { flex: 1; }
+  .gear {
+    width: 28px; height: 28px;
+    display: grid; place-items: center;
+    color: var(--gold);
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .gear:hover { background: rgba(201,164,74,.18); }
+
+  /* THE PILL — base */
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    background: var(--bubble-bg);
+    color: var(--bubble-text);
+    border: 1px solid var(--gold-soft);
+    box-shadow: var(--shadow);
+    font-size: 12px;
+    line-height: 1.3;
+    white-space: nowrap;
+  }
+  .pill .icon {
+    color: var(--gold);
+    font-weight: bold;
+    font-size: 12px;
+  }
+  .pill .ticker { font-weight: 600; color: #fff; }
+  .pill.clickable { cursor: pointer; transition: transform .15s ease; }
+  .pill.clickable:hover { transform: translateY(-1px); }
+
+  /* variant: sparkly (fetch / celebratory) */
+  .pill.sparkly { border-color: rgba(201,164,74,.8); }
+  .pill.sparkly .icon {
+    animation: twinkle 1.4s ease-in-out infinite;
+  }
+  @keyframes twinkle {
+    0%, 100% { opacity: .55; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.18); }
+  }
+  .pill.sparkly .shooting-star {
+    width: 56px; height: 18px;
+    background: linear-gradient(90deg, transparent 0%, rgba(201,164,74,.8) 40%, #fff 50%, rgba(201,164,74,.8) 60%, transparent 100%);
+    background-size: 200% 100%;
+    background-position: 0% 0%;
+    border-radius: 2px;
+    animation: shoot 1.8s linear infinite;
+    mask: radial-gradient(ellipse at center, #000 30%, transparent 80%);
+  }
+  @keyframes shoot {
+    0% { background-position: 100% 0%; }
+    100% { background-position: -100% 0%; }
+  }
+
+  /* variant: alert (existing pulsing star) */
+  .pill.alert .icon { animation: pulse 2.4s ease-in-out infinite; }
+  @keyframes pulse {
+    0%, 100% { opacity: .65; }
+    50% { opacity: 1; }
+  }
+
+  /* variant: error (orange-red border) */
+  .pill.error {
+    border-color: rgba(194,90,60,.7);
+  }
+  .pill.error .icon { color: var(--bad); }
+
+  /* variant: success */
+  .pill.success {
+    border-color: rgba(111,168,107,.7);
+  }
+  .pill.success .icon { color: var(--good); }
+
+  /* variant: transit (astrology) */
+  .pill.transit .icon { color: var(--gold); }
+
+  /* stacked pills container — sits between spacer and gear */
+  .pill-stack {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* stage 2: notification drawer (dropped from gear, click-to-expand history) */
+  .drawer {
+    position: absolute;
+    top: 36px;
+    right: 0;
+    width: 320px;
+    background: var(--bubble-bg);
+    border: 1px solid var(--gold-soft);
+    border-radius: 8px;
+    padding: 8px;
+    box-shadow: var(--shadow);
+    z-index: 5;
+  }
+  .drawer-row {
+    padding: 8px 10px;
+    border-radius: 4px;
+    color: var(--bubble-text);
+    font-size: 12px;
+    display: flex; gap: 8px; align-items: flex-start;
+  }
+  .drawer-row + .drawer-row { border-top: 1px solid rgba(255,255,255,.06); }
+  .drawer-row .icon { color: var(--gold); margin-top: 2px; }
+  .drawer-row .meta { color: #aa9b7a; font-size: 10px; margin-top: 2px; }
+  .drawer-header { color: var(--gold); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; padding: 4px 10px; }
+
+  /* sample chart area — just placeholder */
+  .chart-area {
+    background: rgba(42,31,21,.04);
+    border-radius: 4px;
+    padding: 30px;
+    text-align: center;
+    color: #999;
+    margin-top: 6px;
+    font-size: 12px;
+  }
+
+  /* labels for scenarios */
+  .scenario-label {
+    display: inline-block;
+    background: var(--gold);
+    color: var(--ink);
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+
+  .footnote {
+    color: #a89878;
+    font-size: 11px;
+    border-left: 2px solid var(--gold);
+    padding: 6px 10px;
+    margin-top: 18px;
+    background: rgba(201,164,74,.05);
+  }
+
+  ul { color: #d6c8a8; font-size: 13px; line-height: 1.6; }
+  ul code { background: rgba(201,164,74,.1); padding: 1px 5px; border-radius: 2px; color: var(--gold); }
+</style>
+</head>
+<body>
+
+<h1>v12.1 — Universal Pill Notification System</h1>
+<p class="caption">Mockup for review · 2026-05-06 · Caveman draft</p>
+
+<!-- ─────────── SCENARIO 1: idle ─────────── -->
+<div class="scenario-label">Scenario 1 — Idle</div>
+<div class="dashboard">
+  <div class="tab-strip">
+    <div class="tab">Astrology</div>
+    <div class="tab active">Universe</div>
+    <div class="tab">Charts</div>
+    <div class="tab">Fundamentals</div>
+    <div class="tab">Research</div>
+    <div class="tab">Portfolio</div>
+    <div class="spacer"></div>
+    <div class="pill-stack">
+      <!-- nothing — clean -->
+    </div>
+    <div class="gear">⚙</div>
+  </div>
+  <div class="chart-area">[ page content — unchanged ]</div>
+</div>
+
+<!-- ─────────── SCENARIO 2: fetching ─────────── -->
+<div class="scenario-label">Scenario 2 — Fetching (sparkly)</div>
+<div class="dashboard">
+  <div class="tab-strip">
+    <div class="tab">Astrology</div>
+    <div class="tab active">Universe</div>
+    <div class="tab">Charts</div>
+    <div class="tab">Fundamentals</div>
+    <div class="tab">Research</div>
+    <div class="tab">Portfolio</div>
+    <div class="spacer"></div>
+    <div class="pill-stack">
+      <div class="pill sparkly">
+        <div class="shooting-star"></div>
+        <span>Fetching <span class="ticker">AAPL</span> (12s)</span>
+      </div>
+    </div>
+    <div class="gear">⚙</div>
+  </div>
+  <div class="chart-area">[ page content — does NOT push down ]</div>
+</div>
+
+<!-- ─────────── SCENARIO 3: alert + transit ─────────── -->
+<div class="scenario-label">Scenario 3 — Lagrange alert + Mars transit</div>
+<div class="dashboard">
+  <div class="tab-strip">
+    <div class="tab">Astrology</div>
+    <div class="tab active">Universe</div>
+    <div class="tab">Charts</div>
+    <div class="tab">Fundamentals</div>
+    <div class="tab">Research</div>
+    <div class="tab">Portfolio</div>
+    <div class="spacer"></div>
+    <div class="pill-stack">
+      <div class="pill transit clickable">
+        <span class="icon">✦</span>
+        <span><span class="ticker">Mars</span> → Aries</span>
+      </div>
+      <div class="pill alert clickable">
+        <span class="icon">★</span>
+        <span><span class="ticker">TSLA</span> → Strong Confirm</span>
+      </div>
+    </div>
+    <div class="gear">⚙</div>
+  </div>
+  <div class="chart-area">[ page content ]</div>
+</div>
+
+<!-- ─────────── SCENARIO 4: error + success stacked ─────────── -->
+<div class="scenario-label">Scenario 4 — Error + Success stacked</div>
+<div class="dashboard">
+  <div class="tab-strip">
+    <div class="tab">Astrology</div>
+    <div class="tab active">Universe</div>
+    <div class="tab">Charts</div>
+    <div class="tab">Fundamentals</div>
+    <div class="tab">Research</div>
+    <div class="tab">Portfolio</div>
+    <div class="spacer"></div>
+    <div class="pill-stack">
+      <div class="pill success clickable">
+        <span class="icon">✓</span>
+        <span>Saved <span class="ticker">NVDA</span></span>
+      </div>
+      <div class="pill error clickable">
+        <span class="icon">⚠</span>
+        <span>FMP rate-limit hit</span>
+      </div>
+    </div>
+    <div class="gear">⚙</div>
+  </div>
+  <div class="chart-area">[ page content ]</div>
+</div>
+
+<!-- ─────────── SCENARIO 5: drawer (gear-click history) ─────────── -->
+<div class="scenario-label">Scenario 5 — Notification history (click gear OR bell)</div>
+<div class="dashboard" style="position:relative;">
+  <div class="tab-strip">
+    <div class="tab">Astrology</div>
+    <div class="tab active">Universe</div>
+    <div class="tab">Charts</div>
+    <div class="tab">Fundamentals</div>
+    <div class="tab">Research</div>
+    <div class="tab">Portfolio</div>
+    <div class="spacer"></div>
+    <div class="pill-stack">
+      <div class="pill alert clickable">
+        <span class="icon">★</span>
+        <span>3 alerts</span>
+      </div>
+    </div>
+    <div class="gear" style="background: rgba(201,164,74,.18);">⚙</div>
+    <div class="drawer">
+      <div class="drawer-header">Recent (last 24h)</div>
+      <div class="drawer-row">
+        <span class="icon">✦</span>
+        <div>
+          Mars enters Aries
+          <div class="meta">2026-05-06 · transit · favorable</div>
+        </div>
+      </div>
+      <div class="drawer-row">
+        <span class="icon">★</span>
+        <div>
+          <span class="ticker">TSLA</span> → Strong Confirm
+          <div class="meta">2026-05-06 14:22 · Lagrange · concordance up</div>
+        </div>
+      </div>
+      <div class="drawer-row">
+        <span class="icon" style="color: var(--bad);">⚠</span>
+        <div>
+          FMP rate-limit hit
+          <div class="meta">2026-05-06 13:48 · scraper · auto-retry queued</div>
+        </div>
+      </div>
+      <div class="drawer-row">
+        <span class="icon" style="color: var(--good);">✓</span>
+        <div>
+          Saved <span class="ticker">NVDA</span> to favorites
+          <div class="meta">2026-05-06 11:02 · user action</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="chart-area">[ drawer overlays — does NOT push layout ]</div>
+</div>
+
+<!-- ─────────── PILL CATALOG ─────────── -->
+<h2>Pill catalog</h2>
+<div class="dashboard">
+  <div style="display:flex; flex-wrap:wrap; gap:10px; padding:8px 0;">
+    <div class="pill sparkly">
+      <div class="shooting-star"></div>
+      <span>Fetching <span class="ticker">AAPL</span> (8s)</span>
+    </div>
+    <div class="pill alert">
+      <span class="icon">★</span>
+      <span><span class="ticker">TSLA</span> → Strong Confirm</span>
+    </div>
+    <div class="pill transit">
+      <span class="icon">✦</span>
+      <span><span class="ticker">Mars</span> → Aries</span>
+    </div>
+    <div class="pill error">
+      <span class="icon">⚠</span>
+      <span>FMP rate-limit hit</span>
+    </div>
+    <div class="pill success">
+      <span class="icon">✓</span>
+      <span>Saved <span class="ticker">NVDA</span></span>
+    </div>
+    <div class="pill">
+      <span class="icon">i</span>
+      <span>Scraper finished · 1960 tickers</span>
+    </div>
+    <div class="pill sparkly">
+      <span class="icon">✦</span>
+      <span>Eclipse ahead · Sept 21</span>
+    </div>
+  </div>
+</div>
+
+<h2>Behavior rules</h2>
+<ul>
+  <li><code>fetching_pill</code> → become generic <code>Pill</code> struct. Variants: <code>Sparkly</code> · <code>Alert</code> · <code>Transit</code> · <code>Error</code> · <code>Success</code> · <code>Info</code>.</li>
+  <li>Stack of pills sits between right-spacer and gear. Max 3 visible at once. Older pills dismissed on TTL or fade out.</li>
+  <li>Each pill carries optional <code>on_press</code> → routes to relevant tab.</li>
+  <li>Sparkly variant uses existing <code>ShootingStar</code> canvas. Other variants use static Phosphor glyph with optional pulse animation.</li>
+  <li>TTL defaults: fetch = lives while fetching, alert = 8s, transit = 12s, error = 15s (or click-to-dismiss), success = 4s.</li>
+  <li>All notifications also append to <code>notification_history</code> drawer (bell or gear-click reveal). Drawer overlays via <code>stack!</code> — never pushes layout.</li>
+  <li>Theme: dark parchment bg, gold border, drop shadow. Already matches existing fetch_pill + alert_pill style.</li>
+</ul>
+
+<h2>Files touched</h2>
+<ul>
+  <li><code>src/dashboard/state.rs</code> — add <code>Notification</code> struct + <code>notifications: VecDeque&lt;Notification&gt;</code> + <code>notification_history: Vec&lt;Notification&gt;</code></li>
+  <li><code>src/dashboard/view/mod.rs</code> — generalize fetching_pill + alert_pill into render loop over notifications stack; add optional drawer</li>
+  <li><code>src/dashboard/update/mod.rs</code> — emit <code>Notification</code> on fetch start/end, errors, alerts, transits</li>
+  <li><code>src/dashboard/notifications.rs</code> (new, ~80 lines) — pill rendering helpers</li>
+</ul>
+
+<div class="footnote">
+  No layout edits to header/tabs/chart — all chrome stays exactly as v12.0. Only addition: pill stack widens between spacer and gear when active. Push-down banner stays for now (you said don't touch layout). If push-down annoys later, killing the inline banner is one-line removal.
+</div>
+
+</body>
+</html>

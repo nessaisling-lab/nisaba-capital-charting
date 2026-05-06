@@ -364,6 +364,13 @@ impl Dashboard {
                     // (planet pulse, transit drift, aspect shimmer, orbital trails)
                     still_animating |= self.active_tab == crate::tabs::Tab::Astrology;
 
+                    // v12.1 — keep shader_time ticking while pills are
+                    // active so the sparkly + alert pulse animations
+                    // keep running.
+                    still_animating |= !self.notifications.is_empty();
+                    // Expire pill TTLs (cheap retain, runs every frame).
+                    self.expire_notifications();
+
                     self.animating = still_animating;
                     // During animation, skip expensive data fetches
                     return Task::none();
@@ -371,6 +378,7 @@ impl Dashboard {
 
                 // ── Normal 30s tick — data refresh ─────────────
                 self.expire_toasts();
+                self.expire_notifications();
                 // Refresh palette on tick (skip if user has slider override)
                 if self.circadian_override.is_none() {
                     self.theme = crate::theme::iced_theme(self.theme_mode, crate::theme::current_hour());
@@ -487,6 +495,16 @@ impl Dashboard {
                 Task::none()
             }
             Message::PaperValuesLoaded(Err(_)) => Task::none(),
+
+            // ── v12.1 — Universal pill notification system ─────────
+            Message::DismissNotification(id) => {
+                self.dismiss_notification(id);
+                Task::none()
+            }
+            Message::NotificationsTick => {
+                self.expire_notifications();
+                Task::none()
+            }
 
             // Catch-all: message was already handled by a domain module
             // or is unknown. This shouldn't happen in practice.

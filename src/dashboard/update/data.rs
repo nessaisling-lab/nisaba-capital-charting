@@ -396,15 +396,32 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
                 .unwrap_or_else(|| std::path::PathBuf::from("scraper"));
 
             if !scraper_path.exists() {
-                state.fetch_ticker_error = Some(format!(
-                    "Scraper not found — run `cargo build --bin scraper` first (expected at {})",
+                let msg = format!(
+                    "Scraper not found at {}",
                     scraper_path.display()
-                ));
+                );
+                state.fetch_ticker_error = Some(msg.clone());
+                state.notify_error(msg);
                 return Some(Task::none());
             }
 
             state.fetching_ticker = true;
             state.fetch_start_time = Some(std::time::Instant::now());
+
+            // v12.1 — emit a sticky sparkly fetch pill. Replaced on
+            // FetchTickerComplete (success → success pill, error → error
+            // pill). Sticky = no TTL so it persists for the full fetch.
+            let id = state.next_notif_id();
+            // Track id so we can dismiss it on completion.
+            state.fetch_notification_id = Some(id);
+            let n = crate::notifications::Notification::new(
+                id,
+                crate::notifications::NotificationVariant::Sparkly,
+                format!("Fetching {ticker}…"),
+            )
+            .with_emphasis(ticker.clone())
+            .sticky();
+            state.push_notification(n);
             // v11.9 (revised) — no push_toast here. Chrome fetching pill
             // (built in build_tab_bar) is the visible indicator while
             // fetching_ticker = true. Toast was causing layout shift +
@@ -438,9 +455,16 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
         Message::FetchTickerComplete(result) => {
             state.fetching_ticker = false;
             state.fetch_start_time = None;
+
+            // v12.1 — drop the sticky sparkly fetch pill, replace with
+            // success or error pill (TTL'd).
+            if let Some(fetch_id) = state.fetch_notification_id.take() {
+                state.dismiss_notification(fetch_id);
+            }
+
             match result {
                 Ok(()) => {
-                    state.push_toast(format!("{} data fetched!", state.selected_ticker));
+                    state.notify_success(format!("Fetched {}", state.selected_ticker));
                     // Auto-refresh from DB
                     if let Some(pool) = &state.pool {
                         Some(Task::batch([
@@ -459,7 +483,7 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
                 }
                 Err(e) => {
                     state.fetch_ticker_error = Some(e.clone());
-                    state.push_toast(format!("Fetch failed: {e}"));
+                    state.notify_error(format!("Fetch failed: {e}"));
                     Some(Task::none())
                 }
             }
