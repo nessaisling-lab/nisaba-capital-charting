@@ -6,6 +6,45 @@
 
 ---
 
+## v13.1 — "Polish corrections" (shipped 2026-05-06)
+
+**Theme:** Fix v13.0 regressions per video v96 review + bell visual + restore inline shooting star + Astrology layout revert per v97. 8 sub-items. User v97 verdict: *"Overall huge improvement. Everything's on with exceptions of the lack of consistency in regards to the gutter boundary."* (Gutter font-scale-aware fix deferred to v13.2.)
+
+### v13.1.1 — Forecast color reverted + calendar 5-band palette
+v13.0.B2 mistake: changed unfavorable forecast windows from MISALIGNED red to UNFAVORABLE orange. User v96: *"Put these back to red."* Reverted. Plus added 5-band stepped palette to Astro Calendar (`AstroCalendar::score_to_color`) — punchy red below 25, orange 25-35, neutral 35-50, green 50-70, saturated green 70+.
+
+### v13.1.2 — Lifecycle text contrast fix
+v13.0 used cream-on-cream colors for Lifecycle SR aspect lines + return countdowns + progressed Sun line. User v96: *"this is so washed out... has to be resolved."* Switched to `theme::palette().ink` (primary) and `theme::palette().ink_soft` (secondary). Theme-aware so both Parchment and Leather render readable.
+
+### v13.1.3 — Scrollbar gutter (partial)
+Reverted v13.0.B3 page-level 28px right padding — made it worse per v96. New approach: `tab_bar` container gets explicit 16px right padding so bell/gear clear scrollbar overlay zone regardless of font scale. (v97 confirmed this row works; v13.1.7 extends to compact_nav header.)
+
+### v13.1.4b — Canvas bell with rocking ring (Option C)
+v95+v96 confirmed Phosphor BELL codepoint `\u{e0ce}` renders as 4-bar hamburger glyph in our shipped TTF, not a bell. User picked Option C from `mockups/v13.1-bell-options.html` (5 options shown). New `BellIcon` Canvas widget in `ornaments.rs` — bell silhouette via 3 stroke paths (body bezier, handle, clapper arc), 2.4s rocking animation when active alert count > 0 (still 70% / damped oscillation 30% per cycle).
+
+### v13.1.5 — Inline shooting star fetch animation restored
+User v96: *"I miss my little star shooting across the border here."* Restored as fixed-height (18px) row below the page header. Always renders the row — empty Space when idle, ShootingStar canvas + "Fetching {ticker} ({secs}s)" label when fetching. Fixed height = no push-down (the original v12.1 motivator). Animation tick subscription extended to keep shader_time advancing during fetch.
+
+### v13.1.6 — Astrology layout revert (Shrink + Fill)
+v13.0.A2 tried `FillPortion(5/4)` on wheel + transits columns to fix "graphical overlap." Wrong root cause — change centered all content. User v97: *"you shifted everything toward the center where the birth chart is — I want it to go back to the left side."* Reverted: `wheel_col` Shrink-default (natural natal-wheel width), `transits_col` `Length::Fill` (consumes remaining width).
+
+### v13.1.7 — Header gutter (compact_nav right padding)
+User v97: *"as you get smaller, the further it goes under the gutter for the scroll bar."* Added 16px right padding to `compact_nav` matching the tab strip's pattern. PARTIAL FIX — works at fixed Compact size, but the issue is that action_icons are right-aligned via `Length::Fill` spacer. At smaller font scales the spacer grows proportionally less than the icons need. **Real fix deferred to v13.2** — needs font-scale-aware right padding (`SPACE_LG * font_scale()` or similar dynamic value).
+
+### Validation
+
+- Release build clean
+- All tests pass
+
+### Deferred to v13.2 polish
+
+- Font-scale-aware gutter for compact_nav (current 16px not enough at Compact size)
+- v13.0.D2 forecast section content expansion
+- Research tab tooltips ("explanations everywhere" recurring theme)
+- Universe column tooltip re-verify
+
+---
+
 ## v13.0 — "Polish & Performance" (shipped 2026-05-06)
 
 **Theme:** First polish wave after Wave 9 + 9.5 + 9.6 engine completion. Driven by video v95 review (12-min self-review). User confirmed engine is shipped + working — directive: "polish and performance phase."

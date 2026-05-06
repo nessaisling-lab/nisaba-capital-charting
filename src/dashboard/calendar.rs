@@ -29,21 +29,37 @@ pub struct AstroCalendar {
 }
 
 impl AstroCalendar {
+    /// v13.1.1 — Score → cell color mapping. Punchy red below 35 (the
+    /// "Unfavorable" threshold matching the forecast list semantics) so
+    /// the calendar visually flags sell-zone days. User v96 review:
+    /// "I don't see the red for 25 here — that's a good example of that.
+    /// Mark what is unfavorable here as well."
+    ///
+    /// Bands:
+    ///   score >= 70 — saturated green (Optimal)
+    ///   50-70      — green (Favorable)
+    ///   35-50      — muted neutral
+    ///   25-35      — orange (Unfavorable)
+    ///   < 25       — vivid red (Misaligned)
     fn score_to_color(score: f64) -> Color {
-        if score >= 50.0 {
-            let t = ((score - 50.0) / 50.0).min(1.0) as f32;
+        if score >= 70.0 {
+            Color::from_rgb(0.20, 0.78, 0.35) // saturated green — Optimal
+        } else if score >= 50.0 {
+            let t = ((score - 50.0) / 20.0).clamp(0.0, 1.0) as f32;
             Color::from_rgb(
-                0.5 * (1.0 - t) + 0.3 * t,
-                0.7 * (1.0 - t) + 0.8 * t,
-                0.2 * (1.0 - t) + 0.4 * t,
+                0.50 * (1.0 - t) + 0.20 * t,
+                0.70 * (1.0 - t) + 0.78 * t,
+                0.20 * (1.0 - t) + 0.35 * t,
             )
+        } else if score >= 35.0 {
+            // Neutral muted band
+            Color::from_rgb(0.55, 0.50, 0.30)
+        } else if score >= 25.0 {
+            // Unfavorable — orange warning
+            Color::from_rgb(0.85, 0.45, 0.10)
         } else {
-            let t = ((50.0 - score) / 50.0).min(1.0) as f32;
-            Color::from_rgb(
-                0.5 * (1.0 - t) + 0.8 * t,
-                0.7 * (1.0 - t) + 0.3 * t,
-                0.2 * (1.0 - t) + 0.3 * t,
-            )
+            // Misaligned — vivid red
+            Color::from_rgb(0.92, 0.20, 0.20)
         }
     }
 }

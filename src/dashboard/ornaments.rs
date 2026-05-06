@@ -436,3 +436,135 @@ impl canvas::Program<Message> for TabSparkle {
         vec![frame.into_geometry()]
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BellIcon — custom canvas-drawn bell (v13.1.4b)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// User v95+v96 reviews: the Phosphor BELL codepoint renders as a 4-bar
+// hamburger glyph in our shipped TTF, not a bell. Rather than guess at the
+// correct Phosphor codepoint, draw the bell ourselves via canvas Path —
+// same proven pattern as ShootingStar / TabSparkle.
+//
+// Bell rocks gently (2.4s loop, ~±10° amplitude) when `active_count > 0`,
+// stays still otherwise. Animation driven by `time` (shader_time).
+
+pub struct BellIcon {
+    pub time:         f32,
+    pub active_count: u32,
+    pub color:        Color,
+}
+
+impl canvas::Program<Message> for BellIcon {
+    type State = ();
+
+    fn draw(
+        &self,
+        _state: &(),
+        renderer: &iced::Renderer,
+        _theme: &iced::Theme,
+        bounds: Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> Vec<canvas::Geometry> {
+        let mut frame = canvas::Frame::new(renderer, bounds.size());
+        let w = bounds.width;
+        let h = bounds.height;
+        let cx = w / 2.0;
+        let cy = h / 2.0;
+
+        // Ring animation when there are active alerts. 2.4s base loop,
+        // amplitude ramps up briefly within each cycle (0% → 70% still,
+        // then a quick 30% rocking).
+        let angle = if self.active_count > 0 {
+            let phase = (self.time * std::f32::consts::TAU / 2.4) % std::f32::consts::TAU;
+            // Active rocking only in last 30% of each cycle
+            let active_phase = (phase - 0.7 * std::f32::consts::TAU)
+                .max(0.0) / (0.3 * std::f32::consts::TAU);
+            if active_phase > 0.0 && active_phase < 1.0 {
+                let osc = (active_phase * std::f32::consts::TAU * 3.0).sin();
+                let decay = 1.0 - active_phase;
+                osc * decay * 0.20 // ~±11° peak
+            } else {
+                0.0
+            }
+        } else {
+            0.0
+        };
+
+        // Translate to bell center, rotate, then draw paths centered.
+        // Pivot is at the top of the bell (where the handle would be).
+        frame.translate(iced::Vector::new(cx, cy * 0.30));
+        frame.rotate(angle);
+
+        // Bell silhouette dimensions, scaled to fit bounds.
+        // Reference 24×24 viewBox like SVG.
+        let scale = (h.min(w) / 24.0) * 0.85;
+        let s = |v: f32| v * scale;
+
+        // ── Bell body — open dome with flared rim ─────────────
+        // Outer outline using line_to (line-art style matching Phosphor).
+        let body = canvas::Path::new(|b| {
+            // Top of dome (handle attach)
+            b.move_to(Point::new(s(0.0), s(-2.5)));
+            // Right curve down to rim
+            b.bezier_curve_to(
+                Point::new(s(6.0), s(-2.5)),
+                Point::new(s(6.0), s(2.5)),
+                Point::new(s(7.0), s(7.0)),
+            );
+            // Right rim
+            b.line_to(Point::new(s(8.5), s(8.5)));
+            // Bottom rim left
+            b.line_to(Point::new(s(-8.5), s(8.5)));
+            // Left rim up
+            b.line_to(Point::new(s(-7.0), s(7.0)));
+            // Left curve up to dome
+            b.bezier_curve_to(
+                Point::new(s(-6.0), s(2.5)),
+                Point::new(s(-6.0), s(-2.5)),
+                Point::new(s(0.0), s(-2.5)),
+            );
+        });
+        frame.stroke(&body, canvas::Stroke {
+            style: canvas::Style::Solid(self.color),
+            width: 1.6,
+            line_cap: canvas::LineCap::Round,
+            line_join: canvas::LineJoin::Round,
+            ..canvas::Stroke::default()
+        });
+
+        // ── Handle nub on top ─────────────────────────────────
+        let handle = canvas::Path::new(|b| {
+            b.move_to(Point::new(s(-1.5), s(-2.5)));
+            b.line_to(Point::new(s(1.5), s(-2.5)));
+            b.line_to(Point::new(s(1.0), s(-4.0)));
+            b.line_to(Point::new(s(-1.0), s(-4.0)));
+            b.close();
+        });
+        frame.stroke(&handle, canvas::Stroke {
+            style: canvas::Style::Solid(self.color),
+            width: 1.6,
+            line_cap: canvas::LineCap::Round,
+            line_join: canvas::LineJoin::Round,
+            ..canvas::Stroke::default()
+        });
+
+        // ── Clapper arc beneath rim ───────────────────────────
+        let clapper = canvas::Path::new(|b| {
+            b.move_to(Point::new(s(-2.0), s(9.5)));
+            b.bezier_curve_to(
+                Point::new(s(-1.5), s(11.0)),
+                Point::new(s(1.5), s(11.0)),
+                Point::new(s(2.0), s(9.5)),
+            );
+        });
+        frame.stroke(&clapper, canvas::Stroke {
+            style: canvas::Style::Solid(self.color),
+            width: 1.6,
+            line_cap: canvas::LineCap::Round,
+            ..canvas::Stroke::default()
+        });
+
+        vec![frame.into_geometry()]
+    }
+}

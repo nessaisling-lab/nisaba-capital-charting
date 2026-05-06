@@ -369,6 +369,14 @@ impl Dashboard {
                     // active so the sparkly + alert pulse animations
                     // keep running.
                     still_animating |= !self.notifications.is_empty();
+                    // v13.1.4b — also tick while bell needs to ring
+                    // (active alert count > 0). Lets the BellIcon canvas
+                    // animate its 2.4s rocking loop without other animation
+                    // sources being active.
+                    still_animating |= !self.notifications.is_empty();
+                    // v13.1.5 — keep shader running during fetch so the
+                    // inline ShootingStar animates smoothly.
+                    still_animating |= self.fetching_ticker;
                     // Expire pill TTLs (cheap retain, runs every frame).
                     self.expire_notifications();
                     // v13.0.D1 — also expire toasts on animation ticks.

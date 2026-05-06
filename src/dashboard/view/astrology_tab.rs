@@ -467,11 +467,12 @@ impl Dashboard {
             };
 
             // v11.5.B3 — zodiac legend relocated ABOVE natal wheel.
-            // v13.0.A2 — explicit FillPortion widths on both columns to
-            // prevent the wheel column from collapsing or overflowing into
-            // the transits text on certain font scales / zoom levels.
-            // User v95 review: "it's overlapping and it's causing graphical
-            // bugs."
+            // v13.1 (revert of 13.0.A2) — wheel_col reverted to no width
+            // constraint, transits_col back to Length::Fill. User v97
+            // review: "you shifted everything toward the center where the
+            // birth chart is — I want it to go back to the left side."
+            // The FillPortion split centered everything; original Shrink+Fill
+            // pattern keeps wheel left-anchored and transits flowing right.
             let wheel_col = column![
                 text(format!("{} Birth Chart", self.selected_ticker)).font(font::DISPLAY).size(theme::text_lg()),
                 year_of_lord_badge,
@@ -481,7 +482,6 @@ impl Dashboard {
                 natal_wheel,
             ]
             .spacing(4)
-            .width(Length::FillPortion(5))
             .align_x(Alignment::Center);
 
             let transits_col =
@@ -491,7 +491,7 @@ impl Dashboard {
                     moon_deg,
                     mercury_rx
                 ),]
-                .width(Length::FillPortion(4));
+                .width(Length::Fill);
 
             row![wheel_col, transits_col]
                 .spacing(20)
@@ -908,14 +908,12 @@ impl Dashboard {
                 }
                 i += 1;
             }
-            // v13.0.B2 — Color logic fix. User v95 review: "It can't have
-            // red for unfavorable because we have to sell stock when it's
-            // unfavorable." Red signals "loss/bad" in market context, but
-            // unfavorable astro = SELL signal = good action. Switch to
-            // amber/orange (UNFAVORABLE), reserving MISALIGNED red for the
-            // narrower extreme-misaligned case (score < 25, used elsewhere).
+            // v13.1.1 — Forecast color reverted to red. User v96 review:
+            // "Put these back to red." (My v13.0.B2 was wrong direction —
+            // user wants red as visual flag, not orange.) The red here is
+            // a *warning* signal that drives the calendar marking too.
             let window_items: Vec<Element<Message>> = windows.iter().map(|w| {
-                let color = if w.starts_with("Favorable") { theme::ZONE_OPTIMAL } else { theme::ZONE_UNFAVORABLE };
+                let color = if w.starts_with("Favorable") { theme::ZONE_OPTIMAL } else { theme::ZONE_MISALIGNED };
                 text(format!("  \u{2022} {w}")).size(theme::text_sm()).color(color).into()
             }).collect();
             let key_aspects: Vec<Element<Message>> = self.forecast.iter()
@@ -1011,14 +1009,19 @@ impl Dashboard {
         let mars_line = cache.mars_line.clone();
         let prog_line = cache.prog_line.clone();
 
-        let line_style = move |s: String| -> Element<'_, Message> {
+        // v13.1.2 — Use theme-aware ink/dim ink colors. The cream
+        // (0.95/0.90/0.80) used in v13.0 was unreadable on Parchment
+        // theme (cream-on-cream). User v96 review: "this is so washed
+        // out... has to be resolved." Now reads correctly in both
+        // Parchment and Leather themes.
+        let line_style = |s: String| -> Element<'_, Message> {
             text(s).size(theme::text_sm())
-                .color(Color { r: 0.95, g: 0.90, b: 0.80, a: 1.0 })
+                .color(theme::palette().ink)
                 .into()
         };
         let sub_line_style = |s: String| -> Element<'_, Message> {
             text(s).size(theme::text_xs())
-                .color(Color { r: 0.85, g: 0.80, b: 0.70, a: 1.0 })
+                .color(theme::palette().ink_soft)
                 .into()
         };
 

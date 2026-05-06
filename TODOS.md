@@ -1,13 +1,14 @@
 # TODOS
 
-## Active — v13.1 polish corrections in flight 2026-05-06.
+## Active — v13.1 SHIPPED 2026-05-06. User v97: *"Overall huge improvement."*
 
-v13.0 shipped (8 fixes). User v96 confirmed Astrology perf restored. Several regressions ID'd:
-- Bell codepoint still wrong (visible in 0001/0040/0070 frames)
-- Forecast color was reversed direction (B2)
-- Scrollbar gutter direction wrong (B3 made it worse)
-- Lifecycle text washed out
-- Shooting star fetch animation needs restoration
+v13.1 closed 8 sub-items. v13.2 polish carryovers + new wave to follow.
+
+### Carryover into v13.2
+- **Compact_nav font-scale-aware gutter** — v13.1.7's static 16px right padding works at Default+ but at Compact size icons still overflow. Real fix needs dynamic padding tied to `theme::font_scale()`.
+- **Universe column tooltip re-verify** — recurring theme
+- **Research tab tooltips** — "explanations everywhere" recurring theme
+- **Forecast content expansion** — sparse section per video v95
 
 ---
 
@@ -74,6 +75,19 @@ Defer indefinitely unless user requests:
 - Vertex / East Point secondary angles
 
 ---
+
+## Closed — v13.1 "Polish corrections" — SHIPPED 2026-05-06
+
+User v97 verdict: *"Overall huge improvement. Everything's on with exceptions of the lack of consistency in regards to the gutter boundary."*
+
+- [x] **13.1.1** Forecast color reverted to red + AstroCalendar 5-band stepped palette (Optimal/Favorable/Neutral/Unfavorable/Misaligned matching forecast thresholds)
+- [x] **13.1.2** Lifecycle text → `theme::palette().ink` and `ink_soft` (theme-aware, readable on both Parchment + Leather)
+- [x] **13.1.3** Page-level gutter reverted to 20px + tab_bar container 16px right padding (chrome row gutter)
+- [x] **13.1.4** Bell options HTML mockup (5 options) — user picked C
+- [x] **13.1.4b** Canvas `BellIcon` widget with 2.4s rocking ring animation (still 70% / damped osc 30% per cycle)
+- [x] **13.1.5** Inline ShootingStar fetch animation restored at fixed 18px height (no push-down)
+- [x] **13.1.6** Astrology wheel/transits revert: `wheel_col` Shrink-default + `transits_col` Length::Fill (left-anchored layout per v97 Image #2)
+- [x] **13.1.7** compact_nav 16px right padding (PARTIAL — works at Default+, deferred font-scale-aware fix to v13.2)
 
 ## Closed — v13.0 "Polish & Performance" — SHIPPED 2026-05-06
 

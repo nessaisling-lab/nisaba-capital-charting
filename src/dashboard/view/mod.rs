@@ -12,7 +12,7 @@ mod encyclopedia;
 use iced::widget::{button, column, container, mouse_area, pick_list, row, rule, scrollable, stack, text, text_input, Canvas, Column, Row, Shader, Space};
 use iced::{Alignment, Color, Element, Length};
 
-use crate::ornaments::{BookSpine, Corner, PageBorderCorner, PageHeaderOrnament, TabSparkle};
+use crate::ornaments::{BellIcon, BookSpine, Corner, PageBorderCorner, PageHeaderOrnament, ShootingStar, TabSparkle};
 
 use crate::animation;
 use crate::font;
@@ -243,13 +243,50 @@ impl Dashboard {
         .spacing(theme::SPACE_MD)
         .align_y(Alignment::Center);
 
+        // v13.1.7 — explicit right padding on compact_nav to keep header
+        // action icons (search/refresh/download/moon) clear of the
+        // scrollbar overlay zone. User v97 review: "as you get smaller,
+        // the further it goes under the gutter for the scroll bar."
+        // 16px matches the tab-strip's right pad (v13.1.3) so chrome
+        // alignment is consistent across rows regardless of font scale.
         let compact_nav = column![header_body]
-            .spacing(theme::SPACE_XS);
+            .spacing(theme::SPACE_XS)
+            .padding(iced::Padding {
+                top: 0.0,
+                right: 16.0,
+                bottom: 0.0,
+                left: 0.0,
+            });
 
-        // ── v12.1: push-down banner removed ───────────────────
-        // Errors + fetch progress now render as pills in the tab strip
-        // via the universal notification system (see build_tab_bar).
-        // The page header layout no longer reflows on fetch.
+        // ── v12.1 + v13.1.5 — Inline shooting star fetch animation ─
+        // User v96 review: "I miss my little star shooting across the
+        // border here." Restored as a FIXED-HEIGHT (18px) row below the
+        // header. Always renders the row — empty Space when idle, filled
+        // with ShootingStar + "Fetching" label when fetching. Fixed height
+        // means layout NEVER reflows, addressing the original push-down bug.
+        let fetch_inline_strip: Element<Message> = if self.fetching_ticker {
+            let p_f = theme::palette();
+            let elapsed_s = self.fetch_start_time
+                .map(|s| s.elapsed().as_secs())
+                .unwrap_or(0);
+            row![
+                Canvas::new(ShootingStar { time: self.shader_time })
+                    .width(Length::Fixed(120.0))
+                    .height(Length::Fixed(18.0)),
+                text(format!(
+                    "Fetching {} ({}s)",
+                    self.selected_ticker, elapsed_s,
+                ))
+                .size(theme::text_xs())
+                .color(Color { a: 0.85, ..p_f.gold }),
+            ]
+            .spacing(8)
+            .align_y(Alignment::Center)
+            .into()
+        } else {
+            // Empty placeholder at same fixed height — prevents push-down.
+            Space::new().height(Length::Fixed(18.0)).into()
+        };
 
         // ── Tab content dispatch ───────────────────────────────
         let tab_content: Element<Message> = match self.active_tab {
@@ -304,6 +341,7 @@ impl Dashboard {
             tab_bar,
             rule::horizontal(1),
             compact_nav,
+            fetch_inline_strip,
             autocomplete,
             Canvas::new(PageHeaderOrnament)
                 .width(Length::Fill).height(Length::Fixed(20.0)),
@@ -311,13 +349,14 @@ impl Dashboard {
             corner_bottom,
         ]
         .spacing(theme::SPACE_XS)
-        // v13.0.B3 — Increased right gutter from 20→28 px. User v95 review:
-        // "Compact works. Default does not acknowledge it. Large barely
-        // acknowledges it." At larger font scales, child rows with
-        // Length::Fill push to the right edge under the scrollbar; 28px
-        // absorbs the largest variation across Compact/Default/Large/XL
-        // text sizes. Scales with theme::SPACE_MD-ish for consistency.
-        .padding(iced::Padding { top: 0.0, right: 28.0, bottom: 0.0, left: 0.0 });
+        // v13.1.3 — Reverted to 20px right gutter. v13.0.B3's bump to
+        // 28px made the gutter inconsistency WORSE per v96 review
+        // ("Large unfortunate it's ignoring the scroll bar gutter
+        // boundary... compact doesn't work at all"). Real fix needs
+        // per-element overflow investigation — the gutter padding is
+        // already correct at this level; specific child elements are
+        // ignoring it. Tracked as a separate task.
+        .padding(iced::Padding { top: 0.0, right: 20.0, bottom: 0.0, left: 0.0 });
 
         // Themed scrollbar — gold scroller on translucent rail (v7.5)
         let styled_scroll = scrollable(page_content)
@@ -599,29 +638,40 @@ impl Dashboard {
             self.shader_time,
         );
 
-        // ── v12.2.4 + v13.0.B1 + v13.0.C2 — Bell button + persistent
-        //   counter. User v95 review: "I don't know why that's not a bell
-        //   icon" + "there should be a counter for how many notifications."
-        //   Fix: Larger BELL glyph (lg vs md), prominent gold-pill badge
-        //   with active+history total. Counter is always visible (chrome-
-        //   level) — separate signal channel from the ephemeral pill stack.
+        // ── v12.2.4 + v13.0.C2 + v13.1.4b — Bell button.
+        //   v13.1.4b: Switched from broken Phosphor BELL codepoint to a
+        //   custom canvas-drawn BellIcon. User v95+v96 reviews: the
+        //   Phosphor glyph rendered as 4-bar hamburger, not a bell.
+        //   Custom canvas guarantees correct shape + rocks 2.4s loop
+        //   when active count > 0 (Option C from v13.1-bell-options.html
+        //   mockup, user-picked).
         let p_bell = theme::palette();
         let active_count = self.notifications.len();
         let history_count = self.notification_history.len();
         let total_count = active_count + history_count;
+        let bell_color = if active_count > 0 {
+            p_bell.gold
+        } else if total_count > 0 {
+            Color { a: 0.85, ..p_bell.gold }
+        } else {
+            Color { a: 0.55, ..p_bell.gold }
+        };
+        let bell_canvas: Element<'_, Message> = Canvas::new(BellIcon {
+            time:         self.shader_time,
+            active_count: active_count as u32,
+            color:        bell_color,
+        })
+        .width(Length::Fixed(22.0))
+        .height(Length::Fixed(22.0))
+        .into();
         let bell_glyph: Element<'_, Message> = if total_count > 0 {
-            // Active count gets a bright pill badge. History-only shows
-            // dim count.
             let badge_color = if active_count > 0 {
                 Color { r: 1.0, g: 0.85, b: 0.45, a: 1.0 }
             } else {
                 Color { a: 0.65, ..p_bell.gold }
             };
             row![
-                text(icons::BELL.to_string())
-                    .font(icons::PHOSPHOR_BOLD)
-                    .size(theme::text_lg())
-                    .color(p_bell.gold),
+                bell_canvas,
                 container(
                     text(format!("{}", total_count.min(99)))
                         .size(10.0)
@@ -642,10 +692,7 @@ impl Dashboard {
             .align_y(Alignment::Center)
             .into()
         } else {
-            row![text(icons::BELL.to_string())
-                .font(icons::PHOSPHOR_BOLD)
-                .size(theme::text_lg())
-                .color(Color { a: 0.55, ..p_bell.gold })].into()
+            row![bell_canvas].into()
         };
         let bell_btn = button(bell_glyph)
             .on_press(Message::ToggleNotificationDrawer)
@@ -676,9 +723,22 @@ impl Dashboard {
         ]
         .align_y(Alignment::Center);
 
+        // v13.1.3 — Tab-strip-specific right padding addressing the
+        // gutter overlap. Iced 0.14's scrollable overlays the scrollbar
+        // on top of page content (~12px wide). User v96 review:
+        // "icons are falling under that particular spot." Adding 16px
+        // right padding to the tab strip specifically pushes the
+        // bell/gear buttons clear of the scrollbar overlay regardless
+        // of font scale, while leaving page_content's 20px gutter
+        // for tab content layout.
         container(full_strip)
             .width(Length::Fill)
-            .padding([0, theme::SPACE_XS as u16])
+            .padding(iced::Padding {
+                top: 0.0,
+                right: 16.0,
+                bottom: 0.0,
+                left: theme::SPACE_XS,
+            })
             .into()
     }
 }

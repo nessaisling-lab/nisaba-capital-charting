@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>v13.1.4 — Bell icon options</title>
+<style>
+  :root {
+    --gold: #c9a44a;
+    --gold-soft: rgba(201,164,74,.7);
+    --bg-leather: #1a1410;
+    --bg-pill: rgba(31,26,20,.92);
+    --ink: #f3ecd8;
+    --badge-bg: #ffd86b;
+    --badge-ink: #1a1410;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg-leather);
+    color: var(--ink);
+    font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+    padding: 32px;
+  }
+  h1 { color: var(--gold); margin: 0 0 8px; font-size: 22px; }
+  h2 { color: var(--gold-soft); margin: 24px 0 4px; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; font-weight: normal; }
+  .caption { color: #a89878; font-size: 12px; margin: 0 0 18px; }
+  .note { color: #a89878; font-size: 12px; margin-top: 6px; max-width: 800px; }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    background: rgba(255,255,255,.02);
+    padding: 18px 22px;
+    border-radius: 8px;
+    border: 1px solid rgba(201,164,74,.18);
+    margin-bottom: 14px;
+  }
+  .row .label {
+    width: 200px;
+    color: var(--gold);
+    font-weight: 600;
+    font-size: 13px;
+  }
+  .row .demo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0,0,0,.30);
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(201,164,74,.25);
+  }
+
+  /* Current ENV (the broken state per user v96) */
+  .ph-current {
+    font-size: 22px;
+    color: var(--gold);
+    line-height: 1;
+    /* We can't actually render Phosphor here — show as `≡` because
+       that's what user is currently seeing per the screen recordings */
+  }
+
+  /* Unicode bell emoji */
+  .uni-bell {
+    font-size: 24px;
+    line-height: 1;
+  }
+
+  /* Inline SVG bell — clean line-art, matches Phosphor aesthetic */
+  .svg-bell {
+    width: 22px; height: 22px;
+    color: var(--gold);
+  }
+
+  /* Filled SVG bell variant */
+  .svg-bell-fill {
+    width: 22px; height: 22px;
+    color: var(--gold);
+  }
+
+  /* Bell with shaking animation */
+  .svg-bell-ring {
+    width: 22px; height: 22px;
+    color: var(--gold);
+    animation: ring 2.4s ease-in-out infinite;
+    transform-origin: 50% 0%;
+  }
+  @keyframes ring {
+    0%, 70%, 100% { transform: rotate(0deg); }
+    72% { transform: rotate(-15deg); }
+    76% { transform: rotate(12deg); }
+    80% { transform: rotate(-8deg); }
+    84% { transform: rotate(5deg); }
+    88% { transform: rotate(-2deg); }
+  }
+
+  .badge {
+    background: var(--badge-bg);
+    color: var(--badge-ink);
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 9px;
+    font-size: 11px;
+    line-height: 1.2;
+  }
+
+  .recommend {
+    background: rgba(255,216,107,.12);
+    border-color: rgba(255,216,107,.5);
+  }
+  .recommend .label::after {
+    content: " ★ recommended";
+    color: var(--badge-bg);
+    font-weight: bold;
+    font-size: 10px;
+    margin-left: 6px;
+  }
+</style>
+</head>
+<body>
+
+<h1>v13.1.4 — Bell icon options</h1>
+<p class="caption">User v96 review: <em>"why is that not a bell. I'm a little shocked by this. Why is that not a bell?"</em></p>
+
+<h2>Current state (broken)</h2>
+<div class="row">
+  <div class="label">Phosphor BELL @ <code>\u{e0ce}</code></div>
+  <div class="demo">
+    <span class="ph-current">≡</span>
+    <span class="badge">21</span>
+  </div>
+</div>
+<div class="note">
+  Codepoint <code>\u{e0ce}</code> in our embedded Phosphor.ttf renders as 4 horizontal bars
+  (hamburger-like), not a bell. The icons.rs comment claims "ph-bell" but the codepoint
+  is wrong for the font version we ship.
+</div>
+
+<h2>Option A — Inline SVG bell (line-art)</h2>
+<div class="row recommend">
+  <div class="label">SVG path, Phosphor-style line-art</div>
+  <div class="demo">
+    <svg class="svg-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+    </svg>
+    <span class="badge">21</span>
+  </div>
+</div>
+<div class="note">
+  <strong>Recommended.</strong> Render a small SVG-equivalent via Iced Canvas (we already
+  have ShootingStar / TabSparkle / PageBorderCorner canvas widgets — same pattern).
+  Guaranteed bell shape, scales with theme, no font-codepoint guessing.
+  Effort: ~25 min for a `BellIcon` Canvas widget.
+</div>
+
+<h2>Option B — Inline SVG bell (filled)</h2>
+<div class="row">
+  <div class="label">SVG path, filled gold</div>
+  <div class="demo">
+    <svg class="svg-bell-fill" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6V11c0-3.07-1.63-5.64-4.5-6.32V4a1.5 1.5 0 0 0-3 0v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
+    </svg>
+    <span class="badge">21</span>
+  </div>
+</div>
+<div class="note">
+  Filled variant — bolder visual presence. More "alert" feel.
+  Same canvas implementation effort as A.
+</div>
+
+<h2>Option C — Bell with subtle ring animation</h2>
+<div class="row">
+  <div class="label">SVG bell + 2.4s ring loop when count > 0</div>
+  <div class="demo">
+    <svg class="svg-bell-ring" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+    </svg>
+    <span class="badge">21</span>
+  </div>
+</div>
+<div class="note">
+  Same bell as Option A but rocks slightly when there are unread notifications.
+  Calm 2.4s loop, only animates when active count > 0. Effort: A + 10 min for
+  shader_time-driven angle.
+</div>
+
+<h2>Option D — Unicode bell emoji 🔔</h2>
+<div class="row">
+  <div class="label">U+1F514 (system emoji font)</div>
+  <div class="demo">
+    <span class="uni-bell">🔔</span>
+    <span class="badge">21</span>
+  </div>
+</div>
+<div class="note">
+  Quickest fix — no canvas drawing. Renders via Windows emoji fallback font (Segoe UI
+  Emoji). Downside: doesn't match Phosphor monochrome aesthetic, may look out of place
+  next to other line-art icons. Effort: 30 sec.
+</div>
+
+<h2>Option E — Try alternate Phosphor codepoint</h2>
+<div class="row">
+  <div class="label"><code>\u{e088}</code> / <code>\u{e72c}</code> / <code>\u{f06b}</code></div>
+  <div class="demo" style="opacity:.6">
+    <span style="color:var(--ink); font-style:italic; font-size:12px;">Untested — would need to render in app to verify which codepoint is the actual bell in our shipped font.</span>
+  </div>
+</div>
+<div class="note">
+  Risky. Phosphor codepoints vary by font version and we don't have a verified mapping.
+  Could waste cycles trying multiple codepoints. Skipping unless A-D all fail.
+</div>
+
+<hr style="margin:32px 0; border-color:rgba(201,164,74,.2);">
+
+<h2>My recommendation</h2>
+<p style="color:var(--ink); max-width:700px; line-height:1.55;">
+<strong>Option A or C.</strong> Custom Canvas widget for the bell shape — same proven pattern as ShootingStar / TabSparkle. ~25 min implementation, guaranteed correct visual, integrates with existing animation infrastructure. Option C adds the ring animation for active count which makes the badge feel more alive.
+</p>
+<p style="color:#a89878; font-size:12px; max-width:700px;">
+Pick A, B, C, D, or E — I implement.
+</p>
+
+</body>
+</html>
