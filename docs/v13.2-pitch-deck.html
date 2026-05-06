@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pursuit Astro — Pitch Deck (3-5 min walkthrough)</title>
+<style>
+  :root {
+    --gold: #c9a44a;
+    --gold-bright: #ffd86b;
+    --gold-soft: rgba(201,164,74,.55);
+    --gold-faint: rgba(201,164,74,.18);
+    --bg: #0f0a07;
+    --bg-card: rgba(31,26,20,.85);
+    --ink: #f3ecd8;
+    --ink-soft: #c8b88e;
+    --ink-faint: #8c7d57;
+    --bad: #c25a3c;
+    --good: #6fa86b;
+    --accent: #b87a3a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Iowan Old Style', 'Palatino Linotype', 'Source Serif 4', Georgia, serif;
+  }
+
+  html, body { scroll-snap-type: y mandatory; height: 100%; overflow-y: scroll; overflow-x: hidden; }
+  .slide {
+    scroll-snap-align: start;
+    width: 100vw;
+    height: 100vh;
+    padding: 56px 76px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .slide-num {
+    position: absolute;
+    top: 22px;
+    right: 30px;
+    color: var(--ink-faint);
+    font-size: 11px;
+    letter-spacing: 3px;
+    font-family: 'Inter', sans-serif;
+  }
+  .slide-time {
+    position: absolute;
+    top: 22px;
+    left: 30px;
+    color: var(--ink-faint);
+    font-size: 11px;
+    letter-spacing: 2px;
+    font-family: 'Inter', sans-serif;
+  }
+  .speaker-cue {
+    position: absolute;
+    bottom: 20px;
+    left: 76px;
+    right: 76px;
+    color: var(--ink-faint);
+    font-size: 12px;
+    line-height: 1.4;
+    font-style: italic;
+    border-top: 1px solid var(--gold-faint);
+    padding-top: 10px;
+    max-width: 1100px;
+  }
+  .speaker-cue::before {
+    content: "🎤  ";
+    color: var(--accent);
+    font-style: normal;
+  }
+
+  .slide::before {
+    content: "";
+    position: absolute;
+    inset: 22px;
+    border: 1px solid var(--gold-soft);
+    pointer-events: none;
+  }
+
+  h1 { font-size: 60px; color: var(--gold); line-height: 1.1; letter-spacing: -1px; font-weight: 600; }
+  h2 { font-size: 38px; color: var(--gold); letter-spacing: -0.5px; line-height: 1.15; margin-bottom: 22px; }
+  h3 { color: var(--gold-bright); font-size: 16px; letter-spacing: 2px; text-transform: uppercase; font-weight: normal; margin-bottom: 10px; }
+  p { font-size: 19px; line-height: 1.55; color: var(--ink); max-width: 1100px; }
+  .lede { font-size: 24px; color: var(--ink); line-height: 1.45; max-width: 1100px; }
+  .quote {
+    font-style: italic;
+    font-size: 46px;
+    color: var(--ink);
+    line-height: 1.3;
+    margin: 28px 0 18px;
+    border-left: 3px solid var(--gold);
+    padding-left: 32px;
+  }
+  .attribution { font-size: 20px; color: var(--ink-soft); margin-left: 36px; }
+  .small { font-size: 13px; color: var(--ink-faint); letter-spacing: 1px; }
+
+  /* COVER */
+  .cover { background: radial-gradient(ellipse at center, rgba(201,164,74,.07), transparent 70%), var(--bg); text-align: center; align-items: center; }
+  .cover h1 { font-size: 88px; margin-bottom: 12px; }
+  .cover .sub { font-size: 22px; color: var(--ink-soft); letter-spacing: 1.5px; margin-bottom: 44px; }
+  .cover .quote { text-align: left; max-width: 880px; margin-top: 30px; }
+  .cover .author { font-size: 14px; color: var(--ink-faint); margin-top: 40px; letter-spacing: 2px; text-transform: uppercase; }
+
+  /* PRECEDENT TABLE */
+  .precedent-table { margin-top: 18px; border-collapse: collapse; width: 100%; max-width: 1200px; }
+  .precedent-table td { padding: 10px 16px; border-bottom: 1px solid var(--gold-faint); font-size: 16px; vertical-align: top; }
+  .precedent-table td:first-child { color: var(--gold-bright); font-weight: 600; width: 200px; }
+  .precedent-table td:nth-child(2) { color: var(--ink-soft); width: 130px; font-family: 'Inter', sans-serif; font-size: 14px; }
+  .precedent-table td:nth-child(3) { color: var(--ink); line-height: 1.4; font-size: 15px; }
+
+  /* DEMO IMAGE FULLBLEED */
+  .demo-fullbleed {
+    width: 100%;
+    height: calc(100vh - 220px);
+    object-fit: contain;
+    border: 1px solid var(--gold-soft);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  }
+  .demo-row {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 32px;
+    align-items: start;
+    margin-top: 8px;
+  }
+  .demo-row .annotation {
+    color: var(--ink);
+    font-size: 16px;
+    line-height: 1.55;
+  }
+  .demo-row .annotation .step {
+    color: var(--gold-bright);
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    display: block;
+  }
+  .demo-row .annotation .callout {
+    color: var(--gold);
+    font-weight: 600;
+  }
+  .demo-row img {
+    width: 100%;
+    height: auto;
+    max-height: calc(100vh - 240px);
+    object-fit: contain;
+    border: 1px solid var(--gold-soft);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  }
+
+  /* SOLUTION GRID */
+  .arch-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; margin-top: 22px; }
+  .arch-card { background: var(--bg-card); border: 1px solid var(--gold-soft); border-radius: 8px; padding: 22px; }
+  .arch-card h4 { color: var(--gold-bright); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }
+  .arch-card .what { font-size: 18px; color: var(--gold); margin-bottom: 10px; line-height: 1.25; }
+  .arch-card ul { list-style: none; padding: 0; }
+  .arch-card li { color: var(--ink); font-size: 13px; line-height: 1.55; padding-left: 14px; position: relative; }
+  .arch-card li::before { content: "·"; color: var(--gold); position: absolute; left: 4px; font-weight: bold; }
+
+  /* STAT GRID */
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 22px; }
+  .stat { text-align: center; background: var(--bg-card); border: 1px solid var(--gold-soft); padding: 24px 14px; border-radius: 8px; }
+  .stat .num { font-size: 48px; color: var(--gold); font-weight: 600; letter-spacing: -1px; line-height: 1; margin-bottom: 8px; }
+  .stat .label { font-size: 11px; color: var(--ink-soft); letter-spacing: 1.5px; text-transform: uppercase; }
+
+  .closing { margin-top: 28px; font-style: italic; font-size: 26px; color: var(--ink); text-align: center; line-height: 1.4; }
+  .signature { margin-top: 22px; text-align: center; color: var(--ink-soft); font-size: 16px; letter-spacing: 2px; }
+
+  /* WORKFLOW INDICATOR */
+  .workflow-pill {
+    display: inline-block;
+    background: var(--gold);
+    color: var(--bg);
+    padding: 4px 14px;
+    border-radius: 12px;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 18px;
+  }
+
+  /* BULLET LIST */
+  .features {
+    columns: 2;
+    column-gap: 40px;
+    margin-top: 18px;
+    max-width: 1100px;
+  }
+  .features li {
+    font-size: 16px;
+    color: var(--ink);
+    list-style: none;
+    line-height: 1.7;
+    padding-left: 18px;
+    position: relative;
+    break-inside: avoid;
+    margin-bottom: 4px;
+  }
+  .features li::before { content: "◆"; color: var(--gold); position: absolute; left: 0; font-size: 10px; top: 5px; }
+  .features li b { color: var(--gold-bright); font-weight: 600; }
+
+  /* CALL OUT BOXES */
+  .callout-box {
+    background: rgba(201,164,74,.08);
+    border-left: 3px solid var(--gold);
+    padding: 16px 22px;
+    margin-top: 22px;
+    border-radius: 0 6px 6px 0;
+    max-width: 1000px;
+  }
+  .callout-box p { font-size: 17px; color: var(--ink); }
+  .callout-box em { color: var(--gold-bright); font-style: normal; font-weight: 600; }
+
+  /* CLOSING IMAGE */
+  .vision-image {
+    margin-top: 28px;
+    display: flex;
+    gap: 32px;
+    align-items: center;
+  }
+  .vision-image img {
+    width: 380px;
+    border: 1px solid var(--gold-soft);
+    border-radius: 6px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.4);
+  }
+  .vision-image .text {
+    flex: 1;
+  }
+  .vision-image .text p { font-size: 17px; line-height: 1.5; }
+
+  @media print { .slide { height: 100vh; page-break-after: always; } .speaker-cue { display: none; } }
+</style>
+</head>
+<body>
+
+<!-- ─────────── 1. COVER (0:00 → 0:40) ─────────── -->
+<section class="slide cover">
+  <div class="slide-num">01 / 12</div>
+  <div class="slide-time">0:00 — 0:40 · 40s</div>
+  <h1>Charting Capital</h1>
+  <div class="sub">A financial intelligence platform at the intersection of astrology and Wall Street.</div>
+  <div class="quote">"Millionaires don't use astrology. Billionaires do."</div>
+  <div class="attribution">— attributed to J.P. Morgan</div>
+  <div style="margin-top: 30px; color: var(--ink); font-size: 19px; max-width: 880px; line-height: 1.55; text-align: left;">
+    Whether or not he said it, what is documented: <span style="color: var(--gold-bright);">Morgan kept the most famous astrologer in America, Evangeline Adams, on retainer for investment advice.</span><br><br>
+    <span style="color: var(--ink-soft); font-size: 16px;">This intersection isn't fringe. It's hidden. I'm Aisling. I believe in astrology. So I built the tool these guys had to invent themselves.</span>
+  </div>
+  <div class="author">Aisling Leiva · Pursuit NYC Fellowship · Final Presentation</div>
+  <div class="speaker-cue">Open with the quote. Pause 3s. Then the hedge: "whether or not he said it, what's documented…" Land on Adams' retainer. Drop the closing tag: "Not fringe. Hidden. I'm Aisling. I believe in astrology. So I built it." Pace: 130 wpm. Slower than instinct.</div>
+</section>
+
+<!-- ─────────── 2. PROBLEM — HISTORICAL PRECEDENT (0:25 → 1:00) ─────────── -->
+<section class="slide">
+  <div class="slide-num">02 / 11</div>
+  <div class="slide-time">0:25 — 1:00 · 35s</div>
+  <h3>The Lineage</h3>
+  <h2>This intersection isn't fringe. It's <em style="color: var(--gold-bright); font-style:normal;">hidden.</em></h2>
+  <p class="lede">Astrology and finance have been intertwined for over a century. Verified figures, verified facts:</p>
+  <table class="precedent-table">
+    <tr><td>J.P. Morgan</td><td>1890s-1913</td><td>Kept astrologer Evangeline Adams on retainer for investment advice. Adams' 1926 autobiography documents the relationship.</td></tr>
+    <tr><td>W.D. Gann</td><td>1908</td><td>Founded W.D. Gann &amp; Company. Built planetary-cycle trading system. <em>Truth of the Stock Tape</em> (1924) praised by <em>Wall Street Journal</em>.</td></tr>
+    <tr><td>Donald Bradley</td><td>1948</td><td><em>Stock Market Prediction</em>. Bradley Siderograph — planetary index for stock turning points. <span style="color: var(--gold-bright);">Still tracked today.</span></td></tr>
+    <tr><td>Arch Crawford</td><td>1977-present</td><td>Founded <em>Crawford Perspectives</em>. <span style="color: var(--gold-bright);">Predicted 1987 crash to the day.</span> Ranked #1 market timer in 2008 and 2009 by <em>Hulbert Financial Digest</em>.</td></tr>
+  </table>
+  <div class="callout-box" style="margin-top: 28px;">
+    <p>Existing tools serving this market are PHP scripts and Python notebooks. Newsletters charge <em>$1,200/year</em>. The market exists. The production-grade platform doesn't.</p>
+  </div>
+  <div class="speaker-cue">Walk 3 names: Morgan, Gann, Crawford. The Crawford line is the strongest — "ranked #1 market timer in America 2008 and 2009 by Hulbert Financial Digest." Hedge Morgan as "attributed." Land on the gap: market exists, no platform.</div>
+</section>
+
+<!-- ─────────── 3. SOLUTION ARCHITECTURE (1:00 → 1:25) ─────────── -->
+<section class="slide">
+  <div class="slide-num">03 / 11</div>
+  <div class="slide-time">1:00 — 1:25 · 25s</div>
+  <h3>What It Is</h3>
+  <h2>Charting Capital · three tiers, three audiences, one engine.</h2>
+  <div style="display: flex; gap: 18px; margin-top: 8px; margin-bottom: 22px;">
+    <div style="flex: 1; background: var(--bg-card); border: 1px solid var(--gold-soft); border-radius: 6px; padding: 14px 18px;">
+      <div style="color: var(--gold-bright); font-size: 12px; letter-spacing: 2px; text-transform: uppercase;">Free</div>
+      <div style="color: var(--ink); font-size: 16px; margin-top: 4px;">For the curious. View any ticker's natal chart + Lagrange score.</div>
+    </div>
+    <div style="flex: 1; background: var(--bg-card); border: 1px solid var(--gold); border-radius: 6px; padding: 14px 18px;">
+      <div style="color: var(--gold-bright); font-size: 12px; letter-spacing: 2px; text-transform: uppercase;">Pro</div>
+      <div style="color: var(--ink); font-size: 16px; margin-top: 4px;">For paper traders. Full backtest + auto-trading sim. <span style="color: var(--good);">+37% ROI verified.</span></div>
+    </div>
+    <div style="flex: 1; background: var(--bg-card); border: 1px solid var(--gold-soft); border-radius: 6px; padding: 14px 18px;">
+      <div style="color: var(--gold-bright); font-size: 12px; letter-spacing: 2px; text-transform: uppercase;">Master</div>
+      <div style="color: var(--ink); font-size: 16px; margin-top: 4px;">For professionals. Sidecar API + OpenBB Workspace integration.</div>
+    </div>
+  </div>
+  <div class="arch-grid">
+    <div class="arch-card">
+      <h4>Astrology engine</h4>
+      <div class="what">Wave 9 · 9 modules · 65 tests</div>
+      <ul>
+        <li>Solar Returns (Newton search)</li>
+        <li>Profections (Hellenistic time-lord)</li>
+        <li>Planetary returns (Saturn/Jupiter/Mars)</li>
+        <li>Secondary progressions</li>
+        <li>9 aspects · 7 patterns · 8 fixed stars</li>
+        <li>Decans · Sabian Symbols · Eclipses</li>
+        <li>NASA-grade Swiss Ephemeris</li>
+      </ul>
+    </div>
+    <div class="arch-card">
+      <h4>Data pipeline</h4>
+      <div class="what">Wave 7 · 10 native providers</div>
+      <ul>
+        <li>World Bank · IMF · ECB SDMX</li>
+        <li>BLS · EIA · CFTC COT · OFR FSI</li>
+        <li>Treasury Direct · CoinGecko · SEC EDGAR</li>
+        <li>+ Tiingo · Alpha Vantage · Finnhub</li>
+        <li>+ GDELT · Polymarket · 25 RSS feeds</li>
+        <li>SQLx compile-time SQL</li>
+        <li>Tiered priority refresh queue</li>
+      </ul>
+    </div>
+    <div class="arch-card">
+      <h4>Desktop GUI + sidecar</h4>
+      <div class="what">Iced 0.14 · wgpu · axum</div>
+      <ul>
+        <li>3D natal wheel via WGSL shader</li>
+        <li>Universal pill notification system</li>
+        <li>Lagrange composite (6 factors)</li>
+        <li>Backtest with cycle-aligned mode</li>
+        <li>Paper trading engine</li>
+        <li>OpenBB Workspace integration</li>
+        <li>11 REST endpoints + 7 widgets</li>
+      </ul>
+    </div>
+  </div>
+  <div class="speaker-cue">Three columns = three binaries. Read the column headers, then the bold "what" line under each. Don't list the bullets aloud — let the audience eyes do that work while you talk about scope.</div>
+</section>
+
+<!-- ─────────── 4. WALKTHROUGH 1 — UNIVERSE (1:25 → 1:50) ─────────── -->
+<section class="slide">
+  <div class="slide-num">04 / 11</div>
+  <div class="slide-time">1:25 — 1:50 · 25s</div>
+  <h3>Walkthrough · Step 1</h3>
+  <h2>Open the dashboard. Universe tab. 2,072 scored tickers.</h2>
+  <div class="workflow-pill">▶ Workflow demo</div>
+  <div class="demo-row">
+    <div class="annotation">
+      <span class="step">What you're seeing</span>
+      <p><span class="callout">Sector heat map</span> at top — color-coded by average astro score. Green = optimal, orange = unfavorable.</p>
+      <br>
+      <p>Below: <span class="callout">2,072-ticker scored universe table</span>. Sortable by Astro, Lagrange Score, Concordance, sector, fundamentals.</p>
+      <br>
+      <p>Each row's <span class="callout">Conc</span> column shows how many of the 6 Lagrange factors agree — that's the high-conviction signal.</p>
+      <br>
+      <p style="color:var(--ink-soft); font-size:14px;">Click any ticker → full detail view loads in &lt; 200ms.</p>
+    </div>
+    <img src="screenshots/universe-explorer.jpg" alt="Universe Explorer">
+  </div>
+  <div class="speaker-cue">Point to the sector heat map first ("color-coded by average astro score"). Then sweep right to the table. Highlight the Conc column ("when 4+ factors agree, that's the high-conviction signal"). Click intent: pick CGCT or any optimal-zone ticker.</div>
+</section>
+
+<!-- ─────────── 5. WALKTHROUGH 2 — OVERVIEW + LAGRANGE (1:50 → 2:20) ─────────── -->
+<section class="slide">
+  <div class="slide-num">05 / 11</div>
+  <div class="slide-time">1:50 — 2:20 · 30s</div>
+  <h3>Walkthrough · Step 2</h3>
+  <h2>Overview tab — six factors converge into one Lagrange score.</h2>
+  <div class="workflow-pill">▶ Workflow demo</div>
+  <div class="demo-row">
+    <div class="annotation">
+      <span class="step">5 gauges, top-aligned</span>
+      <p>Left to right: <span class="callout">Crypto F&G</span>, <span class="callout">Equities F&G</span>, <span class="callout">Technical</span>, <span class="callout">Astrology</span>, <span class="callout">★ Lagrange composite</span>.</p>
+      <br>
+      <p>The candlestick chart below has <span class="callout">Bollinger Bands, SMA-20, SMA-50</span>, volume bars, technical patterns auto-detected (double tops, support/resistance lines).</p>
+      <br>
+      <p>The thin band beneath is the <span class="callout">90-day Lagrange history</span> — green = bullish concordance, orange/red = bearish.</p>
+      <br>
+      <p style="color:var(--ink-soft); font-size:14px;">Lagrange = Tech 20% + Sentiment 20% + Short 15% + Insider 15% + Astro 15% + DCF 15%</p>
+    </div>
+    <img src="screenshots/overview-lagrange.jpg" alt="Overview tab — AAPL Lagrange composite">
+  </div>
+  <div class="speaker-cue">Sweep across the 5 gauges left-to-right. Land on the Lagrange star. "This is the composite — six independent signals." Then point to the 90-day history strip. "When this stays green for weeks, that's structural bullishness, not noise."</div>
+</section>
+
+<!-- ─────────── 6. WALKTHROUGH 3 — ASTROLOGY HERO (2:20 → 3:00) ─────────── -->
+<section class="slide">
+  <div class="slide-num">06 / 11</div>
+  <div class="slide-time">2:20 — 3:00 · 40s</div>
+  <h3>Walkthrough · Step 3</h3>
+  <h2>Astrology tab — where this gets serious.</h2>
+  <div class="workflow-pill">▶ Workflow demo (the hero shot)</div>
+  <div class="demo-row">
+    <div class="annotation">
+      <span class="step">Year of Venus badge</span>
+      <p>AAPL is currently in its <span class="callout">Year of Venus (10th house · Libra)</span> — Hellenistic profection has rotated Venus into time-lord position.</p>
+      <br>
+      <p>Hover the badge → full plain-English explanation: profection method, age, house meaning, lord flavor, +50% Lagrange weight.</p>
+      <br>
+      <span class="step">3D natal wheel</span>
+      <p>Real-time WGSL shader. 13 bodies tracked. Aspect lines glow by orb-tightness gradient (v9.0 visual upgrade).</p>
+      <br>
+      <span class="step">Hover any planet</span>
+      <p>Tooltip reveals decan, Sabian symbol per degree, critical-degree flag, OOB declination.</p>
+      <br>
+      <span class="step">Lifecycle below</span>
+      <p>Solar Return, Saturn / Jupiter / Mars upcoming returns, progressed Sun position. All cached — zero per-render compute.</p>
+    </div>
+    <img src="screenshots/astrology-aspect-hover.jpg" alt="Astrology tab — Mars × Venus Quincunx aspect tooltip">
+  </div>
+  <div class="speaker-cue">This is the money slide. Slow down. "AAPL is in its Year of Venus right now — that's not a number I made up. It's a 2,000-year-old Hellenistic technique." Hover the badge to show the tooltip. Mention Antiochus's first-century text. Then the wheel: "rendered in real-time on the GPU via custom WGSL shader."</div>
+</section>
+
+<!-- ─────────── 7. WALKTHROUGH 4 — NOTIFICATIONS + WORKFLOW (3:00 → 3:25) ─────────── -->
+<section class="slide">
+  <div class="slide-num">07 / 11</div>
+  <div class="slide-time">3:00 — 3:25 · 25s</div>
+  <h3>Walkthrough · Step 4</h3>
+  <h2>Universal pill notifications + drawer history.</h2>
+  <div class="workflow-pill">▶ Workflow demo</div>
+  <div class="demo-row">
+    <div class="annotation">
+      <span class="step">Three pills, three signals</span>
+      <p><span class="callout">ACLS → Optimal</span> · <span class="callout">MSFT → Optimal</span> · <span class="callout">NVDA → Optimal</span> — all Lagrange alerts firing simultaneously.</p>
+      <br>
+      <p>Layout <span class="callout">never reflows</span>. Pills slot between the tab strip's right spacer and the bell button. The fix from v12.1 — kill the push-down bug forever.</p>
+      <br>
+      <p>Click any pill → routes to Universe tab + dismisses pill in one click.</p>
+      <br>
+      <p>Click the bell → drawer reveals 24h history. Clear all = wipe both active deque + history.</p>
+      <br>
+      <p style="color:var(--ink-soft); font-size:14px;">Bell rocks 2.4s when active count > 0. Custom Canvas widget — no Phosphor codepoint guessing.</p>
+    </div>
+    <img src="screenshots/notifications.png" alt="Notification pills">
+  </div>
+  <div class="speaker-cue">Quick on this slide. "Three Optimal alerts firing at once — layout never moves. That's intentional engineering. Click any pill, it routes + dismisses. Click the bell, full 24-hour history." Move on.</div>
+</section>
+
+<!-- ─────────── 8. PROOF — PAPER TRADING +37% ROI (3:25 → 3:55) ─────────── -->
+<section class="slide">
+  <div class="slide-num">08 / 12</div>
+  <div class="slide-time">3:25 — 3:55 · 30s</div>
+  <h3>The Proof</h3>
+  <h2><span style="color: var(--good);">+37.06%</span> return on $100K virtual capital. <span style="color: var(--ink-soft); font-size: 28px;">35 trades. Live forward-test.</span></h2>
+  <div class="demo-row">
+    <div class="annotation">
+      <span class="step">Live paper trading engine</span>
+      <p>Starts with <span class="callout">$100,000</span> virtual capital. Auto-opens at Lagrange score &gt; 65, exits at &lt; 35 or 15% trailing stop.</p>
+      <br>
+      <p style="font-size: 22px; color: var(--good);"><strong>Total Value: $137,055.11</strong></p>
+      <p style="font-size: 22px; color: var(--good);"><strong>Total Return: +37.06%</strong></p>
+      <p style="font-size: 14px; color: var(--ink-soft); margin-top: 6px;">35 trades · last simulation 2026-05-05</p>
+      <br>
+      <p style="font-size: 15px;">Open positions visible: <span class="callout">ABSI +50.63%</span>, <span class="callout">BLSH +17.39%</span>, <span class="callout">AMBA +14.47%</span>, <span class="callout">BUUU +26.60%</span>.</p>
+      <br>
+      <p style="font-size: 15px; color: var(--ink-soft);">Astrology is <em>one of six inputs</em>. The Lagrange strategy that produced this return uses it actively. Not cherry-picked from history — running every day on real data.</p>
+    </div>
+    <img src="screenshots/paper-trail-37pct.jpg" alt="Paper Trail +37.06% ROI" style="object-fit: contain;">
+  </div>
+  <div class="speaker-cue">Kill shot. Slow down. "$100,000 virtual capital. Plus thirty-seven percent return. Thirty-five trades. The Lagrange strategy uses astrology as one of six inputs." Pause. "This isn't a backtest cherry-picked from history. It's a live forward-testing engine."</div>
+</section>
+
+<!-- ─────────── 9. THE THESIS (3:55 → 4:15) ─────────── -->
+<section class="slide">
+  <div class="slide-num">09 / 12</div>
+  <div class="slide-time">3:55 — 4:15 · 20s</div>
+  <h3>The Thesis</h3>
+  <h2>Don't believe. Measure.</h2>
+  <p class="lede">The thesis isn't <em>"believe in astrology."</em> The thesis is — financial astrology has a documented 100-year track record at the highest levels of Wall Street. Until now, the techniques weren't reproducible at scale.</p>
+  <div class="callout-box">
+    <p><em>Pursuit Astro is the first open implementation</em> of Hellenistic financial astrology with engineering rigor: NASA-grade Swiss Ephemeris precision, 132 unit tests validating against AAPL's natal chart, a backtest engine with cycle-aligned mode that filters days by Saturn-return / Jupiter-return zones.</p>
+    <br>
+    <p>Don't take J.P. Morgan's word for it. Don't take W.D. Gann's word for it. <em>Run the backtest yourself.</em></p>
+  </div>
+  <div class="speaker-cue">Slow down here. This is the philosophical pivot. "The thesis isn't believe — it's measure." Pause. Let it land. Then close: "Run the backtest yourself."</div>
+</section>
+
+<!-- ─────────── 10. THE NUMBERS (4:15 → 4:35) ─────────── -->
+<section class="slide">
+  <div class="slide-num">10 / 12</div>
+  <div class="slide-time">4:15 — 4:35 · 20s</div>
+  <h3>Tech Depth</h3>
+  <h2>30 days. Solo. Production-grade.</h2>
+  <div class="stat-grid">
+    <div class="stat"><div class="num">25k</div><div class="label">lines of Rust</div></div>
+    <div class="stat"><div class="num">140</div><div class="label">unit tests</div></div>
+    <div class="stat"><div class="num">10</div><div class="label">native providers</div></div>
+    <div class="stat"><div class="num">9</div><div class="label">astrology modules</div></div>
+    <div class="stat"><div class="num">46</div><div class="label">SQL migrations</div></div>
+    <div class="stat"><div class="num">2</div><div class="label">GPU shaders (WGSL)</div></div>
+    <div class="stat"><div class="num">3</div><div class="label">binaries</div></div>
+    <div class="stat"><div class="num">0</div><div class="label">compiler warnings</div></div>
+  </div>
+  <ul class="features">
+    <li><b>Compile-time SQL</b> — SQLx verifies every query at build time. Wrong SQL = won't compile.</li>
+    <li><b>GPU-native rendering</b> — Iced 0.14 + wgpu, not Electron. Single 12MB binary.</li>
+    <li><b>Sub-arcsecond ephemeris</b> — Swiss Eph + Moshier fallback. Same lib NASA uses for spacecraft.</li>
+    <li><b>Fail-soft pipeline</b> — Any provider failure logs and continues. No cascading outages.</li>
+  </ul>
+  <div class="speaker-cue">Read the numbers fast in sequence — they hit harder rapid. End on "zero compiler warnings." That's the engineering credibility punch.</div>
+</section>
+
+<!-- ─────────── 11. WHAT THIS COULD BE — VISION (4:35 → 4:55) ─────────── -->
+<section class="slide">
+  <div class="slide-num">11 / 12</div>
+  <div class="slide-time">4:35 — 4:55 · 20s</div>
+  <h3>What This Could Be</h3>
+  <h2>Charting Capital — the platform play.</h2>
+  <div class="vision-image">
+    <img src="screenshots/charting-capital-landing.png" alt="Charting Capital landing concept">
+    <div class="text">
+      <p>Pursuit Astro is the engine. <span style="color:var(--gold-bright);">Charting Capital</span> is the brand — a financial intelligence platform at the intersection of astrology and Wall Street.</p>
+      <br>
+      <p style="color:var(--ink-soft); font-size:15px;">The infrastructure is already production-tier. The question isn't <em>can it ship</em>. The question is <em>what audience first</em>:</p>
+      <br>
+      <ul style="list-style:none; padding-left:18px; font-size:15px; line-height:1.7;">
+        <li style="color:var(--ink);">▸ Retail traders — desktop tier ($29/mo)</li>
+        <li style="color:var(--ink);">▸ Institutional newsletters — sidecar API ($1,200/yr precedent)</li>
+        <li style="color:var(--ink);">▸ Astrology-curious finance professionals — the W.D. Gann tradition revived</li>
+      </ul>
+    </div>
+  </div>
+  <div class="speaker-cue">Bring the brand into focus here. "Pursuit Astro is the engine. Charting Capital is the brand." Three audiences = three monetization paths. Don't dwell — this is forward-looking, not prescriptive.</div>
+</section>
+
+<!-- ─────────── 12. CLOSE (4:55 → 5:00) ─────────── -->
+<section class="slide cover" style="text-align: center;">
+  <div class="slide-num">12 / 12</div>
+  <div class="slide-time">4:55 — 5:00 · 5s</div>
+  <div class="closing" style="font-size: 36px; max-width: 1100px; line-height: 1.5;">
+    "The stars charted the careers of <span style="color: var(--gold-bright);">Morgan</span>,<br>
+    <span style="color: var(--gold-bright);">Gann</span>, and <span style="color: var(--gold-bright);">Crawford</span>. They're charting mine too.<br><br>
+    And I'm building the tool that charts<br>
+    everyone else's."
+  </div>
+  <div style="margin-top: 50px; color: var(--ink); font-size: 22px; max-width: 1000px; line-height: 1.5; font-style: italic;">
+    Whether you came for the horoscope or stayed for the P&amp;L,<br>
+    the cosmos has been moving markets the whole time.<br>
+    <span style="color: var(--gold-bright); font-style: normal; font-weight: 600;">We're just the first to put it on one screen.</span>
+  </div>
+  <div class="signature" style="margin-top: 60px;">Aisling Leiva · Charting Capital · Thank you</div>
+  <div class="speaker-cue" style="text-align:left;">Memorize verbatim. Deliver slow. Final beat: "We're just the first to put it on one screen." Pause. Smile. Take questions. Don't say "thanks for listening."</div>
+</section>
+
+</body>
+</html>
