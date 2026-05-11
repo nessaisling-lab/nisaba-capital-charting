@@ -539,6 +539,23 @@ pub(crate) async fn export_universe_csv(rows: Vec<UniverseRow>) -> Result<(), St
 const APP_USER_MODEL_ID: &str = "PursuitAstro.Dashboard";
 const APP_DISPLAY_NAME: &str = "Pursuit Astro";
 
+/// v12.1 — Stamp the running process with its AUMID. Required on Win11 24H2:
+/// the Action Center broker checks the calling process's AUMID before
+/// looking up the Start Menu shortcut. Without this, Toast::show returns
+/// HRESULT 0x80070005 (E_ACCESSDENIED) even when the shortcut + registry
+/// are correct. notify-rust's Notification::app_id() only writes AUMID
+/// into the toast XML — it does NOT call SetCurrentProcessExplicitAppUserModelID.
+#[cfg(windows)]
+unsafe fn set_current_process_aumid() -> windows::core::Result<()> {
+    use windows::core::PCWSTR;
+    use windows::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID;
+    let aumid_wide: Vec<u16> = APP_USER_MODEL_ID
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
+    SetCurrentProcessExplicitAppUserModelID(PCWSTR(aumid_wide.as_ptr()))
+}
+
 /// v12.0.A — Real fix for Windows toast HRESULT 0x80070005.
 /// Three pieces required:
 ///   1. AppUserModelID registry entry (DisplayName + IconUri)
@@ -548,10 +565,18 @@ const APP_DISPLAY_NAME: &str = "Pursuit Astro";
 ///      property; only IShellLinkW + IPropertyStore can)
 ///   3. notify-rust call passes AUMID via Notification::app_id()
 ///
+/// v12.1 — Added (0): stamp process with AUMID via SetCurrentProcessExplicitAppUserModelID
+/// before any other step. Win11 24H2 rejects toasts without this.
+///
 /// We do (2) directly via windows-rs: IShellLinkW.SetPath +
 /// IPropertyStore.SetValue(PKEY_AppUserModel_ID) + IPersistFile.Save.
 #[cfg(windows)]
 pub(crate) fn register_app_user_model_id() {
+    match unsafe { set_current_process_aumid() } {
+        Ok(()) => eprintln!("[notifications] process AUMID stamped: {APP_USER_MODEL_ID}"),
+        Err(e) => eprintln!("[notifications] SetCurrentProcessExplicitAppUserModelID failed: {e:?}"),
+    }
+
     let key = format!(r"HKCU\Software\Classes\AppUserModelId\{APP_USER_MODEL_ID}");
     let icon_uri = r"%windir%\System32\imageres.dll,-5302";
     let r1 = std::process::Command::new("reg")
@@ -587,11 +612,77 @@ pub(crate) fn register_app_user_model_id() {
     match unsafe { create_aumid_shortcut(&exe_path, &lnk_path, APP_USER_MODEL_ID) } {
         Ok(()) => {
             eprintln!("[notifications] AUMID-bound shortcut created: {}", lnk_path.display());
-            eprintln!("[notifications] Toast notifications should resolve on next show().");
-            eprintln!("[notifications] If first attempt still fails, sign out + back in once so explorer indexes the AUMID binding.");
+
+            // v12.1.B — Force Explorer to flush its AppResolver cache so the
+            // new .lnk is findable by AUMID immediately. Without this, Win11
+            // 24H2 rejects toasts with HRESULT 0x80070005 until Explorer's
+            // background scan picks up the shortcut (could take minutes).
+            unsafe { broadcast_shell_change(); }
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            eprintln!("[notifications] SHChangeNotify broadcast + 300ms settle complete");
         }
         Err(e) => eprintln!("[notifications] AUMID shortcut creation failed: {e:?}"),
     }
+}
+
+/// v12.1.B — Broadcast SHCNE_ASSOCCHANGED so Explorer flushes its
+/// AppResolver cache (the in-process Start-Menu → AUMID lookup table).
+/// Required after writing a new .lnk; otherwise the cached miss persists
+/// and toast calls fail with E_ACCESSDENIED.
+#[cfg(windows)]
+unsafe fn broadcast_shell_change() {
+    use windows::Win32::UI::Shell::{SHChangeNotify, SHCNE_ASSOCCHANGED, SHCNF_FLUSH, SHCNF_IDLIST};
+    SHChangeNotify(
+        SHCNE_ASSOCCHANGED,
+        SHCNF_IDLIST | SHCNF_FLUSH,
+        None,
+        None,
+    );
+}
+
+/// v12.1.C — Direct WinRT toast call, bypassing notify-rust. The
+/// notify-rust 4.x Windows path (via winrt-notification crate) is
+/// broken on Win11 24H2 for unpackaged apps even with full AUMID
+/// setup. Calling ToastNotificationManager::CreateToastNotifierWithId
+/// directly via the `windows` crate succeeds where notify-rust's
+/// wrapper does not.
+#[cfg(windows)]
+fn fire_toast_winrt(summary: &str, body: &str, critical: bool) -> windows::core::Result<()> {
+    use windows::core::HSTRING;
+    use windows::Data::Xml::Dom::XmlDocument;
+    use windows::UI::Notifications::{ToastNotification, ToastNotificationManager};
+
+    let scenario = if critical { r#" scenario="urgent""# } else { "" };
+    let xml_str = format!(
+        r#"<toast{scenario}>
+            <visual>
+                <binding template="ToastGeneric">
+                    <text>{}</text>
+                    <text>{}</text>
+                </binding>
+            </visual>
+        </toast>"#,
+        xml_escape(summary),
+        xml_escape(body),
+    );
+
+    let xml = XmlDocument::new()?;
+    xml.LoadXml(&HSTRING::from(xml_str))?;
+
+    let aumid = HSTRING::from(APP_USER_MODEL_ID);
+    let notifier = ToastNotificationManager::CreateToastNotifierWithId(&aumid)?;
+    let toast = ToastNotification::CreateToastNotification(&xml)?;
+    notifier.Show(&toast)?;
+    Ok(())
+}
+
+#[cfg(windows)]
+fn xml_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
 }
 
 /// v12.0.A — Create a .lnk file and bind the AppUserModelID property
@@ -692,16 +783,24 @@ pub(crate) async fn fire_toast(alerts: Vec<LagrangeAlert>) {
     if alerts.len() > 4 {
         body = format!("{}\n…and {} more", body, alerts.len() - 4);
     }
-    let mut n = notify_rust::Notification::new();
-    n.summary(&summary).body(&body).appname(APP_DISPLAY_NAME);
     #[cfg(windows)]
-    n.app_id(APP_USER_MODEL_ID);
-    if any_optimal {
-        n.urgency(notify_rust::Urgency::Critical);
+    {
+        match fire_toast_winrt(&summary, &body, any_optimal) {
+            Ok(()) => eprintln!("[fire_toast] WinRT toast shown — summary: {summary}"),
+            Err(e) => eprintln!("[fire_toast] WinRT toast FAILED: {e:?}"),
+        }
     }
-    match n.show() {
-        Ok(_) => eprintln!("[fire_toast] OS notification shown — summary: {summary}"),
-        Err(e) => eprintln!("[fire_toast] OS notification FAILED: {e}"),
+    #[cfg(not(windows))]
+    {
+        let mut n = notify_rust::Notification::new();
+        n.summary(&summary).body(&body).appname(APP_DISPLAY_NAME);
+        if any_optimal {
+            n.urgency(notify_rust::Urgency::Critical);
+        }
+        match n.show() {
+            Ok(_) => eprintln!("[fire_toast] OS notification shown — summary: {summary}"),
+            Err(e) => eprintln!("[fire_toast] OS notification FAILED: {e}"),
+        }
     }
 }
 
@@ -709,15 +808,24 @@ pub(crate) async fn fire_toast(alerts: Vec<LagrangeAlert>) {
 /// the user verify their OS path independent of the alerts pipeline.
 pub(crate) async fn fire_test_notification() {
     eprintln!("[fire_test_notification] invoked");
-    let mut n = notify_rust::Notification::new();
-    n.summary("Pursuit Astro — Test")
-        .body("If you see this, OS notifications are wired correctly.\nLagrange alerts will appear here when they trigger.")
-        .appname(APP_DISPLAY_NAME);
+    let summary = "Pursuit Astro — Test";
+    let body = "If you see this, OS notifications are wired correctly.\nLagrange alerts will appear here when they trigger.";
+
     #[cfg(windows)]
-    n.app_id(APP_USER_MODEL_ID);
-    match n.show() {
-        Ok(_) => eprintln!("[fire_test_notification] shown OK"),
-        Err(e) => eprintln!("[fire_test_notification] FAILED: {e}"),
+    {
+        match fire_toast_winrt(summary, body, false) {
+            Ok(()) => eprintln!("[fire_test_notification] WinRT toast shown"),
+            Err(e) => eprintln!("[fire_test_notification] WinRT toast FAILED: {e:?}"),
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let mut n = notify_rust::Notification::new();
+        n.summary(summary).body(body).appname(APP_DISPLAY_NAME);
+        match n.show() {
+            Ok(_) => eprintln!("[fire_test_notification] shown OK"),
+            Err(e) => eprintln!("[fire_test_notification] FAILED: {e}"),
+        }
     }
 }
 

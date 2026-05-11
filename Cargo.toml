@@ -46,8 +46,10 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # v12.0.A — Windows toast notification real fix. Creates an AUMID-bound
-# Start Menu shortcut via IShellLinkW + IPropertyStore.SetValue so
-# notify-rust's Toast::show() resolves (HRESULT 0x80070005 fix).
+# Start Menu shortcut via IShellLinkW + IPropertyStore.SetValue.
+# v12.1.C — Added UI_Notifications + Data_Xml_Dom for direct WinRT
+# ToastNotificationManager calls (bypasses notify-rust which is broken
+# on Win11 24H2 for unpackaged apps).
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = [
     "Win32_Foundation",
@@ -57,4 +59,6 @@ windows = { version = "0.58", features = [
     "Win32_UI_Shell_PropertiesSystem",
     "Win32_Storage_FileSystem",
     "Win32_Storage_EnhancedStorage",
+    "UI_Notifications",
+    "Data_Xml_Dom",
 ] }
