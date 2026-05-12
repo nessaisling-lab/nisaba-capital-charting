@@ -42,7 +42,7 @@ pub const SEARCH_INPUT_ID: &str = "ticker-search";
 
 impl Dashboard {
     pub fn new() -> (Self, Task<Message>) {
-        dotenvy::dotenv().ok();
+        nisaba_engine::config::load_env_and_log("dashboard");
         let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
             "postgres://postgres:dev@localhost:5432/financial_dashboard".to_string()
         });

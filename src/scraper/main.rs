@@ -192,7 +192,7 @@ pub(crate) async fn log_fetch(
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    dotenvy::dotenv().ok();
+    nisaba_engine::config::load_env_and_log("scraper");
 
     let api_key = std::env::var("ALPHA_VANTAGE_API_KEY")
         .context("ALPHA_VANTAGE_API_KEY env var required")?;

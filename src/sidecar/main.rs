@@ -44,7 +44,7 @@ pub struct AppState {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let _ = dotenvy::dotenv();
+    nisaba_engine::config::load_env_and_log("sidecar");
     tracing_subscriber::fmt()
         .with_env_filter(std::env::var("RUST_LOG").unwrap_or_else(|_| "sidecar=info,tower_http=info".to_string()))
         .init();
