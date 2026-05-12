@@ -39,3 +39,47 @@ temp_*.txt
 
 # Installer build output (large binaries; ship via release artifacts)
 installer/Output/
+
+# Inno Setup extras (logs + leftover binaries that aren't the final .exe)
+installer/*.log
+installer/*.exe.bak
+
+# Environment variables — additional patterns (defense in depth)
+.env.local
+.env.*.local
+.env.development
+.env.production
+
+# Office lock files (created when .pptx/.docx is open in Word/PowerPoint)
+~$*.pptx
+~$*.docx
+~$*.xlsx
+
+# Rust extras
+*.rs.bk
+.rust-analyzer/
+rustc-ice-*.txt
+
+# Python (scripts/ uses python-pptx — cache dirs appear on import)
+__pycache__/
+*.pyc
+
+# OneDrive conflict files (Documents folder is OneDrive-redirected)
+*-Conflict-*
+* (*'s conflicted copy *)*
+
+# Editor backups
+*.swp
+*.swo
+*~
+
+# Test coverage (if added later)
+tarpaulin-report.html
+*.profraw
+*.profdata
+lcov.info
+
+# Local Postgres data + DB dumps
+pgdata/
+*.dump
+*.sql.bak
