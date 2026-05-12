@@ -26,7 +26,7 @@ AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 ; Per-machine install: Program Files, requires admin during install.
 ; App itself runs UNELEVATED per user session (required for toasts).
-DefaultDirName={pf}\{#MyAppBrand}\{#MyAppName}
+DefaultDirName={commonpf}\{#MyAppBrand}\{#MyAppName}
 DefaultGroupName={#MyAppBrand}
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin

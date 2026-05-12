@@ -33,7 +33,7 @@ pub fn main() -> iced::Result {
     // toast notifications work without HRESULT 0x80070005 access denied.
     update::register_app_user_model_id();
     iced::application(Dashboard::new, Dashboard::update, Dashboard::view)
-        .title("Financial Dashboard")
+        .title("Nisaba Terminal")
         .subscription(Dashboard::subscription)
         .theme(Dashboard::theme)
         .default_font(font::BODY)
