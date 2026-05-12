@@ -1,4 +1,8 @@
-# Nisaba Capital Charting · Nisaba Capital Charting
+# Nisaba Capital Charting
+
+**🌐 Live landing page:** [nessaisling-lab.github.io/nisaba-site](https://nessaisling-lab.github.io/nisaba-site/)
+**⬇️ Download v12.2.0:** [NisabaCapitalCharting-Setup.exe](https://github.com/nessaisling-lab/nisaba-capital-charting/releases/download/v12.2.0/NisabaCapitalCharting-Setup.exe) (Windows · 18 MB · capstone demo)
+
 
 > *"Millionaires don't use astrology. Billionaires do."*
 > — attributed to **J.P. Morgan**
@@ -15,7 +19,7 @@ A financial intelligence platform at the intersection of astrology and Wall Stre
 
 Nisaba Capital Charting is a Bloomberg-class desktop terminal that takes both **rigorous quantitative data** (12 APIs, 32 DB migrations, native Rust scrapers) **and unconventional signals** (Hellenistic time-lord astrology computed to sub-arcsecond precision via Swiss Ephemeris) — and feeds them into one composite scoring system: the **Lagrange Score**.
 
-The thesis isn't "astrology predicts markets." It's that the best investors in history — J.P. Morgan to Evangeline Adams, W.D. Gann to Louise McWhirter — refused to dismiss data sources just because they were unconventional. Pursuit is built on the same principle: **look at everything, measure what you can, decide for yourself.**
+The thesis isn't "astrology predicts markets." It's that the best investors in history — J.P. Morgan to Evangeline Adams, W.D. Gann to Louise McWhirter — refused to dismiss data sources just because they were unconventional. Nisaba is built on the same principle: **look at everything, measure what you can, decide for yourself.**
 
 - **Stack:** Rust 2021 · Iced 0.14 (wgpu GPU rendering) · SQLx + PostgreSQL · Swiss Ephemeris · axum sidecar · windows-rs
 - **Built:** 30 days, solo, ~25,000 LOC
@@ -28,7 +32,7 @@ The thesis isn't "astrology predicts markets." It's that the best investors in h
 
 I built a desktop financial dashboard that combines Wall Street data with a Hellenistic astrology engine — in pure Rust, in 30 days. The astrology engine isn't decorative. It implements **Solar Returns**, **profections**, **secondary progressions**, and **planetary returns** — the same time-lord systems used in Antiochus's *Definitions and Foundations* (1st century CE) — validated against AAPL's natal chart to under 0.1° drift across every module. The dashboard renders a real-time 3D natal wheel via custom **wgpu shaders**, has **10 native data providers** replacing OpenBB's Python stack, and exposes everything through an **axum REST sidecar** with OpenBB Workspace widget integration. **132 tests, zero warnings.**
 
-Why? Because **financial astrology isn't a fringe theory** — it's a documented practice with a 100-year track record at the highest levels of finance. J.P. Morgan kept Evangeline Adams on retainer. W.D. Gann's commodity forecasts based on planetary cycles are still studied by professional traders. Louise McWhirter published *McWhirter Theory of Stock Market Forecasting* in 1937. Arch Crawford's *Crawford Perspectives* newsletter has timed S&P turning points for institutional clients since 1977. The thesis: **serious finance and serious astrology can speak the same engine.** Pursuit is that engine.
+Why? Because **financial astrology isn't a fringe theory** — it's a documented practice with a 100-year track record at the highest levels of finance. J.P. Morgan kept Evangeline Adams on retainer. W.D. Gann's commodity forecasts based on planetary cycles are still studied by professional traders. Louise McWhirter published *McWhirter Theory of Stock Market Forecasting* in 1937. Arch Crawford's *Crawford Perspectives* newsletter has timed S&P turning points for institutional clients since 1977. The thesis: **serious finance and serious astrology can speak the same engine.** Nisaba Engine is that engine.
 
 ---
 
@@ -142,16 +146,29 @@ The Lagrange strategy that produced this return **uses the astrology factor as o
 
 ---
 
-## Quick start
+## Install
+
+### Option A — Windows installer (recommended for trying the demo)
+
+Download the latest release:
+**[NisabaCapitalCharting-Setup.exe](https://github.com/nessaisling-lab/nisaba-capital-charting/releases/download/v12.2.0/NisabaCapitalCharting-Setup.exe)** (18 MB · Windows 10/11 · v12.2.0)
+
+- Per-machine install at `C:\Program Files\Nisaba Capital Charting\Nisaba Terminal\`
+- Admin elevation during install only — app runs unelevated for proper toast delivery
+- Creates AUMID-bound Start Menu shortcut for all users
+- Uninstalls cleanly via Settings → Apps
+- Unsigned binary — Windows SmartScreen will warn ("More info → Run anyway")
+
+### Option B — Build from source
 
 ```bash
-# Prereqs: Rust 1.80+, PostgreSQL 14+
-git clone https://github.com/<user>/pursuit-astro
-cd pursuit-astro
+# Prereqs: Rust 1.80+, PostgreSQL 14+, MinGW (Windows) or build-essential (Linux)
+git clone https://github.com/nessaisling-lab/nisaba-capital-charting
+cd nisaba-capital-charting
 cargo run --bin dashboard
 ```
 
-Database migrations run automatically. Set `DATABASE_URL` in `.env`. API keys (Tiingo, AV, Finnhub, FMP) are optional — the app degrades gracefully if absent.
+Database migrations run automatically. Set `DATABASE_URL` in `.env`. API keys (Alpha Vantage, Tiingo, Finnhub, FMP, FRED) are optional — the app degrades gracefully if absent.
 
 For OpenBB Workspace integration: `cargo run --bin sidecar` and register `http://localhost:8765/widgets.json`.
 
@@ -214,4 +231,22 @@ AAPL chart (IPO 1980-12-12 09:30 EST) round-trips through every astrology module
 
 ## Author
 
-**Aisling Leiva** — Pursuit NYC Fellowship Week 4 capstone (2026-04-07 to 2026-05-06).
+**Aisling Leiva** — Pursuit NYC Fellowship Week 4 capstone (2026-04-07 to 2026-05-12).
+
+- **Landing page:** [nessaisling-lab.github.io/nisaba-site](https://nessaisling-lab.github.io/nisaba-site/)
+- **Code repo:** [github.com/nessaisling-lab/nisaba-capital-charting](https://github.com/nessaisling-lab/nisaba-capital-charting)
+- **Latest release:** [v12.2.0 — Capstone Demo](https://github.com/nessaisling-lab/nisaba-capital-charting/releases/tag/v12.2.0)
+
+---
+
+## Brand family
+
+The Nisaba product line is named for the Sumerian goddess of writing, accounts, and patron of scribes:
+
+- **Nisaba Capital Charting** — company / umbrella brand
+- **Nisaba Engine** — Rust core codename (this repo's library crate)
+- **Nisaba Terminal** — desktop flagship (v12.2.0, shipped)
+- **Nisaba Scribe** — mobile companion (planned, v13.x)
+- **Nisaba Atlas** — web demo (future)
+- **Nisaba Codex** — public API (future)
+- **Nisaba Almanac** — research newsletter (future)

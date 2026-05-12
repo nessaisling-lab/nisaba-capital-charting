@@ -1,8 +1,178 @@
-# Changelog — Pursuit Week 4 Financial Dashboard
+# Changelog — Nisaba Capital Charting
 
 **Author:** Aisling Leiva
-**Stack:** Rust, Iced 0.14, SQLx, PostgreSQL
-**Development:** 2026-04-07 to 2026-05-06
+**Stack:** Rust 2021 · Iced 0.14 (wgpu) · SQLx · PostgreSQL · Swiss Ephemeris · axum · windows-rs
+**Development:** 2026-04-07 to 2026-05-12 (capstone build + public publish)
+**Latest release:** [v12.2.0 — Capstone Demo](https://github.com/nessaisling-lab/nisaba-capital-charting/releases/tag/v12.2.0)
+**Landing page:** [nessaisling-lab.github.io/nisaba-site](https://nessaisling-lab.github.io/nisaba-site/)
+
+---
+
+## Versioning note
+
+Two parallel version tracks ran during development:
+
+- **Cargo semver** (`Cargo.toml`): v11.0.0 (long-stable through April–May development) → v12.1 (toast triage, 2026-05-11) → v12.2 (Nisaba rebrand, 2026-05-11). These are substantive infra/identity changes.
+- **Wave release-train** (commit labels v13.0, v13.1, v13.2): UI/feature polish cycles. Wave version stayed ahead of Cargo because Cargo was bumped only when project identity or infrastructure shifted materially.
+
+The two tracks are orthogonal dimensions (infra version vs UI polish wave), not contradictory. The **v12.2.0 git tag** marks the formal public publication on 2026-05-12 — that's the canonical release identifier.
+
+The project was previously named **"Pursuit Astro"** (engine codename) / **"Charting Capital"** (consumer brand). Both retired in the v12.2 rebrand for a unified brand-family architecture under **Nisaba Capital Charting**.
+
+---
+
+## 2026-05-12 — v12.2.0 PUBLIC SHIP
+
+The capstone demo went live. First public release of Nisaba Terminal.
+
+**What shipped:**
+- GitHub Release **v12.2.0** on `nessaisling-lab/nisaba-capital-charting` (public repo) with the `NisabaCapitalCharting-Setup.exe` Inno Setup installer attached as a release asset (18 MB · per-machine install).
+- Public landing page at [nessaisling-lab.github.io/nisaba-site](https://nessaisling-lab.github.io/nisaba-site/) hosted via GitHub Pages from the new `nisaba-site` repo (~600 lines of HTML+CSS reusing the v13.2 pitch-deck design tokens).
+- Release notes attached as `installer/Output/release-notes-v12.2.0.md` (markdown rendered on the Releases page).
+
+**Ship pipeline:** `git tag -a v12.2.0` → push tag → `gh release create v12.2.0 <installer.exe> --notes-file <notes.md>` → `gh repo create nisaba-site --public --source=. --push` → `gh api ... pages` enable. Roughly 45 seconds from auth to all-live.
+
+**Validation:**
+- Release page renders the markdown notes correctly + 18 MB installer downloads from CDN
+- Site repo's `main` branch pushed (2 commits: initial landing + features/roadmap/FAQ/disclaimer additions)
+- GitHub Pages workflow enqueued and built within ~60s of API enable
+
+**What is NOT in this ship:** demo video (placeholder section on landing page, recording planned this week), v12.3 per-user `.env` loader (current install copies `.env` to install dir as workaround), code-signed installer (SmartScreen warns on first run).
+
+---
+
+## v12.2.A — Rebrand stragglers (2026-05-11)
+
+Two stragglers caught after the v12.2 rebrand sweep:
+
+1. **Iced window title** in `src/dashboard/main.rs` still read `"Financial Dashboard"` (placeholder from v1.0, never updated). Bulk find/replace didn't catch it because it wasn't a brand keyword. Changed to `"Nisaba Terminal"` so Alt-Tab and Task Manager identify the app correctly.
+2. **Inno Setup `{pf}` deprecation**: `installer/nisaba-capital-charting.iss` used the legacy `{pf}` constant. Inno Setup 6 emits a deprecation warning. Switched to `{commonpf}` (explicit per-machine 64-bit Program Files). Recompile is now warning-free.
+
+**Validation:**
+- Inno Setup recompile: 0 warnings, 29.8 sec, 18.08 MB output
+
+---
+
+## v12.2 — "Nisaba Capital Charting" rebrand + brand-family architecture (2026-05-11)
+
+**Theme:** Project rename from "Pursuit Astro" / "Charting Capital" → **"Nisaba Capital Charting"**. Adopting a brand-family architecture inspired by mature fintech product lines (Bloomberg L.P. → Bloomberg Terminal → Bloomberg Mobile; Apple → iPhone → A17 Pro).
+
+Nisaba was the Sumerian goddess of writing, accounts, grain stores, and patron of scribes — fitting origin for a financial-astrology record-keeping terminal.
+
+### Brand architecture
+
+| Layer | Name |
+|---|---|
+| Parent brand (company / umbrella) | **Nisaba Capital Charting** |
+| Codename (Rust core, shared) | **Nisaba Engine** |
+| Desktop product (this binary) | **Nisaba Terminal** |
+| Mobile (planned, v13.x) | Nisaba Scribe |
+| Web SaaS (future) | Nisaba Atlas |
+| Public API (future) | Nisaba Codex |
+| Research newsletter (future) | Nisaba Almanac |
+
+### Code / identifier changes
+
+- `Cargo.toml`: `name = "nisaba_engine"`, `version = "12.2.0"`
+- AUMID: `"NisabaCapitalCharting.Terminal"`
+- App display name: `"Nisaba Terminal"`
+- Scraper User-Agents: `"NisabaEngine/0.1"` (engine codename for technical headers)
+- All `use pursuit_week4_automation::*` → `use nisaba_engine::*` imports
+- Bulk PowerShell find/replace across 36 src/**/*.rs files
+- `helpers.rs` `.lnk` filename now derived from `APP_DISPLAY_NAME` constant via `format!("{APP_DISPLAY_NAME}.lnk")` — future renames stay in sync
+
+### Docs / artifact changes
+
+- README / DESIGN: umbrella brand "Nisaba Capital Charting"
+- `docs/v13.2-{pitch-deck.html, elevator-pitch.md, demo-video-script.md}`: full rebrand
+- `docs/v13.2-pitch-deck.pptx`: regenerated from updated builder
+- `scripts/build_v13.2_pptx.py`: brand strings updated
+- `installer/pursuit-astro.iss` → `installer/nisaba-capital-charting.iss`: rewritten + flipped from per-user to **per-machine** install scope
+
+### Installer scope flip
+
+| | Old (v11.x) | New (v12.2) |
+|---|---|---|
+| `DefaultDirName` | `{userappdata}\Pursuit Astro` | `{commonpf}\Nisaba Capital Charting\Nisaba Terminal` |
+| `PrivilegesRequired` | `lowest` | `admin` (install-time only) |
+| Registry scope | HKCU | HKLM (all-users AUMID) |
+| Icons | `{userdesktop}` + `{group}` | `{commondesktop}` + `{commonprograms}` |
+
+**Rationale:** developer bounces between two Windows accounts (NessA admin, Aisling standard user). Per-machine install means all accounts share the binary + AUMID registration. App still runs unelevated in each user's session (critical for toast delivery — see v12.1).
+
+### Intentional exclusions
+
+- `CHANGELOG.md` historical entries: preserved (accurate brand history)
+- `deprecated_docs/`: preserved (already marked deprecated)
+
+### Validation
+
+- `cargo build --bin dashboard`: clean compile as `nisaba_engine v12.2.0`
+- `cargo run --bin dashboard` from Aisling's non-elevated session:
+  - `[fire_toast] WinRT toast shown — summary: ACMR → Optimal (+26 more)`
+  - Action Center toast displays "Nisaba Terminal" as app name
+- Orphan shortcuts cleaned across both NessA + Aisling profiles
+
+---
+
+## v12.1 — "The Toast Triage" — Win11 24H2 toast notification fix (2026-05-11)
+
+**Theme:** Lagrange alert toasts were failing with `HRESULT 0x80070005 (E_ACCESSDENIED)` on Win11 24H2 despite the v12.0.A AUMID-bound shortcut + registry entry. Three compounding code-side issues plus one environmental constraint.
+
+### v12.1.A — Process AUMID stamp
+
+`notify-rust`'s `Notification::app_id()` only stamps the toast XML — it does NOT call `SetCurrentProcessExplicitAppUserModelID`. Win11 24H2's notification broker checks the **process** AUMID before the shortcut AUMID. Without a process stamp, the broker rejects before looking up the shortcut.
+
+Added `unsafe fn set_current_process_aumid()` called at the top of `register_app_user_model_id()` via `windows::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID`.
+
+### v12.1.B — SHChangeNotify + 300ms settle
+
+Explorer's in-process AppResolver cache (Start-Menu → AUMID lookup) doesn't auto-refresh when a new `.lnk` is written via `IPersistFile::Save`. First toast attempts hit a stale cache miss.
+
+Added `broadcast_shell_change()` that fires `SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST | SHCNF_FLUSH, ...)` after shortcut creation, followed by a 300ms sleep.
+
+### v12.1.C — Direct WinRT toast call
+
+`notify-rust` 4.x → `winrt-notification` path is brittle on 24H2 even with A+B in place. Direct WinRT calls via `windows::UI::Notifications::ToastNotificationManager::CreateToastNotifierWithId` succeed where the wrapper does not.
+
+Added `fire_toast_winrt()` that builds toast XML with the `ToastGeneric` template + optional `scenario="urgent"` for Optimal alerts. `Cargo.toml` added `UI_Notifications` + `Data_Xml_Dom` features. `notify-rust` retained for cross-platform (Linux/macOS) via `cfg(not(windows))`.
+
+### Environmental requirements (no code can fix these)
+
+- Process must NOT be elevated. Elevated processes run in separate security context from interactive desktop session → broker rejects.
+- Process must run as SAME user signed into active console desktop. Cross-user toast calls fail with same HRESULT.
+
+The per-app permission entry at `HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\<AUMID>` is auto-created by Windows on first successful `Show()` — manual seeding not required when environment is correct.
+
+### Validation
+
+Tested end-to-end on Win11 24H2 from Aisling's non-elevated session: 27-alert Lagrange backfire on dashboard startup, log shows `WinRT toast shown — summary: ACMR → Optimal (+26 more)`, toast renders in Action Center.
+
+---
+
+## v13.2 — "The Showcase" — Capstone presentation prep (shipped 2026-05-06)
+
+**Theme:** Five artifacts targeting Pursuit Fellowship final demo + investor conversations + LinkedIn-tier discoverability.
+
+### v13.2.A — README rewrite
+
+Hero pitch + 60-sec elevator + verified historical-precedent table + features + quickstart + architecture diagram + AAPL validation refs. Citation discipline applied (Morgan quote hedged, disputed Adams 1929 prediction omitted, Quigley/Reagan omitted).
+
+### v13.2.B — Demo video script (3-min walkthrough)
+
+6-section script with timestamps + voiceover lines. Pre-record checklist, production tips, format-specific cuts (YouTube short, LinkedIn 3-min, conference talk, capstone). Reuses Aisling's signature voice.
+
+### v13.2.C — Pitch deck (12-slide HTML, ~5 min)
+
+12 slides with time markers + speaker-cue strips + embedded screenshots from v98 silent recording. Cover · Lineage · What it is · 4 walkthroughs · +37% Proof · Thesis · Numbers · Vision · Close.
+
+### v13.2.D — Elevator pitch toolkit
+
+60s / 30s / 15s versions + 4 audience variants (engineers / finance / fellowship judges / laypeople) + Q&A drilled responses + delivery notes.
+
+### v13.2.G — PowerPoint export
+
+`scripts/build_v13.2_pptx.py` python-pptx builder mirroring the HTML deck. Generates `docs/v13.2-pitch-deck.pptx` (2.95 MB, 12 slides, 16:9 widescreen).
 
 ---
 
