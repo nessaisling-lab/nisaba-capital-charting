@@ -3,6 +3,17 @@
 **🌐 Live landing page:** [nessaisling-lab.github.io/nisaba-site](https://nessaisling-lab.github.io/nisaba-site/)
 **⬇️ Download v12.2.0:** [NisabaCapitalCharting-Setup.exe](https://github.com/nessaisling-lab/nisaba-capital-charting/releases/download/v12.2.0/NisabaCapitalCharting-Setup.exe) (Windows · 18 MB · capstone demo)
 
+### Audience-routed entry points (HTML hub · v2.2)
+
+- **[Hub router](https://nessaisling-lab.github.io/nisaba-site/hub/)** — pick your audience: investor / teacher / press / dev
+- **[Investor summary](https://nessaisling-lab.github.io/nisaba-site/hub/investor-summary.html)** — 30-second exec read
+- **[Roadmap](https://nessaisling-lab.github.io/nisaba-site/hub/roadmap.html)** — Nisaba brand-family timeline
+- **[Press kit](https://nessaisling-lab.github.io/nisaba-site/hub/press-kit.html)** — brand assets + screenshots + fact sheet
+- **[Status dashboard](https://nessaisling-lab.github.io/nisaba-site/status/)** — live project state
+- **[Pitch variants](https://nessaisling-lab.github.io/nisaba-site/pitches/)** — 6 elevator pitches + 12-slide deck + demo video script
+
+Audience-facing docs are HTML for legibility ([why](https://nessaisling-lab.github.io/nisaba-site/ROADMAP.html#philosophy)). Working docs (this README, CHANGELOG, DESIGN.md, AI context files) stay MD.
+
 
 > *"Millionaires don't use astrology. Billionaires do."*
 > — attributed to **J.P. Morgan**

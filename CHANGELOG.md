@@ -21,6 +21,22 @@ The project was previously named **"Pursuit Astro"** (engine codename) / **"Char
 
 ---
 
+## 2026-05-12 — HTML Hub launched (nisaba-site v2.0–v2.2)
+
+The marketing / audience-facing surface migrated from scattered MD files to a single HTML-first hub at [nessaisling-lab.github.io/nisaba-site](https://nessaisling-lab.github.io/nisaba-site/). Three-session sprint with explicit ROADMAP-driven architecture. Total: 17 HTML pages + shared infrastructure (state.json + state.js + style.css). Single source of truth for version + stats + URLs lives in `state.json`; every page reads from it via `data-state-key` attributes.
+
+**Why HTML over MD for audience-facing surfaces?** See [ROADMAP.html §Philosophy](https://nessaisling-lab.github.io/nisaba-site/ROADMAP.html#philosophy). Short version: investors / teachers / reviewers _open_ HTML and _skim_ MD. The agency hook from Thariq's "Unreasonable Effectiveness of HTML" and the linked YouTube video on Derrick's Claude Code workflow argument applied to a real project at Pursuit-capstone scale.
+
+**Migration mapping:**
+- `docs/v13.2-elevator-pitch.md` → archived to `deprecated_docs/`. Seven HTML variants now at `nisaba-site/pitches/elevator-{15s,30s,60s,engineers,finance,fellowship,laypeople}.html`.
+- `docs/v13.2-demo-video-script.md` → archived to `deprecated_docs/`. New HTML at `nisaba-site/pitches/demo-video-script.html`.
+- `docs/v13.2-pitch-deck.html` → relocated to `nisaba-site/pitches/pitch-deck-12-slide.html` (image paths updated).
+- `~/Documents/nisaba-marketing-copy-bank.html` → moved into `nisaba-site/pitches/marketing-copy-bank.html` (now version-controlled).
+
+**Stays MD (per ROADMAP §02):** this README, this CHANGELOG, `DESIGN.md`, `installer/Output/release-notes-v*.md`, `CLAUDE.md`, and AI memory files. GitHub-native rendering + git-diff + AI parsing make MD the right call for these.
+
+---
+
 ## 2026-05-12 — v12.2.0 PUBLIC SHIP
 
 The capstone demo went live. First public release of Nisaba Terminal.
