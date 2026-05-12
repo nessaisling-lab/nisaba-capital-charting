@@ -44,7 +44,7 @@ pub async fn fetch_all(pool: Arc<sqlx::PgPool>, client: Arc<reqwest::Client>) ->
     // 1. Global stats — total mcap, volume, BTC/ETH dominance
     let global_url = format!("{API_BASE}/global");
     match client.get(&global_url)
-        .header("User-Agent", "PursuitAstro/0.1")
+        .header("User-Agent", "NisabaEngine/0.1")
         .send().await
         .context("CoinGecko /global")
     {
@@ -87,7 +87,7 @@ pub async fn fetch_all(pool: Arc<sqlx::PgPool>, client: Arc<reqwest::Client>) ->
         "{API_BASE}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=20&page=1"
     );
     match client.get(&coins_url)
-        .header("User-Agent", "PursuitAstro/0.1")
+        .header("User-Agent", "NisabaEngine/0.1")
         .send().await
     {
         Ok(resp) if resp.status().is_success() => {

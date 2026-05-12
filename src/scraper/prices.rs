@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use chrono::NaiveDate;
-use pursuit_week4_automation::models::AlphaVantageResponse;
+use nisaba_engine::models::AlphaVantageResponse;
 use rust_decimal::Decimal;
 use std::sync::Arc;
 

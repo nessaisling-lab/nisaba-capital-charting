@@ -7,7 +7,7 @@ use iced::widget::shader;
 use iced::mouse;
 use iced::Rectangle;
 
-use pursuit_week4_automation::models::{DailyTransit, NatalPosition};
+use nisaba_engine::models::{DailyTransit, NatalPosition};
 use crate::state::Message;
 
 // Re-export wgpu from iced (moved from shader::wgpu to iced::wgpu in 0.14)

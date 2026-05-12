@@ -251,7 +251,7 @@ notify-rust = "4"
 // In Dashboard handler when AlertFired triggered
 use notify_rust::Notification;
 Notification::new()
-    .summary("Pursuit Astro-Finance")
+    .summary("Nisaba Capital Charting-Finance")
     .body(&format!("{} entered Optimal zone (score {:.0})", ticker, score))
     .icon("dialog-information")
     .timeout(5000)

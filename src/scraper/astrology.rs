@@ -1,8 +1,8 @@
 use chrono::{Datelike, NaiveDate, Utc};
-use pursuit_week4_automation::astrology::ephemeris::date_to_jdn;
-use pursuit_week4_automation::astrology::interpretation::{generate_horoscope, horoscope_to_json};
-use pursuit_week4_automation::astrology::natal::{aspects_to_json, compute_transit_score, patterns_to_json, NatalChart};
-use pursuit_week4_automation::astrology::swisseph_bridge::{
+use nisaba_engine::astrology::ephemeris::date_to_jdn;
+use nisaba_engine::astrology::interpretation::{generate_horoscope, horoscope_to_json};
+use nisaba_engine::astrology::natal::{aspects_to_json, compute_transit_score, patterns_to_json, NatalChart};
+use nisaba_engine::astrology::swisseph_bridge::{
     snapshot_all_precise, longitude_speed, compute_houses_nyse,
 };
 use std::sync::Arc;

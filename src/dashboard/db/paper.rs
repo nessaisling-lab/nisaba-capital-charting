@@ -4,7 +4,7 @@ use sqlx::PgPool;
 use std::sync::Arc;
 
 use crate::error::SqlResultExt;
-use pursuit_week4_automation::models::PaperTrade;
+use nisaba_engine::models::PaperTrade;
 
 // ---------------------------------------------------------------------------
 // Paper Account Summary

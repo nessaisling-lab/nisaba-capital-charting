@@ -3,9 +3,9 @@ use iced::keyboard::{Key, Modifiers};
 use iced::Task;
 use std::sync::Arc;
 
-use pursuit_week4_automation::astrology::ephemeris::{Planet, PlanetSnapshot, ecliptic_to_declination, longitude_to_sign};
-use pursuit_week4_automation::astrology::natal::{NatalChart, compute_transit_score};
-use pursuit_week4_automation::models::{FundamentalMetric, LagrangeAlert, NatalPosition, PriceRow};
+use nisaba_engine::astrology::ephemeris::{Planet, PlanetSnapshot, ecliptic_to_declination, longitude_to_sign};
+use nisaba_engine::astrology::natal::{NatalChart, compute_transit_score};
+use nisaba_engine::models::{FundamentalMetric, LagrangeAlert, NatalPosition, PriceRow};
 
 use crate::db::{
     fetch_astro_calendar, fetch_compare_data, fetch_universe_count, fetch_universe_page,
@@ -536,8 +536,8 @@ pub(crate) async fn export_universe_csv(rows: Vec<UniverseRow>) -> Result<(), St
     Ok(())
 }
 
-const APP_USER_MODEL_ID: &str = "PursuitAstro.Dashboard";
-const APP_DISPLAY_NAME: &str = "Pursuit Astro";
+const APP_USER_MODEL_ID: &str = "NisabaCapitalCharting.Terminal";
+const APP_DISPLAY_NAME: &str = "Nisaba Terminal";
 
 /// v12.1 — Stamp the running process with its AUMID. Required on Win11 24H2:
 /// the Action Center broker checks the calling process's AUMID before
@@ -600,14 +600,16 @@ pub(crate) fn register_app_user_model_id() {
             return;
         }
     };
-    // %APPDATA%\Microsoft\Windows\Start Menu\Programs\Pursuit Astro.lnk
+    // %APPDATA%\Microsoft\Windows\Start Menu\Programs\<APP_DISPLAY_NAME>.lnk
+    // Derived from APP_DISPLAY_NAME so future brand renames stay in sync.
     let appdata = match std::env::var("APPDATA") {
         Ok(p) => p,
         Err(_) => { eprintln!("[notifications] %APPDATA% not set"); return; }
     };
+    let lnk_filename = format!("{APP_DISPLAY_NAME}.lnk");
     let lnk_path = std::path::PathBuf::from(appdata)
         .join("Microsoft").join("Windows").join("Start Menu")
-        .join("Programs").join("Pursuit Astro.lnk");
+        .join("Programs").join(&lnk_filename);
 
     match unsafe { create_aumid_shortcut(&exe_path, &lnk_path, APP_USER_MODEL_ID) } {
         Ok(()) => {
@@ -808,7 +810,7 @@ pub(crate) async fn fire_toast(alerts: Vec<LagrangeAlert>) {
 /// the user verify their OS path independent of the alerts pipeline.
 pub(crate) async fn fire_test_notification() {
     eprintln!("[fire_test_notification] invoked");
-    let summary = "Pursuit Astro — Test";
+    let summary = "Nisaba Engine — Test";
     let body = "If you see this, OS notifications are wired correctly.\nLagrange alerts will appear here when they trigger.";
 
     #[cfg(windows)]

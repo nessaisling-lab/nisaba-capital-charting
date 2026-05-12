@@ -18,7 +18,7 @@ const OFR_FSI_URL: &str = "https://www.financialresearch.gov/financial-stress-in
 pub async fn fetch_all(pool: Arc<sqlx::PgPool>, client: Arc<reqwest::Client>) -> Result<()> {
     // OFR Financial Stress Index — daily composite of 33 financial market variables
     let resp = match client.get(OFR_FSI_URL)
-        .header("User-Agent", "PursuitAstro/0.1")
+        .header("User-Agent", "NisabaEngine/0.1")
         .send().await
     {
         Ok(r) if r.status().is_success() => r,

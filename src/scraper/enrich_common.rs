@@ -1,7 +1,7 @@
 //! Shared helpers used by all enrichment modules.
 
 use chrono::NaiveDate;
-use pursuit_week4_automation::astrology::natal::NatalChart;
+use nisaba_engine::astrology::natal::NatalChart;
 
 // ---------------------------------------------------------------------------
 // Natal chart seeder

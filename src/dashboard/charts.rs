@@ -1,7 +1,7 @@
 use iced::widget::canvas::{self, Action};
 use iced::{Color, Point, Rectangle, Size};
 use iced::mouse;
-use pursuit_week4_automation::models::{LagrangeHistory, PriceRow};
+use nisaba_engine::models::{LagrangeHistory, PriceRow};
 
 use crate::state::Message;
 use crate::helpers::format_shares;

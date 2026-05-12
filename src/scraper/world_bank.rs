@@ -95,7 +95,7 @@ async fn fetch_series(
 ) -> Result<Vec<WbObservation>> {
     let resp = client
         .get(url)
-        .header("User-Agent", "PursuitAstro/0.1")
+        .header("User-Agent", "NisabaEngine/0.1")
         .send()
         .await
         .context("WB request")?;

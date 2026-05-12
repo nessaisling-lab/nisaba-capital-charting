@@ -1,6 +1,6 @@
 [package]
-name = "pursuit_week4_automation"
-version = "11.0.0"
+name = "nisaba_engine"
+version = "12.2.0"
 edition = "2021"
 
 [[bin]]

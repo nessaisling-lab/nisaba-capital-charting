@@ -165,7 +165,7 @@ impl Dashboard {
     }
 
     fn build_paper_stats_card(&self) -> Element<'_, Message> {
-        use pursuit_week4_automation::stats;
+        use nisaba_engine::stats;
 
         let sharpe = stats::sharpe_ratio(&self.paper_daily_values);
         let max_dd = stats::max_drawdown_pct(&self.paper_daily_values);

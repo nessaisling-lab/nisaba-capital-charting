@@ -1,5 +1,5 @@
 use crate::error::SqlResultExt;
-use pursuit_week4_automation::models::PortfolioPosition;
+use nisaba_engine::models::PortfolioPosition;
 use sqlx::PgPool;
 use std::sync::Arc;
 
@@ -283,7 +283,7 @@ pub struct WikiSummary {
 
 pub async fn fetch_wiki_thumbnail(url: String) -> Result<Vec<u8>, String> {
     let client = reqwest::Client::builder()
-        .user_agent("PursuitAstro/0.1 (educational)")
+        .user_agent("NisabaEngine/0.1 (educational)")
         .build()
         .map_err(|e| e.to_string())?;
     let resp = client.get(&url).send().await.map_err(|e| e.to_string())?;

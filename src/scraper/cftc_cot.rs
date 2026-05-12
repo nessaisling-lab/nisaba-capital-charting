@@ -36,7 +36,7 @@ const MARKETS: &[(&str, &str)] = &[
 
 pub async fn fetch_all(pool: Arc<sqlx::PgPool>, client: Arc<reqwest::Client>) -> Result<()> {
     let resp = match client.get(CFTC_TFF_URL)
-        .header("User-Agent", "PursuitAstro/0.1")
+        .header("User-Agent", "NisabaEngine/0.1")
         .send().await
     {
         Ok(r) if r.status().is_success() => r,

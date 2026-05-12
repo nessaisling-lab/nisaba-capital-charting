@@ -6,7 +6,7 @@
 use iced::Task;
 use std::sync::Arc;
 
-use pursuit_week4_automation::models::LagrangeAlert;
+use nisaba_engine::models::LagrangeAlert;
 
 use crate::db::{
     add_to_watchlist, create_watchlist, delete_watchlist, dismiss_alert,

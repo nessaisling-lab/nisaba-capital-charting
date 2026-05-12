@@ -47,7 +47,7 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
             Some(Task::none())
         }
         Message::RunBacktest => {
-            use pursuit_week4_automation::astrology::{ephemeris::Planet, returns::find_returns};
+            use nisaba_engine::astrology::{ephemeris::Planet, returns::find_returns};
             use crate::state::BacktestWindowChoice;
 
             let buy = state.backtest_buy_input.parse::<f64>().unwrap_or(65.0);
@@ -68,7 +68,7 @@ pub(crate) fn handle(state: &mut Dashboard, message: Message) -> Option<Task<Mes
                     };
                     let zone_days = if matches!(planet, Planet::Saturn) { 365 } else { 180 };
                     if let Some(ipo) = state.natal_ipo_date {
-                        let natal = pursuit_week4_automation::astrology::natal::NatalChart::compute(
+                        let natal = nisaba_engine::astrology::natal::NatalChart::compute(
                             &state.selected_ticker, ipo,
                         );
                         match find_returns(&natal, planet, 60) {

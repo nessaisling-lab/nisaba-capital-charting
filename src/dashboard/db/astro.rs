@@ -1,6 +1,6 @@
 use crate::error::SqlResultExt;
 use chrono::Utc;
-use pursuit_week4_automation::models::{AstroScore, DailyTransit, NatalAngles, NatalPosition};
+use nisaba_engine::models::{AstroScore, DailyTransit, NatalAngles, NatalPosition};
 use sqlx::PgPool;
 use std::sync::Arc;
 
@@ -107,7 +107,7 @@ pub async fn fetch_astro_active_aspects(pool: Arc<PgPool>, ticker: String) -> Re
 pub async fn fetch_horoscope(
     pool: Arc<PgPool>,
     ticker: String,
-) -> Result<Option<pursuit_week4_automation::astrology::interpretation::HoroscopeReading>, String> {
+) -> Result<Option<nisaba_engine::astrology::interpretation::HoroscopeReading>, String> {
     let today = chrono::Utc::now().date_naive();
     let row: Option<(serde_json::Value,)> = sqlx::query_as(
         "SELECT reading FROM horoscope_readings \
@@ -120,7 +120,7 @@ pub async fn fetch_horoscope(
     .ctx("fetch_horoscope")?;
 
     Ok(row.and_then(|(json,)| {
-        pursuit_week4_automation::astrology::interpretation::horoscope_from_json(&ticker, today, &json)
+        nisaba_engine::astrology::interpretation::horoscope_from_json(&ticker, today, &json)
     }))
 }
 

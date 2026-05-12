@@ -18,7 +18,7 @@ const SEC_LATEST_URL: &str =
 pub async fn fetch_all(pool: Arc<sqlx::PgPool>, client: Arc<reqwest::Client>) -> Result<()> {
     // SEC requires a descriptive User-Agent
     let resp = match client.get(SEC_LATEST_URL)
-        .header("User-Agent", "PursuitAstro PursuitNYC/0.1 contact@pursuit.org")
+        .header("User-Agent", "NisabaEngine PursuitNYC/0.1 contact@pursuit.org")
         .send().await
     {
         Ok(r) if r.status().is_success() => r,

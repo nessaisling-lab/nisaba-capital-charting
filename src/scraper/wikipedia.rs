@@ -100,7 +100,7 @@ pub async fn fetch_one(
 
     let resp = client
         .get(&url)
-        .header("User-Agent", "PursuitAstro/0.1 (educational; pursuit.org)")
+        .header("User-Agent", "NisabaEngine/0.1 (educational; pursuit.org)")
         .send()
         .await;
 

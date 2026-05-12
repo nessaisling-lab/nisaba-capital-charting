@@ -12,7 +12,7 @@ pub async fn manifest() -> Json<serde_json::Value> {
         {
             "name": "Lagrange Composite Score",
             "description": "Astro-informed composite signal blending astrology, financials, macro, short interest, and sentiment.",
-            "category": "Pursuit Astro",
+            "category": "Nisaba Engine",
             "widgetId": "pursuit_lagrange",
             "endpoint": "/tickers/{ticker}/lagrange",
             "type": "table",
@@ -38,7 +38,7 @@ pub async fn manifest() -> Json<serde_json::Value> {
         {
             "name": "Astrology Score",
             "description": "Astro Score for a ticker — composite of natal chart, current transits, aspect patterns, fixed stars, and Arabic Parts.",
-            "category": "Pursuit Astro",
+            "category": "Nisaba Engine",
             "widgetId": "pursuit_astro",
             "endpoint": "/tickers/{ticker}/astro",
             "type": "metric",
@@ -49,7 +49,7 @@ pub async fn manifest() -> Json<serde_json::Value> {
         {
             "name": "Pursuit OHLCV",
             "description": "Daily OHLCV history (multi-source cascade: AV → Yahoo → Stooq).",
-            "category": "Pursuit Astro",
+            "category": "Nisaba Engine",
             "widgetId": "pursuit_prices",
             "endpoint": "/tickers/{ticker}/prices",
             "type": "table",
@@ -61,7 +61,7 @@ pub async fn manifest() -> Json<serde_json::Value> {
         {
             "name": "World Bank Indicators",
             "description": "Headline economic indicators (GDP, CPI, unemployment, debt/GDP) for major economies.",
-            "category": "Pursuit Astro / Wave 7 providers",
+            "category": "Nisaba Engine / Wave 7 providers",
             "widgetId": "pursuit_world_bank",
             "endpoint": "/series/world_bank/{series_id}",
             "type": "table",
@@ -73,7 +73,7 @@ pub async fn manifest() -> Json<serde_json::Value> {
         {
             "name": "Treasury Yield Curve",
             "description": "US Treasury daily constant-maturity rates (1mo through 30yr).",
-            "category": "Pursuit Astro / Wave 7 providers",
+            "category": "Nisaba Engine / Wave 7 providers",
             "widgetId": "pursuit_treasury",
             "endpoint": "/series/treasury_direct/{series_id}",
             "type": "table",
@@ -84,7 +84,7 @@ pub async fn manifest() -> Json<serde_json::Value> {
         {
             "name": "OFR Financial Stress Index",
             "description": "Office of Financial Research composite stress signal (33-component daily index).",
-            "category": "Pursuit Astro / Wave 7 providers",
+            "category": "Nisaba Engine / Wave 7 providers",
             "widgetId": "pursuit_ofr",
             "endpoint": "/series/ofr/fsi",
             "type": "chart"
@@ -92,7 +92,7 @@ pub async fn manifest() -> Json<serde_json::Value> {
         {
             "name": "CoinGecko Crypto",
             "description": "Top 20 cryptocurrencies — price, market cap, 24h volume, 24h % change.",
-            "category": "Pursuit Astro / Wave 7 providers",
+            "category": "Nisaba Engine / Wave 7 providers",
             "widgetId": "pursuit_coingecko",
             "endpoint": "/series/coingecko/{series_id}",
             "type": "table",

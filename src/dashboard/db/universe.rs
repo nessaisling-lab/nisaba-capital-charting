@@ -1,5 +1,5 @@
 use crate::error::SqlResultExt;
-use pursuit_week4_automation::models::{LagrangeAlert, LagrangeHistory};
+use nisaba_engine::models::{LagrangeAlert, LagrangeHistory};
 use sqlx::PgPool;
 use std::sync::Arc;
 

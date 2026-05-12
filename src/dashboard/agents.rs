@@ -12,7 +12,7 @@
 //! - **Munger**: Mental models, durable moat, quality over price. Views
 //!   astrology as one data point among many.
 
-use pursuit_week4_automation::models::FundamentalMetric;
+use nisaba_engine::models::FundamentalMetric;
 
 /// Template or LLM analysis mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

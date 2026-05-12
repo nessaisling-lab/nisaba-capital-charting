@@ -37,7 +37,7 @@ pub async fn fetch_all(pool: Arc<sqlx::PgPool>, client: Arc<reqwest::Client>) ->
         let countries_path = COUNTRIES.join("/");
         let url = format!("{API_BASE}/{series_id}/{countries_path}");
         let resp = match client.get(&url)
-            .header("User-Agent", "PursuitAstro/0.1")
+            .header("User-Agent", "NisabaEngine/0.1")
             .send().await
         {
             Ok(r) if r.status().is_success() => r,

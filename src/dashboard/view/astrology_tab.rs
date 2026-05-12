@@ -122,9 +122,9 @@ impl Dashboard {
                     // Wave 9.5.2 — enrich planet hover with decan + Sabian
                     // + critical/OOB flags so each glyph reveals its full
                     // narrative + precision context.
-                    let decan = pursuit_week4_automation::astrology::decans::decan_for_longitude(np.longitude);
-                    let sabian = pursuit_week4_automation::astrology::sabian::sabian_for_longitude(np.longitude);
-                    let crit = pursuit_week4_automation::astrology::critical::is_critical_degree(np.longitude);
+                    let decan = nisaba_engine::astrology::decans::decan_for_longitude(np.longitude);
+                    let sabian = nisaba_engine::astrology::sabian::sabian_for_longitude(np.longitude);
+                    let crit = nisaba_engine::astrology::critical::is_critical_degree(np.longitude);
                     let mut info = format!(
                         "{} in {} {:.1}°{}",
                         np.planet, np.sign, np.degree,
@@ -144,8 +144,8 @@ impl Dashboard {
                     // Declination not stored in natal_positions table —
                     // approximate from longitude assuming β = 0 (sufficient
                     // accuracy for OOB tagging on outer planets).
-                    let approx_dec = pursuit_week4_automation::astrology::ephemeris::ecliptic_to_declination(np.longitude, 0.0);
-                    if pursuit_week4_automation::astrology::ephemeris::is_out_of_bounds(approx_dec) {
+                    let approx_dec = nisaba_engine::astrology::ephemeris::ecliptic_to_declination(np.longitude, 0.0);
+                    if nisaba_engine::astrology::ephemeris::is_out_of_bounds(approx_dec) {
                         let dir = if approx_dec > 0.0 { "north" } else { "south" };
                         info.push_str(&format!("\n• Out-of-bounds {dir} ({:.1}°)", approx_dec));
                     }
@@ -286,7 +286,7 @@ impl Dashboard {
                     .unwrap_or("—");
                 let rising_sign = self.natal_angles.as_ref()
                     .map(|a| {
-                        let (sign, _) = pursuit_week4_automation::astrology::ephemeris::longitude_to_sign(a.ascendant);
+                        let (sign, _) = nisaba_engine::astrology::ephemeris::longitude_to_sign(a.ascendant);
                         sign
                     })
                     .unwrap_or("—");
@@ -365,10 +365,10 @@ impl Dashboard {
                 (self.natal_ipo_date, self.natal_angles.as_ref())
             {
                 let target = chrono::Local::now().date_naive();
-                let prof = pursuit_week4_automation::astrology::profections::compute_profection(
+                let prof = nisaba_engine::astrology::profections::compute_profection(
                     ipo, angles.ascendant, target,
                 );
-                let line = pursuit_week4_automation::astrology::profections::summary_line(&prof);
+                let line = nisaba_engine::astrology::profections::summary_line(&prof);
                 let p_b = theme::palette();
                 let badge_inner = container(
                     text(line)
@@ -390,19 +390,19 @@ impl Dashboard {
 
                 // v13.0.C1 — explanation text
                 let lord_flavor = match prof.lord_planet {
-                    pursuit_week4_automation::astrology::ephemeris::Planet::Sun =>
+                    nisaba_engine::astrology::ephemeris::Planet::Sun =>
                         "vitality, leadership, public visibility",
-                    pursuit_week4_automation::astrology::ephemeris::Planet::Moon =>
+                    nisaba_engine::astrology::ephemeris::Planet::Moon =>
                         "emotion, public reception, monthly cycles",
-                    pursuit_week4_automation::astrology::ephemeris::Planet::Mercury =>
+                    nisaba_engine::astrology::ephemeris::Planet::Mercury =>
                         "communication, contracts, short-term moves",
-                    pursuit_week4_automation::astrology::ephemeris::Planet::Venus =>
+                    nisaba_engine::astrology::ephemeris::Planet::Venus =>
                         "image, partnership, aesthetic value",
-                    pursuit_week4_automation::astrology::ephemeris::Planet::Mars =>
+                    nisaba_engine::astrology::ephemeris::Planet::Mars =>
                         "drive, competition, aggressive expansion",
-                    pursuit_week4_automation::astrology::ephemeris::Planet::Jupiter =>
+                    nisaba_engine::astrology::ephemeris::Planet::Jupiter =>
                         "expansion, optimism, growth opportunities",
-                    pursuit_week4_automation::astrology::ephemeris::Planet::Saturn =>
+                    nisaba_engine::astrology::ephemeris::Planet::Saturn =>
                         "structure, discipline, restriction or maturity",
                     _ => "general lifecycle theme",
                 };

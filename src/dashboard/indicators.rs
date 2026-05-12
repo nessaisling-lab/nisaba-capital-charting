@@ -1,9 +1,9 @@
 //! Re-exports shared indicator math from the lib crate.
-//! The canonical implementations live in `pursuit_week4_automation::indicators`.
+//! The canonical implementations live in `nisaba_engine::indicators`.
 
-pub use pursuit_week4_automation::indicators::{compute_lagrange_score, Indicators};
+pub use nisaba_engine::indicators::{compute_lagrange_score, Indicators};
 
-use pursuit_week4_automation::models::{PriceRow, SentimentScore};
+use nisaba_engine::models::{PriceRow, SentimentScore};
 
 // ---------------------------------------------------------------------------
 // Dashboard-only fear/greed score (financial signals only, no macro/astro)

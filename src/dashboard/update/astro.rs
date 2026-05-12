@@ -194,19 +194,19 @@ pub(crate) fn handle(state: &mut Dashboard, message: &Message) -> Option<Task<Me
 /// 3 planetary return scans, secondary progression cast) happen here
 /// instead of on every view render. View just reads pre-built strings.
 fn rebuild_lifecycle_cache(state: &mut Dashboard, ipo: chrono::NaiveDate) {
-    use pursuit_week4_automation::astrology::ephemeris::Planet;
+    use nisaba_engine::astrology::ephemeris::Planet;
 
     let ticker = state.selected_ticker.clone();
-    let natal = pursuit_week4_automation::astrology::natal::NatalChart::compute(&ticker, ipo);
+    let natal = nisaba_engine::astrology::natal::NatalChart::compute(&ticker, ipo);
     let today = chrono::Local::now().date_naive();
     let target_year = chrono::Datelike::year(&today);
 
     // Solar Return.
-    let sr_compute = pursuit_week4_automation::astrology::solar_return::compute_solar_return(
+    let sr_compute = nisaba_engine::astrology::solar_return::compute_solar_return(
         &natal, target_year,
     );
     let sr_line = match &sr_compute {
-        Ok(sr) => pursuit_week4_automation::astrology::solar_return::summary_line(sr),
+        Ok(sr) => nisaba_engine::astrology::solar_return::summary_line(sr),
         Err(_) => "Solar Return unavailable.".to_string(),
     };
     let sr_aspect_lines: Vec<String> = match &sr_compute {
@@ -221,7 +221,7 @@ fn rebuild_lifecycle_cache(state: &mut Dashboard, ipo: chrono::NaiveDate) {
 
     // Upcoming returns.
     let format_return = |label: &str, planet: Planet| -> String {
-        match pursuit_week4_automation::astrology::returns::next_return(&natal, planet, today, 60) {
+        match nisaba_engine::astrology::returns::next_return(&natal, planet, today, 60) {
             Ok(Some(ev)) => {
                 let days = (ev.return_date - today).num_days();
                 let when = if days < 365 {
@@ -241,8 +241,8 @@ fn rebuild_lifecycle_cache(state: &mut Dashboard, ipo: chrono::NaiveDate) {
     let mars_line = format_return("Mars return", Planet::Mars);
 
     // Progressed Sun.
-    let prog_line = match pursuit_week4_automation::astrology::progressions::compute_progressed_chart(&natal, today) {
-        Ok(prog) => pursuit_week4_automation::astrology::progressions::summary_line(&prog),
+    let prog_line = match nisaba_engine::astrology::progressions::compute_progressed_chart(&natal, today) {
+        Ok(prog) => nisaba_engine::astrology::progressions::summary_line(&prog),
         Err(_) => "Progressed chart unavailable.".to_string(),
     };
 
@@ -269,8 +269,8 @@ fn emit_progression_ingress_pills(
     state: &mut Dashboard,
     ipo: chrono::NaiveDate,
 ) {
-    use pursuit_week4_automation::astrology::natal::NatalChart;
-    use pursuit_week4_automation::astrology::progressions::upcoming_sign_ingresses;
+    use nisaba_engine::astrology::natal::NatalChart;
+    use nisaba_engine::astrology::progressions::upcoming_sign_ingresses;
 
     let ticker = state.selected_ticker.clone();
     // Build a NatalChart from the loaded positions. We only do this if

@@ -32,7 +32,7 @@ pub async fn fetch_all(pool: Arc<sqlx::PgPool>, client: Arc<reqwest::Client>) ->
     for (series_id, label, unit) in SERIES {
         let url = format!("{API_BASE}/{series_id}?api_key={key}&length=104");
         let resp = match client.get(&url)
-            .header("User-Agent", "PursuitAstro/0.1")
+            .header("User-Agent", "NisabaEngine/0.1")
             .send().await
         {
             Ok(r) if r.status().is_success() => r,

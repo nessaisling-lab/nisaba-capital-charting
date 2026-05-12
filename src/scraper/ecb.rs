@@ -38,7 +38,7 @@ pub async fn fetch_all(pool: Arc<sqlx::PgPool>, client: Arc<reqwest::Client>) ->
             "{API_BASE}/{flow}/{key}?format=jsondata&detail=dataonly&lastNObservations=60"
         );
         let resp = match client.get(&url)
-            .header("User-Agent", "PursuitAstro/0.1")
+            .header("User-Agent", "NisabaEngine/0.1")
             .header("Accept", "application/json")
             .send().await
         {

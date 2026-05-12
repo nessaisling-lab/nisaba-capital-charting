@@ -1,4 +1,4 @@
-# Charting Capital · Pursuit Astro
+# Nisaba Capital Charting · Nisaba Capital Charting
 
 > *"Millionaires don't use astrology. Billionaires do."*
 > — attributed to **J.P. Morgan**
@@ -13,7 +13,7 @@ A financial intelligence platform at the intersection of astrology and Wall Stre
 
 ## TL;DR
 
-Pursuit Astro is a Bloomberg-class desktop terminal that takes both **rigorous quantitative data** (12 APIs, 32 DB migrations, native Rust scrapers) **and unconventional signals** (Hellenistic time-lord astrology computed to sub-arcsecond precision via Swiss Ephemeris) — and feeds them into one composite scoring system: the **Lagrange Score**.
+Nisaba Capital Charting is a Bloomberg-class desktop terminal that takes both **rigorous quantitative data** (12 APIs, 32 DB migrations, native Rust scrapers) **and unconventional signals** (Hellenistic time-lord astrology computed to sub-arcsecond precision via Swiss Ephemeris) — and feeds them into one composite scoring system: the **Lagrange Score**.
 
 The thesis isn't "astrology predicts markets." It's that the best investors in history — J.P. Morgan to Evangeline Adams, W.D. Gann to Louise McWhirter — refused to dismiss data sources just because they were unconventional. Pursuit is built on the same principle: **look at everything, measure what you can, decide for yourself.**
 
@@ -42,7 +42,7 @@ Why? Because **financial astrology isn't a fringe theory** — it's a documented
 | **Donald Bradley** | 1925-1974 | Published *Stock Market Prediction* (1948). Created the **Bradley Siderograph** — planetary index for stock market turning points. Still tracked today. |
 | **Arch Crawford** | 1934-present | Founded *Crawford Perspectives* (1977). **Predicted the 1987 crash to the day.** Ranked **#1 market timer** in 2008 and 2009 by *Hulbert Financial Digest*. |
 
-**The point:** financial astrology has a documented 100+ year track record at the highest levels of Wall Street. Charting Capital doesn't ask you to *believe* in it. It asks you to *measure* it. The engine produces testable, reproducible scores. The Lagrange backtest tells you whether those scores correlated with price action over the historical window. Decide for yourself.
+**The point:** financial astrology has a documented 100+ year track record at the highest levels of Wall Street. Nisaba Capital Charting doesn't ask you to *believe* in it. It asks you to *measure* it. The engine produces testable, reproducible scores. The Lagrange backtest tells you whether those scores correlated with price action over the historical window. Decide for yourself.
 
 **Citation discipline:** Don't claim Adams predicted the 1929 crash (disputed). Don't claim the Morgan quote is verbatim (folkloric). Stay with what's documented.
 

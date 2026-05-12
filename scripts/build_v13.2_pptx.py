@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Build v13.2 pitch deck as PowerPoint .pptx mirroring the HTML version.
 
-Charting Capital · Pursuit Astro
+Nisaba Capital Charting · Nisaba Capital Charting
 12 slides, ~5 minutes, dark grimoire palette, embedded demo screenshots.
 
 Run: python scripts/build_v13.2_pptx.py
@@ -177,7 +177,7 @@ add_border(slide)
 add_slide_marker(slide, 1, TOTAL, "0:00 — 0:40 · 40s")
 
 add_text(slide, Inches(0.7), Inches(1.2), SW - Inches(1.4), Inches(1.4),
-         "Charting Capital", size=68, bold=True, color=GOLD,
+         "Nisaba Capital Charting", size=68, bold=True, color=GOLD,
          align=PP_ALIGN.CENTER, font=FONT_DISPLAY)
 add_text(slide, Inches(0.7), Inches(2.6), SW - Inches(1.4), Inches(0.6),
          "A financial intelligence platform at the intersection of "
@@ -303,7 +303,7 @@ add_slide_marker(slide, 3, TOTAL, "1:00 — 1:25 · 25s")
 
 add_eyebrow(slide, Inches(0.7), Inches(0.7), Inches(4), "What It Is")
 add_text(slide, Inches(0.7), Inches(1.05), SW - Inches(1.4), Inches(0.7),
-         "Charting Capital  ·  three tiers, three audiences, one engine.",
+         "Nisaba Capital Charting  ·  three tiers, three audiences, one engine.",
          size=30, bold=True, color=GOLD, font=FONT_DISPLAY)
 
 # Tier strip
@@ -701,7 +701,7 @@ add_rect(slide, Inches(0.7), Inches(5.0), Inches(0.06), Inches(1.5), GOLD)
 add_multi_text(
     slide, Inches(0.95), Inches(5.15), SW - Inches(1.65), Inches(1.3),
     [
-        {"text": "Pursuit Astro", "size": 18, "bold": True,
+        {"text": "Nisaba Capital Charting", "size": 18, "bold": True,
          "color": GOLD_BRIGHT},
         {"text": " is the first open implementation of Hellenistic financial "
                  "astrology with engineering rigor: NASA-grade Swiss Eph "
@@ -781,7 +781,7 @@ add_slide_marker(slide, 11, TOTAL, "4:35 — 4:55 · 20s")
 
 add_eyebrow(slide, Inches(0.7), Inches(0.7), Inches(4), "What This Could Be")
 add_text(slide, Inches(0.7), Inches(1.05), SW - Inches(1.4), Inches(0.7),
-         "Charting Capital  —  the platform play.",
+         "Nisaba Capital Charting  —  the platform play.",
          size=30, bold=True, color=GOLD, font=FONT_DISPLAY)
 
 img_path = SHOTS / "charting-capital-landing.png"
@@ -792,8 +792,8 @@ if img_path.exists():
 add_multi_text(
     slide, Inches(6.7), Inches(2.0), SW - Inches(7.4), Inches(4.5),
     [
-        {"text": "Pursuit Astro is the engine. ", "size": 16, "color": INK},
-        {"text": "Charting Capital", "size": 16, "bold": True,
+        {"text": "Nisaba Capital Charting is the engine. ", "size": 16, "color": INK},
+        {"text": "Nisaba Capital Charting", "size": 16, "bold": True,
          "color": GOLD_BRIGHT},
         {"text": " is the brand — a financial intelligence platform at the "
                  "intersection of astrology and Wall Street.",
@@ -820,7 +820,7 @@ add_multi_text(
 )
 
 add_speaker_cue(slide,
-    "“Pursuit Astro is the engine. Charting Capital is the brand.” Three "
+    "“Nisaba Capital Charting is the engine. Nisaba Capital Charting is the brand.” Three "
     "audiences = three monetization paths. Don’t dwell — forward-looking, "
     "not prescriptive.")
 
@@ -879,7 +879,7 @@ add_multi_text(
 )
 
 add_text(slide, Inches(0.5), SH - Inches(1.3), SW - Inches(1.0), Inches(0.3),
-         "AISLING LEIVA  ·  CHARTING CAPITAL  ·  THANK YOU",
+         "AISLING LEIVA  ·  Nisaba Capital Charting  ·  THANK YOU",
          size=11, color=INK_SOFT, align=PP_ALIGN.CENTER)
 
 add_speaker_cue(slide,

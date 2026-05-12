@@ -2555,7 +2555,7 @@ Note: Tests must run single-threaded (`--test-threads=1`) due to Swiss Ephemeris
 ### Binary layout
 
 ```
-pursuit_week4_automation/
+nisaba_engine/
 ├── src/
 │   ├── lib.rs                        shared types (models, astrology, indicators)
 │   ├── models.rs                     SQLx FromRow structs

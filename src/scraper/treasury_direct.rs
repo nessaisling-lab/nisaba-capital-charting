@@ -30,7 +30,7 @@ pub async fn fetch_all(pool: Arc<sqlx::PgPool>, client: Arc<reqwest::Client>) ->
         "{FEED_URL}?type=daily_treasury_yield_curve&field_tdr_date_value={year}"
     );
     let resp = client.get(&url)
-        .header("User-Agent", "PursuitAstro/0.1")
+        .header("User-Agent", "NisabaEngine/0.1")
         .send().await
         .context("Treasury Direct CSV request")?;
     if !resp.status().is_success() {

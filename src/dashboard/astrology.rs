@@ -11,7 +11,7 @@ use iced::widget::{column, row, text, Column};
 use iced::{Alignment, Color, Element, Length, Point, Rectangle};
 use iced::mouse;
 
-use pursuit_week4_automation::models::{DailyTransit, NatalPosition};
+use nisaba_engine::models::{DailyTransit, NatalPosition};
 use crate::state::Message;
 use crate::view::shared::gutter_scroll;
 use crate::theme;

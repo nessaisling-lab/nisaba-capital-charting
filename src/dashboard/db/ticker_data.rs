@@ -1,5 +1,5 @@
 use crate::error::SqlResultExt;
-use pursuit_week4_automation::models::{
+use nisaba_engine::models::{
     AnalystRating, EarningsDate, FilingRow, FundamentalMetric, GdeltEvent, HoldingRow,
     InsiderTradeRow, MacroIndicator, NewsArticle, PolymarketMarket, PriceRow,
     RssArticle, RssToneScore, SentimentScore, ShortInterest,

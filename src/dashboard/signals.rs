@@ -1,5 +1,5 @@
 use chrono::Utc;
-use pursuit_week4_automation::models::{
+use nisaba_engine::models::{
     AnalystRating, AstroScore, EarningsDate, MacroIndicator, PriceRow,
     RssToneScore, SentimentScore, ShortInterest,
 };

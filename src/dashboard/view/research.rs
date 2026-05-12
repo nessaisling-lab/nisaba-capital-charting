@@ -227,7 +227,7 @@ impl Dashboard {
         } else {
             // Sort: articles mentioning the selected ticker first, then by date
             let ticker_upper = self.selected_ticker.to_uppercase();
-            let mut sorted_articles: Vec<&pursuit_week4_automation::models::RssArticle> =
+            let mut sorted_articles: Vec<&nisaba_engine::models::RssArticle> =
                 self.rss_articles.iter().collect();
             sorted_articles.sort_by(|a, b| {
                 let a_relevant = a.headline.to_uppercase().contains(&ticker_upper)

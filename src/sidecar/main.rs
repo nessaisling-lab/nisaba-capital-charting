@@ -1,4 +1,4 @@
-//! Wave 8 — Pursuit Astro REST sidecar.
+//! Wave 8 — Nisaba Engine REST sidecar.
 //!
 //! HTTP server exposing dashboard + scraper data so external clients
 //! (OpenBB Workspace, custom dashboards, browser-based tools) can
@@ -95,7 +95,7 @@ async fn main() -> Result<()> {
         .and_then(|s| s.parse().ok())
         .unwrap_or(8765);
     let addr = format!("0.0.0.0:{port}");
-    tracing::info!("Pursuit Astro sidecar listening on http://{addr}");
+    tracing::info!("Nisaba Engine sidecar listening on http://{addr}");
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
     Ok(())

@@ -4,8 +4,8 @@
 
 use std::sync::Arc;
 
-use pursuit_week4_automation::indicators::{compute_lagrange_score, Indicators};
-use pursuit_week4_automation::models::{AstroScore, MacroIndicator, PriceRow, RssToneScore, SentimentScore, ShortInterest};
+use nisaba_engine::indicators::{compute_lagrange_score, Indicators};
+use nisaba_engine::models::{AstroScore, MacroIndicator, PriceRow, RssToneScore, SentimentScore, ShortInterest};
 
 pub async fn compute_all_scores(pool: Arc<sqlx::PgPool>) {
     println!("Computing Lagrange scores for all tickers...");

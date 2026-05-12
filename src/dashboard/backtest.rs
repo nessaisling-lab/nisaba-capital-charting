@@ -44,7 +44,7 @@ pub enum TimeWindow {
     /// E.g. Saturn return zone = ±365 days from each Saturn return moment.
     /// Empty if the natal chart has no returns of `planet` in the dataset.
     ReturnZone {
-        planet: pursuit_week4_automation::astrology::ephemeris::Planet,
+        planet: nisaba_engine::astrology::ephemeris::Planet,
         return_dates: Vec<NaiveDate>,
         zone_days: i64,
     },
@@ -436,7 +436,7 @@ mod tests {
         // Single "return" event in the middle of the year, ±10-day zone
         let cfg = BacktestConfig {
             time_window: TimeWindow::ReturnZone {
-                planet: pursuit_week4_automation::astrology::ephemeris::Planet::Saturn,
+                planet: nisaba_engine::astrology::ephemeris::Planet::Saturn,
                 return_dates: vec![NaiveDate::from_ymd_opt(2020, 6, 15).unwrap()],
                 zone_days: 10,
             },
@@ -452,7 +452,7 @@ mod tests {
         let data = day_seq(2020, 365 * 5);
         let cfg = BacktestConfig {
             time_window: TimeWindow::ReturnZone {
-                planet: pursuit_week4_automation::astrology::ephemeris::Planet::Jupiter,
+                planet: nisaba_engine::astrology::ephemeris::Planet::Jupiter,
                 return_dates: vec![
                     NaiveDate::from_ymd_opt(2020, 6, 15).unwrap(),
                     NaiveDate::from_ymd_opt(2024, 6, 15).unwrap(),

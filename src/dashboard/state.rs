@@ -1,7 +1,7 @@
 use chrono::Datelike;
 use iced::Theme;
 use crate::theme::ThemeMode;
-use pursuit_week4_automation::models::{
+use nisaba_engine::models::{
     AnalystRating, AstroScore, DailyTransit, EarningsDate, FilingRow, FundamentalMetric,
     HoldingRow, InsiderTradeRow, LagrangeAlert, LagrangeHistory, MacroIndicator, NatalPosition,
     NewsArticle, PaperTrade, PortfolioPosition, PriceRow, SentimentScore, ShortInterest,
@@ -239,9 +239,9 @@ pub struct Dashboard {
     pub filings_8k:        Vec<FilingRow>,
     pub holdings:          Vec<HoldingRow>,
     pub news:              Vec<NewsArticle>,
-    pub rss_articles:      Vec<pursuit_week4_automation::models::RssArticle>,
-    pub polymarket:        Vec<pursuit_week4_automation::models::PolymarketMarket>,
-    pub gdelt_events:      Vec<pursuit_week4_automation::models::GdeltEvent>,
+    pub rss_articles:      Vec<nisaba_engine::models::RssArticle>,
+    pub polymarket:        Vec<nisaba_engine::models::PolymarketMarket>,
+    pub gdelt_events:      Vec<nisaba_engine::models::GdeltEvent>,
     pub earnings:          Vec<EarningsDate>,
     pub analyst_rating:    Option<AnalystRating>,
     pub sentiment:         Option<SentimentScore>,
@@ -252,7 +252,7 @@ pub struct Dashboard {
     pub astro_score:       Option<AstroScore>,
     pub astro_aspects:     Vec<serde_json::Value>, // decoded from active_aspects JSONB
     pub natal_positions:   Vec<NatalPosition>,
-    pub natal_angles:      Option<pursuit_week4_automation::models::NatalAngles>,
+    pub natal_angles:      Option<nisaba_engine::models::NatalAngles>,
     /// Wave 9.5.1 — IPO date for selected ticker. Drives profections,
     /// progressions, and solar return computation. Loaded via
     /// `fetch_ipo_date()` on TickerSelected and initial load.
@@ -265,10 +265,10 @@ pub struct Dashboard {
     pub lifecycle_cache:   Option<LifecycleSnapshot>,
     pub daily_transits:    Vec<DailyTransit>,
     pub retrograde_events: Vec<RetroEvent>,
-    pub horoscope:         Option<pursuit_week4_automation::astrology::interpretation::HoroscopeReading>,
+    pub horoscope:         Option<nisaba_engine::astrology::interpretation::HoroscopeReading>,
     pub macro_data:        Vec<MacroIndicator>,
     pub short_interest:    Option<ShortInterest>,
-    pub rss_tone:          Option<pursuit_week4_automation::models::RssToneScore>,
+    pub rss_tone:          Option<nisaba_engine::models::RssToneScore>,
     pub fundamentals:      Option<FundamentalMetric>,
     // DCF calculator inputs (user-editable strings for text_input widgets)
     pub dcf_growth_rate:    String,
@@ -618,9 +618,9 @@ pub enum Message {
     FilingsLoaded(Result<Vec<FilingRow>, String>),
     HoldingsLoaded(Result<Vec<HoldingRow>, String>),
     NewsLoaded(Result<Vec<NewsArticle>, String>),
-    RssArticlesLoaded(Result<Vec<pursuit_week4_automation::models::RssArticle>, String>),
-    PolymarketLoaded(Result<Vec<pursuit_week4_automation::models::PolymarketMarket>, String>),
-    GdeltLoaded(Result<Vec<pursuit_week4_automation::models::GdeltEvent>, String>),
+    RssArticlesLoaded(Result<Vec<nisaba_engine::models::RssArticle>, String>),
+    PolymarketLoaded(Result<Vec<nisaba_engine::models::PolymarketMarket>, String>),
+    GdeltLoaded(Result<Vec<nisaba_engine::models::GdeltEvent>, String>),
     EarningsLoaded(Result<Vec<EarningsDate>, String>),
     AnalystRatingLoaded(Result<Option<AnalystRating>, String>),
     SentimentLoaded(Result<Option<SentimentScore>, String>),
@@ -628,16 +628,16 @@ pub enum Message {
     MarketFGLoaded(Result<(f32, String), String>),
     AstroScoreLoaded(Result<Option<AstroScore>, String>),
     NatalChartLoaded(Result<Vec<NatalPosition>, String>),
-    NatalAnglesLoaded(Result<Option<pursuit_week4_automation::models::NatalAngles>, String>),
+    NatalAnglesLoaded(Result<Option<nisaba_engine::models::NatalAngles>, String>),
     /// Wave 9.5.1 — IPO date load result for current ticker.
     IpoDateLoaded(Result<Option<chrono::NaiveDate>, String>),
     TransitsLoaded(Result<Vec<DailyTransit>, String>),
     RetroEventsLoaded(Result<Vec<RetroEvent>, String>),
     AstroAspectsLoaded(Result<serde_json::Value, String>),
-    HoroscopeLoaded(Result<Option<pursuit_week4_automation::astrology::interpretation::HoroscopeReading>, String>),
+    HoroscopeLoaded(Result<Option<nisaba_engine::astrology::interpretation::HoroscopeReading>, String>),
     MacroDataLoaded(Result<Vec<MacroIndicator>, String>),
     ShortInterestLoaded(Result<Option<ShortInterest>, String>),
-    RssToneLoaded(Result<Option<pursuit_week4_automation::models::RssToneScore>, String>),
+    RssToneLoaded(Result<Option<nisaba_engine::models::RssToneScore>, String>),
     FundamentalsLoaded(Result<Option<FundamentalMetric>, String>),
     DcfGrowthRateInput(String),
     DcfGrowthYearsInput(String),
